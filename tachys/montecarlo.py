@@ -2,13 +2,13 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from flax import struct
 from jax.sharding import PartitionSpec as P
 from jax.experimental.shard_map import shard_map
 
 from tachys.parallel import mesh
 from tachys.lattice.operator.local_estimator import _apply_masked
+from tachys.utils import _cast_floating_to
 
 
 class _BaseAction(struct.PyTreeNode):
@@ -91,15 +91,6 @@ class CompositeAction(_BaseAction):
         new_state    = jax.tree.map(lambda x: x[:, 0], new_state)
 
         return new_state, allowed_move, log_prob_correction, action_id
-
-
-def _cast_floating_to(tree, dtype):
-    """Cast all floating-point leaves of a pytree to ``dtype``."""
-    def conditional_cast(x):
-        if isinstance(x, (np.ndarray, jnp.ndarray)) and jnp.issubdtype(x.dtype, jnp.floating):
-            x = x.astype(dtype)
-        return x
-    return jax.tree_util.tree_map(conditional_cast, tree)
 
 
 def mc_step(state, key, action, wf, log_amps, optimize_mask=True, batch_expand=1):
