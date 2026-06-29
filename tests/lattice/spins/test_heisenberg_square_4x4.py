@@ -22,8 +22,10 @@ def ground_state_energy():
     def pack(state):
         bits = (np.asarray(state.spins) + 1) // 2
         return (bits * 2 ** np.arange(state.spins.shape[-1])).sum(axis=-1)
-
-    eigenvalues, _ = exact_diag(state_full_hilbert, H, pack, k=1)
+    
+    hilbert_dim = 2**N
+    
+    eigenvalues, _ = exact_diag(state_full_hilbert, H, hilbert_dim, pack, k=1)
     return float(eigenvalues[0])
 
 
