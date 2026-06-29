@@ -1,0 +1,934 @@
+<title>Tachys — Neural Quantum States for JAX</title>
+<meta name="description" content="Functional NQS library for lattice quantum systems. Operators are callables, states are pytrees, physics is composable.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#F7F9FD;
+  --surface:#FFFFFF;
+  --hero:#081525;
+  --navy:#0D1B2E;
+  --blue:#1A5FEB;
+  --blue-dim:#1550C8;
+  --blue-lt:#4F8EF7;
+  --violet:#7C3AED;
+  --green:#10B981;
+  --orange:#D97706;
+  --muted:#5B6E8A;
+  --border:#D4DCEB;
+  --code:#0D1B2E;
+  --text:#111827;
+  --text2:#374151;
+  --font:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,monospace;
+  --r:6px;--rl:10px;
+}
+
+html{scroll-behavior:smooth}
+body{font-family:var(--font);font-size:1rem;line-height:1.7;color:var(--text);background:var(--bg)}
+
+h1,h2,h3,h4{color:var(--navy);line-height:1.2;text-wrap:balance;font-weight:700}
+h2{font-size:1.875rem;letter-spacing:-.02em;margin-bottom:.75rem}
+h3{font-size:1.25rem;letter-spacing:-.01em;margin-bottom:.5rem}
+p{max-width:65ch;color:var(--text2)}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+strong{font-weight:600;color:var(--navy)}
+code{font-family:var(--mono);font-size:.875em}
+sub,sup{font-size:.75em}
+
+/* layout */
+.container{max-width:1100px;margin:0 auto;padding:0 2rem}
+.content{max-width:860px;margin:0 auto;padding:0 2rem}
+
+/* nav */
+nav.top{
+  position:sticky;top:0;z-index:100;
+  background:rgba(247,249,253,.93);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+  height:56px;display:flex;align-items:center;
+  justify-content:space-between;padding:0 2rem;
+}
+.n-logo{
+  display:flex;align-items:center;gap:9px;
+  font-weight:700;font-size:1.05rem;
+  color:var(--navy);letter-spacing:-.03em;
+}
+.n-logo .lm{
+  width:26px;height:26px;background:var(--blue);border-radius:5px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:5px;
+}
+.n-logo .dot{background:#fff;border-radius:50%}
+.n-links{display:flex;align-items:center;gap:1.5rem}
+.n-links a{font-size:.875rem;color:var(--muted);font-weight:500}
+.n-links a:hover{color:var(--blue);text-decoration:none}
+.n-ver{
+  font-family:var(--mono);font-size:.7rem;
+  background:var(--border);color:var(--muted);
+  padding:2px 8px;border-radius:100px;
+}
+
+/* hero */
+.hero{
+  background:var(--hero);
+  background-image:radial-gradient(circle,rgba(26,95,235,.16) 1px,transparent 1px);
+  background-size:28px 28px;
+  padding:6rem 2rem 5rem;
+  position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 70% 55% at 50% -5%,rgba(26,95,235,.13) 0%,transparent 65%);
+  pointer-events:none;
+}
+.hero-in{max-width:820px;margin:0 auto;position:relative}
+.eyebrow{
+  font-size:.75rem;font-family:var(--mono);color:var(--blue-lt);
+  letter-spacing:.1em;text-transform:uppercase;
+  margin-bottom:1.25rem;display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:'';width:18px;height:1px;background:var(--blue-lt)}
+.hero h1{
+  font-size:clamp(2.4rem,5.5vw,3.6rem);
+  color:#E8EDF7;letter-spacing:-.04em;
+  margin-bottom:1.1rem;line-height:1.08;
+}
+.hero h1 em{font-style:normal;color:var(--blue-lt)}
+.hero .lead{
+  font-size:1.1rem;color:#8B96B0;
+  max-width:52ch;line-height:1.65;margin-bottom:2.25rem;
+}
+.hero-acts{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--blue);color:#fff;
+  padding:10px 22px;border-radius:var(--r);
+  font-size:.875rem;font-weight:600;
+  transition:background .15s;
+}
+.btn:hover{background:var(--blue-dim);text-decoration:none}
+.install-pill{
+  display:inline-flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:var(--r);padding:10px 16px;
+  font-family:var(--mono);font-size:.875rem;color:#8B96B0;
+}
+.install-pill .pr{color:#4F6280}
+.install-pill .cm{color:#E8EDF7}
+
+/* feature strip */
+.feat{background:var(--surface);border-bottom:1px solid var(--border);padding:3.5rem 0}
+.feat-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:2px;background:var(--border);
+  border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;
+}
+.fc{background:var(--surface);padding:2rem}
+.fc-icon{
+  width:36px;height:36px;border-radius:var(--r);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1rem;margin-bottom:1rem;font-family:var(--mono);
+  font-weight:700;
+}
+.fc-icon.b{background:rgba(26,95,235,.1);color:var(--blue)}
+.fc-icon.v{background:rgba(124,58,237,.1);color:var(--violet)}
+.fc-icon.g{background:rgba(16,185,129,.1);color:var(--green)}
+.fc h3{font-size:1rem;margin-bottom:.4rem}
+.fc p{font-size:.875rem;color:var(--muted);max-width:none}
+
+/* toc strip */
+.toc{
+  display:flex;overflow-x:auto;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);padding:0 2rem;
+  scrollbar-width:none;
+}
+.toc::-webkit-scrollbar{display:none}
+.toc a{
+  font-size:.875rem;font-weight:500;color:var(--muted);
+  padding:14px 14px;white-space:nowrap;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+}
+.toc a:hover{color:var(--navy);text-decoration:none}
+
+/* sections */
+.sec{padding:4rem 0;border-bottom:1px solid var(--border)}
+.sec-lbl{
+  font-size:.7rem;font-family:var(--mono);color:var(--blue);
+  letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+  margin-bottom:.4rem;
+}
+.sec h2{margin-bottom:.75rem}
+.sec .lead-p{margin-bottom:2rem}
+
+/* code blocks */
+.cb{
+  background:var(--code);border-radius:var(--rl);overflow:hidden;
+  margin:1.5rem 0;border:1px solid rgba(255,255,255,.05);
+}
+.cb-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 16px;border-bottom:1px solid rgba(255,255,255,.05);
+}
+.cb-file{font-family:var(--mono);font-size:.7rem;color:#4F6280}
+.cb-lang{
+  font-family:var(--mono);font-size:.7rem;
+  background:rgba(26,95,235,.18);color:var(--blue-lt);
+  padding:2px 8px;border-radius:4px;
+}
+.cb pre{
+  padding:1.25rem 1.5rem;overflow-x:auto;
+  font-family:var(--mono);font-size:.8rem;line-height:1.75;
+  color:#C8D4E8;
+}
+/* syntax */
+.kw{color:#A78BFA}
+.fn{color:#60A5FA}
+.cls{color:#34D399}
+.st{color:#6EE7B7}
+.nm{color:#FCD34D}
+.cm{color:#4A5E7A;font-style:italic}
+.op{color:#93C5FD}
+
+/* inline code */
+p code,li code,.ic{
+  background:rgba(26,95,235,.08);color:var(--blue-dim, #1550C8);
+  padding:1px 5px;border-radius:4px;font-size:.85em;
+}
+
+/* callout */
+.note{
+  border-left:3px solid var(--blue);background:rgba(26,95,235,.05);
+  padding:.9rem 1.1rem;border-radius:0 var(--r) var(--r) 0;margin:1.25rem 0;
+}
+.note.tip{border-color:var(--green);background:rgba(16,185,129,.05)}
+.note p{font-size:.875rem;color:var(--text2);max-width:none;margin:0}
+
+/* divider */
+.div{border:none;border-top:1px dashed var(--border);margin:2.5rem 0}
+
+/* module path chip */
+.mp{
+  font-family:var(--mono);font-size:.7rem;color:var(--muted);
+  background:var(--border);padding:3px 10px;border-radius:100px;
+  display:inline-block;margin-bottom:1.25rem;
+}
+
+/* concept card */
+.cc{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--rl);padding:1.75rem;margin-bottom:1.75rem;
+}
+.cc h3{font-size:1.2rem;margin-bottom:.6rem}
+.cc p{margin-bottom:.75rem}
+.cc p:last-child{margin-bottom:0}
+
+/* API item */
+.ai{border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:1.25rem}
+.ai-head{
+  background:var(--surface);padding:.9rem 1.1rem;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:baseline;gap:.65rem;flex-wrap:wrap;
+}
+.ak{
+  font-size:.65rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  padding:2px 8px;border-radius:4px;font-family:var(--mono);
+}
+.ak.fn{background:rgba(26,95,235,.1);color:var(--blue)}
+.ak.cl{background:rgba(124,58,237,.1);color:var(--violet)}
+.ak.dc{background:rgba(16,185,129,.1);color:var(--green)}
+.ai-sig{font-family:var(--mono);font-size:.875rem;color:var(--navy);font-weight:600}
+.ai-body{padding:1.1rem;background:var(--bg)}
+.ai-desc{font-size:.875rem;color:var(--text2);margin-bottom:.75rem;max-width:none}
+.ai-desc:last-child{margin-bottom:0}
+
+/* param table */
+.pt{width:100%;border-collapse:collapse;font-size:.875rem}
+.pt th{
+  text-align:left;font-size:.65rem;font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+  padding:6px 10px;border-bottom:1px solid var(--border);
+}
+.pt td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.pt tr:last-child td{border-bottom:none}
+.pn{font-family:var(--mono);font-size:.8rem;color:var(--navy);font-weight:600}
+.pt-wrap{overflow-x:auto}
+.ty{
+  font-family:var(--mono);font-size:.75rem;
+  padding:2px 7px;border-radius:4px;white-space:nowrap;
+  font-weight:600;
+}
+.ty.arr{background:rgba(26,95,235,.1);color:var(--blue)}
+.ty.int{background:rgba(217,119,6,.12);color:var(--orange)}
+.ty.flt{background:rgba(217,119,6,.12);color:var(--orange)}
+.ty.bol{background:rgba(16,185,129,.1);color:var(--green)}
+.ty.tup{background:rgba(16,185,129,.1);color:var(--green)}
+.ty.cal{background:rgba(124,58,237,.1);color:var(--violet)}
+.ty.sta{background:rgba(124,58,237,.1);color:var(--violet)}
+.ty.op{background:rgba(26,95,235,.1);color:var(--blue)}
+.ty.key{background:rgba(26,95,235,.1);color:var(--blue)}
+
+/* returns note */
+.ret{
+  margin-top:.75rem;font-size:.875rem;color:var(--text2);
+  padding:.65rem 1rem;background:rgba(26,95,235,.04);
+  border-radius:var(--r);border:1px solid var(--border);
+}
+.ret strong{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:2px}
+
+/* formula */
+.formula{
+  font-family:var(--mono);font-size:.875rem;color:var(--navy);
+  background:rgba(26,95,235,.05);border:1px solid var(--border);
+  padding:.75rem 1rem;border-radius:var(--r);margin:.75rem 0;
+  overflow-x:auto;white-space:nowrap;
+}
+
+/* footer */
+footer{
+  background:var(--navy);color:#4A5E7A;
+  padding:2.5rem 2rem;text-align:center;font-size:.875rem;
+}
+footer a{color:#6B7FA0}
+
+@media(max-width:768px){
+  .feat-grid{grid-template-columns:1fr}
+  .n-links{display:none}
+  .hero h1{font-size:2.1rem}
+}
+</style>
+
+<!-- NAV -->
+<nav class="top">
+  <a href="#" class="n-logo" style="text-decoration:none">
+    <div class="lm">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+    tachys
+  </a>
+  <div class="n-links">
+    <a href="#concepts">Concepts</a>
+    <a href="#api">API</a>
+    <a href="#examples">Examples</a>
+    <span class="n-ver">v0.1.0</span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <div class="hero-in">
+    <div class="eyebrow">Neural Quantum States · JAX</div>
+    <h1>Operators are <em>functions</em>.<br>Physics is composable.</h1>
+    <p class="lead">
+      Tachys is a JAX library for quantum many-body physics on lattices. Operators are callable objects — you compose them with ordinary arithmetic, apply them to batched states, and hand the result to an exact-diagonalization engine.
+    </p>
+    <div class="hero-acts">
+      <a href="#quickstart" class="btn">Get started →</a>
+      <div class="install-pill">
+        <span class="pr">$</span>
+        <span class="cm">pip install tachys</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURE STRIP -->
+<div class="feat">
+  <div class="container">
+    <div class="feat-grid">
+      <div class="fc">
+        <div class="fc-icon b">⊕</div>
+        <h3>Functional operator algebra</h3>
+        <p>Operators compose with <code>+</code> and <code>*</code>. Any linear combination or product is itself a callable — there is no boundary between a primitive operator and a full Hamiltonian.</p>
+      </div>
+      <div class="fc">
+        <div class="fc-icon v">⟩</div>
+        <h3>JAX-native state pytrees</h3>
+        <p>States extend Flax <code>PyTreeNode</code>. They flow through <code>jit</code>, <code>vmap</code>, and <code>grad</code> without adaptation — batching is built in, not bolted on.</p>
+      </div>
+      <div class="fc">
+        <div class="fc-icon g">λ</div>
+        <h3>One-call exact diagonalization</h3>
+        <p>Generate the full Hilbert space, build the sparse matrix, and compute the lowest eigenvalues — from basis to spectrum in a single function call.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <a href="#installation">Installation</a>
+  <a href="#quickstart">Quickstart</a>
+  <a href="#concepts">Concepts</a>
+  <a href="#api-states">States</a>
+  <a href="#api-operators">Operators</a>
+  <a href="#api-hamiltonians">Hamiltonians</a>
+  <a href="#api-exact-diag">Exact Diag</a>
+  <a href="#examples">Examples</a>
+</div>
+
+<!-- INSTALLATION -->
+<section class="sec" id="installation">
+  <div class="content">
+    <div class="sec-lbl">Setup</div>
+    <h2>Installation</h2>
+    <p class="lead-p">Tachys requires Python ≥ 3.9. Install JAX first with the backend that matches your hardware, then install Tachys.</p>
+    <div class="cb">
+      <div class="cb-head"><span class="cb-file">shell</span><span class="cb-lang">bash</span></div>
+      <pre><span class="cm"># CPU-only JAX</span>
+pip install jax
+
+<span class="cm"># GPU (CUDA 12)</span>
+pip install "jax[cuda12]"
+
+<span class="cm"># Tachys</span>
+pip install tachys</pre>
+    </div>
+  </div>
+</section>
+
+<!-- QUICKSTART -->
+<section class="sec" id="quickstart">
+  <div class="content">
+    <div class="sec-lbl">Quickstart</div>
+    <h2>Ground state in ten lines</h2>
+    <p class="lead-p">Compute the ground state energy of the antiferromagnetic Heisenberg model on a 4×4 square lattice. The three steps — build an operator, generate the basis, run exact diagonalization — are the same for every model in Tachys.</p>
+    <div class="cb">
+      <div class="cb-head"><span class="cb-file">heisenberg_quickstart.py</span><span class="cb-lang">python</span></div>
+      <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
+<span class="kw">from</span> tachys.lattice.spins.spin_state <span class="kw">import</span> SpinState
+<span class="kw">from</span> tachys.lattice.spins.hamiltonians.heisenberg <span class="kw">import</span> heisenberg_square_pbc
+<span class="kw">from</span> tachys.lattice.exact_diag <span class="kw">import</span> spins_hilbert_space, exact_diag
+
+L, N = <span class="nm">4</span>, <span class="nm">16</span>
+
+<span class="cm"># 1. Build the Hamiltonian — the result is a callable</span>
+H = <span class="fn">heisenberg_square_pbc</span>(L=L, J=<span class="nm">1.0</span>)
+
+<span class="cm"># 2. Generate the complete 2^16-dimensional basis</span>
+all_configs = <span class="fn">spins_hilbert_space</span>(N)                             <span class="cm"># shape (65536, 16)</span>
+state_full  = <span class="cls">SpinState</span>(spins=jnp.<span class="fn">array</span>(all_configs, dtype=jnp.int8), Ns=N)
+
+<span class="cm"># 3. Pack function: spin config → unique integer index</span>
+<span class="kw">def</span> <span class="fn">pack</span>(state):
+    bits = (np.<span class="fn">asarray</span>(state.spins) <span class="op">+</span> <span class="nm">1</span>) <span class="op">//</span> <span class="nm">2</span>         <span class="cm"># {-1,+1} → {0,1}</span>
+    <span class="kw">return</span> (bits <span class="op">*</span> <span class="nm">2</span> <span class="op">**</span> np.<span class="fn">arange</span>(bits.shape[<span class="op">-</span><span class="nm">1</span>])).<span class="fn">sum</span>(axis=<span class="op">-</span><span class="nm">1</span>)
+
+eigenvalues, _ = <span class="fn">exact_diag</span>(state_full, H, pack, k=<span class="nm">1</span>)
+
+<span class="fn">print</span>(<span class="st">f"E₀     = {eigenvalues[0]:.6f}"</span>)       <span class="cm"># -11.228452</span>
+<span class="fn">print</span>(<span class="st">f"E₀ / N = {eigenvalues[0] / N:.6f}"</span>)   <span class="cm"># -0.701778</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- CONCEPTS -->
+<section class="sec" id="concepts">
+  <div class="content">
+    <div class="sec-lbl">Core Concepts</div>
+    <h2>How Tachys works</h2>
+    <p class="lead-p">Three primitives — states, operators, and the diagonalization engine — cover the full workflow. Each is independently composable.</p>
+
+    <!-- States -->
+    <div class="cc" id="concept-states">
+      <h3>States as pytrees</h3>
+      <p>A <code>State</code> holds a <em>batch</em> of configurations. The first axis is the batch dimension; the second indexes sites or modes. Extending <code>flax.struct.PyTreeNode</code> means every state is a valid JAX pytree — it passes through <code>jit</code>, <code>vmap</code>, and <code>grad</code> without any wrapping.</p>
+      <div class="cb">
+        <div class="cb-head"><span class="cb-file">states.py</span><span class="cb-lang">python</span></div>
+        <pre><span class="kw">from</span> tachys.lattice.spins.spin_state <span class="kw">import</span> SpinState
+<span class="kw">from</span> tachys.lattice.fermions.fermion_state <span class="kw">import</span> FermionState
+<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
+
+<span class="cm"># Spin-½: values ∈ {-1, +1}, shape (batch, N_sites)</span>
+spins = jnp.<span class="fn">array</span>([[<span class="op">-</span><span class="nm">1</span>, <span class="nm">1</span>, <span class="op">-</span><span class="nm">1</span>, <span class="nm">1</span>]], dtype=jnp.int8)
+s = <span class="cls">SpinState</span>(spins=spins, Ns=<span class="nm">4</span>)
+
+<span class="cm"># Fermionic: binary occupation n_{i,σ} ∈ {0,1}</span>
+<span class="cm"># Modes ordered: (site 0 ↑, site 0 ↓, site 1 ↑, site 1 ↓, …)</span>
+occ = jnp.<span class="fn">array</span>([[<span class="nm">1</span>, <span class="nm">0</span>, <span class="nm">0</span>, <span class="nm">1</span>]], dtype=jnp.int8)
+f = <span class="cls">FermionState</span>(occupations=occ, Ns=<span class="nm">2</span>, Ne=<span class="nm">2</span>)</pre>
+      </div>
+      <div class="note">
+        <p><strong>Batching is automatic.</strong> Operators vmap over the batch axis internally. Pass a full Hilbert space of 65 536 configs and get back 65 536 results — no Python loop required.</p>
+      </div>
+    </div>
+
+    <!-- Operators -->
+    <div class="cc" id="concept-operators">
+      <h3>Operators as callables</h3>
+      <p>An operator is an object with a <code>__call__</code> method. Call it on a batched state and it returns either a <code>DiagonalResult</code> (for diagonal operators like S<sup>z</sup>) or an <code>OffdiagonalResult</code> (for operators that connect different basis states). The caller never manages vmapping — that is handled by the base class.</p>
+      <div class="cb">
+        <div class="cb-head"><span class="cb-file">operators.py</span><span class="cb-lang">python</span></div>
+        <pre><span class="kw">from</span> tachys.lattice.spins.spin_operators <span class="kw">import</span> Sz, Splus, Sminus
+
+sz0  = <span class="cls">Sz</span>(site=<span class="nm">0</span>)      <span class="cm"># S^z at site 0 — diagonal</span>
+sp1  = <span class="cls">Splus</span>(site=<span class="nm">1</span>)   <span class="cm"># S^+ at site 1 — off-diagonal</span>
+
+<span class="cm"># Call like any function</span>
+diag_result    = <span class="fn">sz0</span>(state)    <span class="cm"># DiagonalResult</span>
+offdiag_result = <span class="fn">sp1</span>(state)    <span class="cm"># OffdiagonalResult</span>
+
+<span class="cm"># DiagonalResult</span>
+diag_result.matrix_element          <span class="cm"># shape (batch,)</span>
+
+<span class="cm"># OffdiagonalResult</span>
+offdiag_result.connected_states     <span class="cm"># shape (batch, N) — the reached state</span>
+offdiag_result.mask                 <span class="cm"># shape (batch,)  — False when operator annihilates</span>
+offdiag_result.matrix_element       <span class="cm"># shape (batch,)</span></pre>
+      </div>
+    </div>
+
+    <!-- Operator algebra -->
+    <div class="cc" id="concept-algebra">
+      <h3>Operator algebra</h3>
+      <p>Operators support arithmetic. Adding two operators returns an <code>_OperatorSum</code>; multiplying by a scalar rescales the coupling; multiplying two operators produces their sequential product. Every composite is itself a callable — there is no distinction between a primitive operator and a Hamiltonian built from a hundred terms.</p>
+      <div class="cb">
+        <div class="cb-head"><span class="cb-file">algebra.py</span><span class="cb-lang">python</span></div>
+        <pre><span class="kw">from</span> tachys.lattice.spins.spin_operators <span class="kw">import</span> Sz, Splus, Sminus
+<span class="kw">from</span> tachys.lattice.spins.hamiltonians.heisenberg <span class="kw">import</span> heisenberg_square_pbc
+
+<span class="cm"># Scalar multiplication — rescales the coupling</span>
+half_sz = <span class="nm">0.5</span> <span class="op">*</span> <span class="cls">Sz</span>(site=<span class="nm">0</span>)
+
+<span class="cm"># Operator sum — returns _OperatorSum, still callable</span>
+ising_chain = <span class="cls">Sz</span>(site=<span class="nm">0</span>) <span class="op">*</span> <span class="cls">Sz</span>(site=<span class="nm">1</span>) <span class="op">+</span> <span class="cls">Sz</span>(site=<span class="nm">1</span>) <span class="op">*</span> <span class="cls">Sz</span>(site=<span class="nm">2</span>)
+
+<span class="cm"># Operator product — sequential application with Jordan-Wigner signs intact</span>
+hopping_term = <span class="cls">Splus</span>(site=<span class="nm">0</span>) <span class="op">*</span> <span class="cls">Sminus</span>(site=<span class="nm">1</span>)
+
+<span class="cm"># Compose freely — add a uniform field to any existing Hamiltonian</span>
+H = <span class="fn">heisenberg_square_pbc</span>(L=<span class="nm">4</span>)
+H_field = H <span class="op">+</span> <span class="nm">0.1</span> <span class="op">*</span> <span class="cls">Sz</span>(site=<span class="nm">0</span>)   <span class="cm"># perturb site 0</span>
+result  = <span class="fn">H_field</span>(state)            <span class="cm"># DiagOffdiagResult — same interface as always</span></pre>
+      </div>
+      <div class="note tip">
+        <p><strong>Differentiability.</strong> Because operators are <code>PyTreeNode</code>s, coupling constants are leaves in the pytree. You can differentiate through them with <code>jax.grad</code> — which opens the door to variational optimization over Hamiltonian parameters.</p>
+      </div>
+    </div>
+
+    <!-- Hamiltonians -->
+    <div class="cc" id="concept-hamiltonians">
+      <h3>Built-in Hamiltonians</h3>
+      <p>Tachys ships Hamiltonians for two standard lattice models, both on the square lattice with periodic boundary conditions. Each factory function returns an operator that can be further composed, scaled, or perturbed.</p>
+      <div class="cb">
+        <div class="cb-head"><span class="cb-file">hamiltonians.py</span><span class="cb-lang">python</span></div>
+        <pre><span class="kw">from</span> tachys.lattice.spins.hamiltonians.heisenberg <span class="kw">import</span> heisenberg_square_pbc
+<span class="kw">from</span> tachys.lattice.fermions.hamiltonians.hubbard <span class="kw">import</span> hubbard_square_pbc
+
+<span class="cm"># Heisenberg: H = J Σ_{⟨i,j⟩} [S^z_i S^z_j + ½(S^+_i S^-_j + h.c.)]</span>
+H_heis = <span class="fn">heisenberg_square_pbc</span>(L=<span class="nm">4</span>, J=<span class="nm">1.0</span>)
+
+<span class="cm"># Hubbard: H = -t Σ c†_{i,σ} c_{j,σ} + U Σ n_{i,↑} n_{i,↓}</span>
+H_hub  = <span class="fn">hubbard_square_pbc</span>(L=<span class="nm">4</span>, t=<span class="nm">1.0</span>, U=<span class="nm">8.0</span>)
+
+<span class="cm"># They are ordinary operators — compose them freely</span>
+H_combined = H_heis <span class="op">+</span> <span class="nm">0.5</span> <span class="op">*</span> H_hub</pre>
+      </div>
+    </div>
+
+    <!-- Exact diag -->
+    <div class="cc" id="concept-exact-diag">
+      <h3>Exact diagonalization</h3>
+      <p><code>exact_diag</code> applies the Hamiltonian to every basis state, assembles a sparse COO matrix from the diagonal and off-diagonal results, and calls <code>scipy.sparse.linalg.eigsh</code> to find the <code>k</code> lowest eigenvalues. The only thing you provide beyond the operator and the basis is a <em>pack</em> function that maps states to unique integer indices — the single point of contact between your state representation and the matrix structure.</p>
+      <div class="cb">
+        <div class="cb-head"><span class="cb-file">exact_diag_demo.py</span><span class="cb-lang">python</span></div>
+        <pre><span class="kw">from</span> tachys.lattice.exact_diag <span class="kw">import</span> exact_diag, spins_hilbert_space
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+all_configs = <span class="fn">spins_hilbert_space</span>(N=<span class="nm">16</span>)                <span class="cm"># (65536, 16)</span>
+state_full  = <span class="cls">SpinState</span>(spins=jnp.<span class="fn">array</span>(all_configs), Ns=<span class="nm">16</span>)
+
+<span class="cm"># The pack function only needs to be injective</span>
+<span class="kw">def</span> <span class="fn">pack</span>(state):
+    bits = (np.<span class="fn">asarray</span>(state.spins) <span class="op">+</span> <span class="nm">1</span>) <span class="op">//</span> <span class="nm">2</span>
+    <span class="kw">return</span> (bits <span class="op">*</span> <span class="nm">2</span> <span class="op">**</span> np.<span class="fn">arange</span>(bits.shape[<span class="op">-</span><span class="nm">1</span>])).<span class="fn">sum</span>(axis=<span class="op">-</span><span class="nm">1</span>)
+
+eigenvalues, eigenvectors = <span class="fn">exact_diag</span>(state_full, H, pack, k=<span class="nm">1</span>)
+<span class="cm"># eigenvalues: (1,)  — k lowest eigenvalues, ascending</span>
+<span class="cm"># eigenvectors: (65536, 1)</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- API REFERENCE -->
+<section class="sec" id="api">
+  <div class="content">
+    <div class="sec-lbl">API Reference</div>
+    <h2>Reference</h2>
+
+    <!-- ── STATES ── -->
+    <h3 id="api-states" style="margin-top:2rem;margin-bottom:.75rem">States</h3>
+
+    <div class="mp">tachys.lattice.spins.spin_state</div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak dc">dataclass</span>
+        <span class="ai-sig">SpinState(spins, Ns)</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Batched spin-½ configurations on a lattice. Extends <code>flax.struct.PyTreeNode</code>.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">spins</td><td><span class="ty arr">jax.Array</span></td><td>Shape <code>(batch, N_sites)</code>. Spin values in {−1, +1}.</td></tr>
+            <tr><td class="pn">Ns</td><td><span class="ty int">int</span></td><td>Number of lattice sites.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak fn">function</span>
+        <span class="ai-sig">init_config_fixed_magn(key, N, sz=0, N_mc=1)</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Sample random spin configurations with a fixed total magnetization.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">key</td><td><span class="ty key">PRNGKey</span></td><td>JAX random key.</td></tr>
+            <tr><td class="pn">N</td><td><span class="ty int">int</span></td><td>Number of spins.</td></tr>
+            <tr><td class="pn">sz</td><td><span class="ty int">int</span></td><td>Target magnetization. Default <code>0</code>.</td></tr>
+            <tr><td class="pn">N_mc</td><td><span class="ty int">int</span></td><td>Number of configurations to generate.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="ret"><strong>Returns</strong><code>jnp.ndarray</code>, shape <code>(N_mc, N)</code>, values in {−1, +1}.</div>
+      </div>
+    </div>
+
+    <div class="mp" style="margin-top:1.5rem">tachys.lattice.fermions.fermion_state</div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak dc">dataclass</span>
+        <span class="ai-sig">FermionState(occupations, Ns, Ne, Nbands=2)</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Batched fermionic occupation-number configurations. Modes are ordered as (site 0 ↑, site 0 ↓, site 1 ↑, site 1 ↓, …). <code>Ne</code> and <code>Nbands</code> are non-pytree static fields.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">occupations</td><td><span class="ty arr">jax.Array</span></td><td>Shape <code>(batch, Ns × Nbands)</code>. Binary occupation numbers ∈ {0, 1}.</td></tr>
+            <tr><td class="pn">Ns</td><td><span class="ty int">int</span></td><td>Number of lattice sites.</td></tr>
+            <tr><td class="pn">Ne</td><td><span class="ty int">int</span></td><td>Total number of electrons. Static — must be fixed at construction.</td></tr>
+            <tr><td class="pn">Nbands</td><td><span class="ty int">int</span></td><td>Number of bands. Default <code>2</code> (spin-up / spin-down).</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak fn">function</span>
+        <span class="ai-sig">init_config_spinful(key, Ns, Ne, sz=0, N_mc=1, particle_hole=False)</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Sample random spinful fermionic configurations with fixed particle number and spin magnetization.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">key</td><td><span class="ty key">PRNGKey</span></td><td>JAX random key.</td></tr>
+            <tr><td class="pn">Ns</td><td><span class="ty int">int</span></td><td>Number of lattice sites.</td></tr>
+            <tr><td class="pn">Ne</td><td><span class="ty int">int</span></td><td>Number of electrons. Must be even.</td></tr>
+            <tr><td class="pn">sz</td><td><span class="ty int">int</span></td><td>Spin-magnetization offset. Default <code>0</code>.</td></tr>
+            <tr><td class="pn">N_mc</td><td><span class="ty int">int</span></td><td>Number of configurations.</td></tr>
+            <tr><td class="pn">particle_hole</td><td><span class="ty bol">bool</span></td><td>Apply particle-hole transformation to the spin-down band.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="ret"><strong>Returns</strong><code>(config, N_up, N_down)</code>. <code>config</code> has shape <code>(N_mc, 2·Ns)</code>.</div>
+      </div>
+    </div>
+
+    <!-- ── OPERATORS ── -->
+    <hr class="div">
+    <h3 id="api-operators" style="margin-bottom:.75rem">Operators</h3>
+
+    <div class="mp">tachys.lattice.operator.base</div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak cl">class</span>
+        <span class="ai-sig">_Operator(coupling=1.0)</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Abstract base for all operators. Subclass it and implement <code>apply(state)</code>. <code>__call__</code> automatically wraps <code>apply</code> in <code>jax.vmap</code> over the batch axis.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Member</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">coupling</td><td><span class="ty flt">float</span></td><td>Scalar prefactor applied to all matrix elements.</td></tr>
+            <tr><td class="pn">__call__(state)</td><td><span class="ty sta">State</span> → result</td><td>Vectorized application over the batch axis.</td></tr>
+            <tr><td class="pn">apply(state)</td><td><span class="ty sta">State</span> → result</td><td>Per-sample application. Override in subclasses.</td></tr>
+            <tr><td class="pn">__add__(other)</td><td><span class="ty op">_Operator</span></td><td>Returns <code>_OperatorSum</code>.</td></tr>
+            <tr><td class="pn">__mul__(other)</td><td>scalar | <span class="ty op">_Operator</span></td><td>Scalar: rescales coupling. Operator: returns <code>_OperatorMul</code>.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div class="mp" style="margin-top:1.5rem">tachys.lattice.spins.spin_operators</div>
+
+    <div class="ai">
+      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">Sz(site, coupling=1.0)</span></div>
+      <div class="ai-body">
+        <p class="ai-desc">Diagonal spin-z operator. Returns <code>DiagonalResult</code> with element <code>0.5 · coupling · σ<sub>z</sub></code>.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Parameter</th><th>Type</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">site</td><td><span class="ty int">int</span></td></tr>
+            <tr><td class="pn">coupling</td><td><span class="ty flt">float</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div class="ai">
+      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">Splus(site, coupling=1.0)</span></div>
+      <div class="ai-body">
+        <p class="ai-desc">Raising operator S<sup>+</sup> = (σ<sub>x</sub> + iσ<sub>y</sub>)/2. Flips the spin at <code>site</code> from ↓ to ↑. Returns <code>OffdiagonalResult</code>; <code>mask=False</code> when the spin is already ↑.</p>
+      </div>
+    </div>
+
+    <div class="ai">
+      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">Sminus(site, coupling=1.0)</span></div>
+      <div class="ai-body">
+        <p class="ai-desc">Lowering operator S<sup>−</sup> = (σ<sub>x</sub> − iσ<sub>y</sub>)/2. Flips the spin at <code>site</code> from ↑ to ↓. Returns <code>OffdiagonalResult</code>; <code>mask=False</code> when the spin is already ↓.</p>
+      </div>
+    </div>
+
+    <div class="ai">
+      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">XYExchange(i, j, coupling=1.0)</span></div>
+      <div class="ai-body">
+        <p class="ai-desc">Two-body term S<sup>+</sup><sub>i</sub>S<sup>−</sup><sub>j</sub> + S<sup>−</sup><sub>i</sub>S<sup>+</sup><sub>j</sub>. Non-zero only when spins at sites <code>i</code> and <code>j</code> are antiparallel. Returns <code>OffdiagonalResult</code>.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Parameter</th><th>Type</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">i</td><td><span class="ty int">int</span></td></tr>
+            <tr><td class="pn">j</td><td><span class="ty int">int</span></td></tr>
+            <tr><td class="pn">coupling</td><td><span class="ty flt">float</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div class="mp" style="margin-top:1.5rem">tachys.lattice.fermions.fermion_operators</div>
+
+    <div class="ai">
+      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">C(site, band=1, coupling=1.0)</span></div>
+      <div class="ai-body">
+        <p class="ai-desc">Fermionic annihilation operator c<sub>i,σ</sub>. Removes an electron at <code>site</code> in <code>band</code> (0 = ↑, 1 = ↓), including the Jordan-Wigner fermionic sign. Returns <code>OffdiagonalResult</code>.</p>
+        <div class="note" style="margin-top:.75rem;margin-bottom:0">
+          <p>Convenience subclasses: <code>Cup(site)</code> sets band=0; <code>Cdn(site)</code> sets band=1.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="ai">
+      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">C_dag(site, band=1, coupling=1.0)</span></div>
+      <div class="ai-body">
+        <p class="ai-desc">Fermionic creation operator c<sup>†</sup><sub>i,σ</sub>. Adds an electron at <code>site</code> in <code>band</code>, including Jordan-Wigner sign. Returns <code>OffdiagonalResult</code>.</p>
+        <div class="note" style="margin-top:.75rem;margin-bottom:0">
+          <p>Convenience subclasses: <code>Cup_dag(site)</code> and <code>Cdn_dag(site)</code>.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="ai">
+      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">N(site, band=1, coupling=1.0)</span></div>
+      <div class="ai-body">
+        <p class="ai-desc">Number operator n<sub>i,σ</sub> = c<sup>†</sup><sub>i,σ</sub> c<sub>i,σ</sub>. Returns <code>DiagonalResult</code>.</p>
+        <div class="note" style="margin-top:.75rem;margin-bottom:0">
+          <p>Convenience subclasses: <code>Nup(site)</code> (band=0) and <code>Ndn(site)</code> (band=1).</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── HAMILTONIANS ── -->
+    <hr class="div">
+    <h3 id="api-hamiltonians" style="margin-bottom:.75rem">Hamiltonians</h3>
+
+    <div class="mp">tachys.lattice.spins.hamiltonians.heisenberg</div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak fn">function</span>
+        <span class="ai-sig">heisenberg_square_pbc(L, J=1.0)</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Heisenberg model on an L×L square lattice with periodic boundary conditions. Sites are indexed row-major: <code>site(x, y) = x·L + y</code>.</p>
+        <div class="formula">H = J · Σ<sub>⟨i,j⟩</sub> [ S<sup>z</sup><sub>i</sub> S<sup>z</sup><sub>j</sub> + ½ (S<sup>+</sup><sub>i</sub>S<sup>−</sup><sub>j</sub> + S<sup>−</sup><sub>i</sub>S<sup>+</sup><sub>j</sub>) ]</div>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">L</td><td><span class="ty int">int</span></td><td>Linear dimension. Total sites N = L².</td></tr>
+            <tr><td class="pn">J</td><td><span class="ty flt">float</span></td><td>Exchange coupling. Positive = antiferromagnetic.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="ret"><strong>Returns</strong><code>_OperatorSum</code></div>
+      </div>
+    </div>
+
+    <div class="mp" style="margin-top:1.5rem">tachys.lattice.fermions.hamiltonians.hubbard</div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak fn">function</span>
+        <span class="ai-sig">hubbard_square_pbc(L, t=1.0, U=0.0)</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Hubbard model on an L×L square lattice with periodic boundary conditions. Two bands (spin-up / spin-down) with nearest-neighbor hopping and on-site Coulomb repulsion.</p>
+        <div class="formula">H = −t · Σ<sub>⟨i,j⟩,σ</sub> (c<sup>†</sup><sub>i,σ</sub>c<sub>j,σ</sub> + h.c.) + U · Σ<sub>i</sub> n<sub>i,↑</sub>n<sub>i,↓</sub></div>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">L</td><td><span class="ty int">int</span></td><td>Linear dimension. Total sites N = L².</td></tr>
+            <tr><td class="pn">t</td><td><span class="ty flt">float</span></td><td>Hopping amplitude.</td></tr>
+            <tr><td class="pn">U</td><td><span class="ty flt">float</span></td><td>On-site Coulomb repulsion.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="ret"><strong>Returns</strong><code>_OperatorSum</code></div>
+      </div>
+    </div>
+
+    <!-- ── EXACT DIAG ── -->
+    <hr class="div">
+    <h3 id="api-exact-diag" style="margin-bottom:.75rem">Exact diagonalization</h3>
+
+    <div class="mp">tachys.lattice.exact_diag</div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak fn">function</span>
+        <span class="ai-sig">exact_diag(state_full_hilbert, H, pack, k=1)</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Build the sparse Hamiltonian matrix and compute its <code>k</code> lowest eigenvalues. Internally: applies <code>H</code> to every basis state, assembles a COO sparse matrix from diagonal and off-diagonal results, and calls <code>scipy.sparse.linalg.eigsh</code>.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">state_full_hilbert</td><td><span class="ty sta">State</span></td><td>Batch containing every basis state in the Hilbert space.</td></tr>
+            <tr><td class="pn">H</td><td><span class="ty cal">callable</span></td><td>Hamiltonian operator. Must return <code>DiagOffdiagResult</code>.</td></tr>
+            <tr><td class="pn">pack</td><td><span class="ty cal">callable</span></td><td>Maps a state batch to a 1-D integer index array. Must be injective over the Hilbert space.</td></tr>
+            <tr><td class="pn">k</td><td><span class="ty int">int</span></td><td>Number of lowest eigenvalues to compute.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="ret"><strong>Returns</strong><code>(eigenvalues, eigenvectors)</code>. Shapes: <code>(k,)</code> ascending, <code>(n_states, k)</code>.</div>
+      </div>
+    </div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak fn">function</span>
+        <span class="ai-sig">spins_hilbert_space(N, values=(-1, 1))</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Generate the complete Hilbert space for <code>N</code> spin-½ sites as all 2<sup>N</sup> basis states.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">N</td><td><span class="ty int">int</span></td><td>Number of spins.</td></tr>
+            <tr><td class="pn">values</td><td><span class="ty tup">tuple</span></td><td><code>(down, up)</code>. Defaults to <code>(-1, 1)</code>; use <code>(0, 1)</code> for binary encoding.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="ret"><strong>Returns</strong><code>np.ndarray</code>, shape <code>(2^N, N)</code>.</div>
+      </div>
+    </div>
+
+    <div class="ai">
+      <div class="ai-head">
+        <span class="ak fn">function</span>
+        <span class="ai-sig">fermions_hilbert_space(Ns, Ne, Nbands=2)</span>
+      </div>
+      <div class="ai-body">
+        <p class="ai-desc">Generate all valid fermionic occupation configurations: all ways to place <code>Ne</code> electrons on <code>Ns × Nbands</code> modes.</p>
+        <div class="pt-wrap"><table class="pt">
+          <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="pn">Ns</td><td><span class="ty int">int</span></td><td>Number of lattice sites.</td></tr>
+            <tr><td class="pn">Ne</td><td><span class="ty int">int</span></td><td>Number of electrons.</td></tr>
+            <tr><td class="pn">Nbands</td><td><span class="ty int">int</span></td><td>Number of bands. Default <code>2</code>.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="ret"><strong>Returns</strong><code>np.ndarray</code>, shape <code>(C(Ns·Nbands, Ne), Ns·Nbands)</code> of binary occupation vectors.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- EXAMPLES -->
+<section class="sec" id="examples">
+  <div class="content">
+    <div class="sec-lbl">Examples</div>
+    <h2>Examples</h2>
+
+    <h3 style="margin-top:2rem;margin-bottom:.4rem">Heisenberg model on a 4×4 lattice</h3>
+    <p style="margin-bottom:1.25rem">Benchmarked against E₀/N ≈ −0.7018 (Sandvik, 1997).</p>
+    <div class="cb">
+      <div class="cb-head"><span class="cb-file">examples/heisenberg_4x4.py</span><span class="cb-lang">python</span></div>
+      <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
+<span class="kw">from</span> tachys.lattice.spins.spin_state <span class="kw">import</span> SpinState
+<span class="kw">from</span> tachys.lattice.spins.hamiltonians.heisenberg <span class="kw">import</span> heisenberg_square_pbc
+<span class="kw">from</span> tachys.lattice.exact_diag <span class="kw">import</span> spins_hilbert_space, exact_diag
+
+L, N = <span class="nm">4</span>, <span class="nm">16</span>
+H = <span class="fn">heisenberg_square_pbc</span>(L=L, J=<span class="nm">1.0</span>)
+
+all_configs = <span class="fn">spins_hilbert_space</span>(N)
+state_full  = <span class="cls">SpinState</span>(spins=jnp.<span class="fn">array</span>(all_configs, dtype=jnp.int8), Ns=N)
+
+<span class="kw">def</span> <span class="fn">pack</span>(state):
+    bits = (np.<span class="fn">asarray</span>(state.spins) <span class="op">+</span> <span class="nm">1</span>) <span class="op">//</span> <span class="nm">2</span>
+    <span class="kw">return</span> (bits <span class="op">*</span> <span class="nm">2</span> <span class="op">**</span> np.<span class="fn">arange</span>(bits.shape[<span class="op">-</span><span class="nm">1</span>])).<span class="fn">sum</span>(axis=<span class="op">-</span><span class="nm">1</span>)
+
+eigenvalues, _ = <span class="fn">exact_diag</span>(state_full, H, pack, k=<span class="nm">1</span>)
+
+<span class="fn">print</span>(<span class="st">f"E₀     = {eigenvalues[0]:.8f}"</span>)      <span class="cm"># -11.22845248</span>
+<span class="fn">print</span>(<span class="st">f"E₀ / N = {eigenvalues[0] / N:.8f}"</span>)  <span class="cm"># -0.70177828</span></pre>
+    </div>
+
+    <h3 style="margin-top:2.5rem;margin-bottom:.4rem">Hubbard model at quarter filling</h3>
+    <p style="margin-bottom:1.25rem">4×4 lattice, N<sub>e</sub> = 4 electrons, two values of U/t. Benchmarked against Dagotto et al. (1992).</p>
+    <div class="cb">
+      <div class="cb-head"><span class="cb-file">examples/hubbard_4x4.py</span><span class="cb-lang">python</span></div>
+      <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
+<span class="kw">from</span> tachys.lattice.fermions.fermion_state <span class="kw">import</span> FermionState
+<span class="kw">from</span> tachys.lattice.fermions.hamiltonians.hubbard <span class="kw">import</span> hubbard_square_pbc
+<span class="kw">from</span> tachys.lattice.exact_diag <span class="kw">import</span> fermions_hilbert_space, exact_diag
+
+L, Ns, Ne = <span class="nm">4</span>, <span class="nm">16</span>, <span class="nm">4</span>
+
+all_configs = <span class="fn">fermions_hilbert_space</span>(Ns, Ne)  <span class="cm"># C(32, 4) = 35 960 states</span>
+state_full  = <span class="cls">FermionState</span>(
+    occupations=jnp.<span class="fn">array</span>(all_configs, dtype=jnp.int8),
+    Ns=Ns, Ne=Ne,
+)
+
+<span class="kw">def</span> <span class="fn">pack</span>(state):
+    occ = np.<span class="fn">asarray</span>(state.occupations)
+    <span class="kw">return</span> (occ <span class="op">*</span> <span class="nm">2</span> <span class="op">**</span> np.<span class="fn">arange</span>(occ.shape[<span class="op">-</span><span class="nm">1</span>])).<span class="fn">sum</span>(axis=<span class="op">-</span><span class="nm">1</span>)
+
+<span class="kw">for</span> U <span class="kw">in</span> (<span class="nm">4.0</span>, <span class="nm">8.0</span>):
+    H = <span class="fn">hubbard_square_pbc</span>(L=L, t=<span class="nm">1.0</span>, U=U)
+    eigenvalues, _ = <span class="fn">exact_diag</span>(state_full, H, pack, k=<span class="nm">1</span>)
+    <span class="fn">print</span>(<span class="st">f"U={U:.0f}:  E₀ = {eigenvalues[0]:.5f}"</span>)
+
+<span class="cm"># U=4:  E₀ = -11.53029    (Dagotto 1992: -11.5303)</span>
+<span class="cm"># U=8:  E₀ = -11.32150    (Dagotto 1992: -11.3215)</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>Tachys v0.1.0 &mdash; Built on <a href="#">JAX</a> and <a href="#">Flax</a></p>
+  <p style="margin-top:.4rem;font-size:.75rem">MIT License</p>
+</footer>

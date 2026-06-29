@@ -1,0 +1,31 @@
+/* Tachys brand colour — scientific blue */
+html[data-theme="light"],
+:root {
+    --pst-color-primary: #1A5FEB;
+    --pst-color-link: #1A5FEB;
+    --pst-color-link-hover: #1550C8;
+}
+
+html[data-theme="dark"] {
+    --pst-color-primary: #4F8EF7;
+    --pst-color-link: #4F8EF7;
+    --pst-color-link-hover: #6BA3F9;
+}
+
+/* Slightly tighten heading tracking */
+h1, h2, h3 {
+    letter-spacing: -0.02em;
+}
+
+/* Module path label used before API items */
+.module-path {
+    font-family: var(--pst-font-family-monospace);
+    font-size: 0.75rem;
+    color: var(--pst-color-muted);
+    background: var(--pst-color-surface);
+    border: 1px solid var(--pst-color-border);
+    padding: 2px 10px;
+    border-radius: 100px;
+    display: inline-block;
+    margin-bottom: 1rem;
+}
