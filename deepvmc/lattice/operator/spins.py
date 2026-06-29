@@ -8,7 +8,7 @@ class Sz(_OnSiteOperator):
         spins = state.spins
         assert spins.ndim == 2
 
-        sz = spins[:, self.site]
+        sz = 0.5 * spins[:, self.site]
         return DiagonalResult(matrix_element=sz*self.coupling)
 
 class Splus(_OnSiteOperator):
@@ -21,7 +21,7 @@ class Splus(_OnSiteOperator):
         connected_spins = spins.at[:, self.site].set(-spins[:, self.site])
         connected_states = state.replace(spins=connected_spins)
 
-        matrix_element = jnp.full_like(mask, self.coupling)
+        matrix_element = jnp.full(mask.shape, self.coupling)
 
         return OffdiagonalResult(connected_states=connected_states,
                                  mask=mask,
@@ -31,13 +31,13 @@ class Sminus(_OnSiteOperator):
     def apply(self, state):
         spins = state.spins
         assert spins.ndim == 2
-        
+
         mask = spins[:, self.site] == 1
-        
+
         connected_spins = spins.at[..., self.site].set(-spins[..., self.site])
         connected_states = state.replace(spins=connected_spins)
-        
-        matrix_element = jnp.full_like(mask, self.coupling)
+
+        matrix_element = jnp.full(mask.shape, self.coupling)
 
         return OffdiagonalResult(connected_states=connected_states,
                                  mask=mask,
