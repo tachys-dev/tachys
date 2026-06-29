@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-from .base import _OnSiteOperator, DiagonalResult, OffdiagonalResult
+from ..operator.base import _OnSiteOperator, DiagonalResult, OffdiagonalResult
 
 
 class Sz(_OnSiteOperator):

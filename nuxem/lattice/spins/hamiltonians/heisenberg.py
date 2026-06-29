@@ -1,4 +1,4 @@
-from ..operator.spins import Sminus, Splus, Sz
+from ..spin_operators import Sminus, Splus, Sz
 
 
 def heisenberg_square_pbc(L, J=1.0):

@@ -1,8 +1,8 @@
 import jax.numpy as jnp
 from nuxem.lattice.exact_diag import spins_hilbert_space
-from nuxem.lattice.hamiltonians.heisenberg import heisenberg_square_pbc
+from nuxem.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from nuxem.lattice.operator.base import DiagonalResult, OffdiagonalResult, DiagOffdiagResult
-from nuxem.lattice.state.spins import SpinState
+from nuxem.lattice.spins.spin_state import SpinState
 import scipy
 from scipy.sparse.linalg import eigsh
 import numpy as np
