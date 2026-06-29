@@ -3,8 +3,10 @@ import jax.numpy as jnp
 
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.spins.spin_action import SpinFlip
 from tachys.lattice.ansatz.rbm import SpinRBM
 from tachys.lattice.operator.local_estimator import local_estimator
+from tachys.montecarlo import sample
 from tachys.wavefunction import WaveFunction
 
 L = 4
@@ -42,3 +44,15 @@ print("log amplitudes shape:", log_amp.shape)
 print("local energy shape:  ", O_L.shape)
 print("local energies:\n", O_L)
 print("mean local energy:", jnp.mean(O_L))
+
+# MC sampling
+action = SpinFlip()
+key, subkey = jax.random.split(key)
+mc_keys = jax.random.split(subkey, N_mc)
+
+state, log_amps, acceptance = sample(10, state, action, mc_keys, wf)
+
+print("\nafter 10 sweeps:")
+print("acceptance rate:", acceptance)
+print("log_amps shape: ", log_amps.shape)
+
