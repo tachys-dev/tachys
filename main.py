@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from nuxem.lattice.exact_diag import spins_hilbert_space
+from nuxem.lattice.exact_diag import exact_diag, spins_hilbert_space
 from nuxem.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc, heisenberg_square_pbc_exchange
 from nuxem.lattice.operator.base import DiagonalResult, OffdiagonalResult, DiagOffdiagResult
 from nuxem.lattice.spins.spin_state import SpinState
@@ -8,43 +8,16 @@ from scipy.sparse.linalg import eigsh
 import numpy as np
 
 L = 4  # 2×2 square lattice (4 sites)
+N = L*L
+
 H = heisenberg_square_pbc_exchange(L, J=1.0)
+all_states = spins_hilbert_space(N)
+state_full_hilbert = SpinState(spins=jnp.array(all_states, dtype=jnp.int8), Ns=N)
 
-all_states = spins_hilbert_space(L*L)
+def pack(state):
+    bits = (np.asarray(state.spins) + 1) // 2
+    return (bits * 2 ** np.arange(state.spins.shape[-1])).sum(axis=-1)
 
-state_full_hilbert = SpinState(spins=jnp.array(all_states, dtype=jnp.int8), Ns=L*L)
-hilbert_dim = state_full_hilbert.spins.shape[0]
+eigenvalues, _ = exact_diag(state_full_hilbert, H, pack, k=1)
 
-result = H(state_full_hilbert)
-
-assert isinstance(result, DiagOffdiagResult)
-
-diag_me = result.diagonal.matrix_element          # (n_diag_terms, n_states)
-offdiag_states = result.offdiagonal.connected_states
-offdiag_mask = result.offdiagonal.mask            # (n_offdiag_terms, n_states)
-offdiag_me = result.offdiagonal.matrix_element    # (n_offdiag_terms, n_states)
-
-packbits = lambda x_bits, Ns : (x_bits*2**np.arange(Ns)).sum(axis=-1)
-packspins = lambda x_bits, Ns : packbits((x_bits + 1)//2, Ns)
-
-# off diagonal terms
-cols = packspins(offdiag_states.spins, L*L)
-rows = np.broadcast_to(np.arange(hilbert_dim)[None], cols.shape)
-cols, rows = cols.flatten(), rows.flatten()
-values = (offdiag_mask * offdiag_me).flatten()
-
-# diagonal terms
-cols = np.concatenate((np.arange(hilbert_dim), cols))
-rows = np.concatenate((np.arange(hilbert_dim), rows))
-values = np.concatenate((diag_me.sum(0), values))
-
-H = scipy.sparse.coo_array((values, (rows, cols)), shape=(hilbert_dim, hilbert_dim))
-H.eliminate_zeros()
-H = 0.5 * (H + H.T)
-H = H.tocsr()
-eigval, v = eigsh(H, k=1, which="SA", return_eigenvectors=True)
-
-print('Eigenvalues : ')
-
-for i in range(len(eigval)):
-    print(i,')  ', eigval[i]/L**2)
+print(eigenvalues[0] / N)
