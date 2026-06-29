@@ -105,8 +105,8 @@ def sample(nsweeps, state, action, key, wf):
 
     log_amps = wf.apply_fn(wf.params, state)
     Ns       = state.Ns
-    N_mc     = state.spins.shape[0]
-    acc_sum  = jnp.zeros(N_mc)
+    N_mc_local = state.spins.shape[0]
+    acc_sum    = jnp.zeros(N_mc_local)
 
     def _step(_, vals):
         state, key, log_amps, acc_sum = vals

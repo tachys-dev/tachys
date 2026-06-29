@@ -33,14 +33,14 @@ class SpinExchange(_BaseAction):
 
         n_mult = jnp.array(state.n_mult)
         neighbours = jnp.array(state.neighbours)
-        N_mc = state.spins.shape[0]
+        N_mc_local = state.spins.shape[0]
 
         index = (rands[:, 0] * state.Ns).astype(int)
         dist_neigh = (rands[:, 1] * self.max_dist + 1).astype(int)
         pos_neigh = (rands[:, 2] * n_mult[dist_neigh]).astype(int)
         index_nn = neighbours[index, pos_neigh, dist_neigh]
 
-        allowed_move = state.spins[jnp.arange(N_mc), index] != state.spins[jnp.arange(N_mc), index_nn]
+        allowed_move = state.spins[jnp.arange(N_mc_local), index] != state.spins[jnp.arange(N_mc_local), index_nn]
         new_spins = jax.vmap(exchange_spins)(state.spins, index, index_nn)
         log_prob_correction = 0.0
 
@@ -57,9 +57,9 @@ class SpinFlip(_BaseAction):
     def __call__(self, key, state):
         rands = jax.vmap(jax.random.uniform)(key)
         index = (rands * state.Ns).astype(int)
-        N_mc = state.spins.shape[0]
+        N_mc_local = state.spins.shape[0]
 
-        new_spins = state.spins.at[jnp.arange(N_mc), index].set(-state.spins[jnp.arange(N_mc), index])
+        new_spins = state.spins.at[jnp.arange(N_mc_local), index].set(-state.spins[jnp.arange(N_mc_local), index])
         allowed_move = new_spins[..., 0] != 0  # always true
         log_prob_correction = 0.0
 

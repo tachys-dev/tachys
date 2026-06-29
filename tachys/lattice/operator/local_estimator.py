@@ -28,27 +28,27 @@ def _boolean_partition_indices(mask: jnp.ndarray):
 def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
     """Compute log-amplitudes for connected states, skipping all-zero-mask batches.
 
-    Flattens (N_terms, N_mc) into a single sequence, sorts active connections
-    to the front, then rebatches at size ``batch_expand * N_mc``.  A
+    Flattens (N_terms, N_mc_local) into a single sequence, sorts active connections
+    to the front, then rebatches at size ``batch_expand * N_mc_local``.  A
     ``while_loop`` then stops as soon as it reaches the first all-zero batch,
     avoiding network evaluations for guaranteed-zero contributions.
 
     Parameters
     ----------
-    connected_states : pytree, leaves shape (N_terms, N_mc, ...)
-    mask             : (N_terms, N_mc) — nonzero entries mark active connections
-    log_amp          : (N_mc,) — current log-amplitudes, used only for dtype
+    connected_states : pytree, leaves shape (N_terms, N_mc_local, ...)
+    mask             : (N_terms, N_mc_local) — nonzero entries mark active connections
+    log_amp          : (N_mc_local,) — current log-amplitudes, used only for dtype
     batch_expand     : int — batch enlargement factor; N_terms must be divisible
 
     Returns
     -------
-    log_amps_connected : (N_terms, N_mc)
+    log_amps_connected : (N_terms, N_mc_local)
     """
     active = mask.astype(bool)
-    N_terms, N_mc = active.shape
-    assert (N_terms * N_mc) % batch_expand == 0
+    N_terms, N_mc_local = active.shape
+    assert (N_terms * N_mc_local) % batch_expand == 0
 
-    # Flatten (N_terms, N_mc) -> (N_terms * N_mc,)
+    # Flatten (N_terms, N_mc_local) -> (N_terms * N_mc_local,)
     flat_active = active.reshape(-1)
     flat_states = jax.tree.map(lambda x: x.reshape(-1, *x.shape[2:]), connected_states)
 
@@ -57,9 +57,9 @@ def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
     flat_active = flat_active[perm]
     flat_states = jax.tree.map(lambda x: x[perm], flat_states)
 
-    # Rebatch: new batch size = batch_expand * N_mc
-    batch_size = batch_expand * N_mc
-    n_batches  = (N_terms * N_mc) // batch_size
+    # Rebatch: new batch size = batch_expand * N_mc_local
+    batch_size = batch_expand * N_mc_local
+    n_batches  = (N_terms * N_mc_local) // batch_size
     flat_states = jax.tree.map(
         lambda x: x.reshape(n_batches, batch_size, *x.shape[1:]), flat_states
     )
@@ -80,8 +80,8 @@ def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
 
     _, log_amps_connected = jax.lax.while_loop(cond_fun, body_fun, (0, log_amps_connected))
 
-    # Undo rebatching and reordering -> (N_terms, N_mc)
-    return log_amps_connected.reshape(-1)[perm_inv].reshape(N_terms, N_mc)
+    # Undo rebatching and reordering -> (N_terms, N_mc_local)
+    return log_amps_connected.reshape(-1)[perm_inv].reshape(N_terms, N_mc_local)
 
 
 def local_estimator(operator, state, wf, log_amp, optimize_mask=True, batch_expand=1):
@@ -90,16 +90,16 @@ def local_estimator(operator, state, wf, log_amp, optimize_mask=True, batch_expa
     Parameters
     ----------
     operator      : _Operator or _OperatorSum
-    state         : State, batch axis 0 of size N_mc
-    wf            : wave function with .apply_fn(params, state) -> (N_mc,) log-amplitudes
-    log_amp       : jax.Array, shape (N_mc,)
+    state         : State, batch axis 0 of size N_mc_local
+    wf            : wave function with .apply_fn(params, state) -> (N_mc_local,) log-amplitudes
+    log_amp       : jax.Array, shape (N_mc_local,)
     optimize_mask : bool — skip zero-mask batches via while_loop (default True)
     batch_expand  : int — batch enlargement factor for _apply_masked (N_terms must
                     be divisible; only used when optimize_mask=True)
 
     Returns
     -------
-    O_L : jax.Array, shape (N_mc,)
+    O_L : jax.Array, shape (N_mc_local,)
     """
     result = operator(state)
 
@@ -141,13 +141,13 @@ def compute_expectation(operator, wf, state, log_amp, optimize_mask=True, batch_
     operator      : _Operator or _OperatorSum — replicated across devices
     wf            : wave function — replicated across devices
     state         : State, batch axis 0 sharded across devices
-    log_amp       : jax.Array, shape (N_mc,) sharded across devices
+    log_amp       : jax.Array, shape (N_mc_local,) sharded across devices
     optimize_mask : bool
     batch_expand  : int
 
     Returns
     -------
-    O_L     : jax.Array, shape (N_mc,) — local estimator, sharded
+    O_L     : jax.Array, shape (N_mc_local,) — local estimator, sharded
     O_mean  : scalar — global mean <O>
     O2_mean : scalar — global mean <|O|^2>
     """
