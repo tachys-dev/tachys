@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from nuxem.lattice.exact_diag import spins_hilbert_space
-from nuxem.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
+from nuxem.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc, heisenberg_square_pbc_exchange
 from nuxem.lattice.operator.base import DiagonalResult, OffdiagonalResult, DiagOffdiagResult
 from nuxem.lattice.spins.spin_state import SpinState
 import scipy
@@ -8,10 +8,10 @@ from scipy.sparse.linalg import eigsh
 import numpy as np
 
 L = 4  # 2×2 square lattice (4 sites)
-H = heisenberg_square_pbc(L, J=1.0)
+H = heisenberg_square_pbc_exchange(L, J=1.0)
 
 all_states = spins_hilbert_space(L*L)
-all_states = all_states[all_states.sum(-1)==0]
+
 state_full_hilbert = SpinState(spins=jnp.array(all_states, dtype=jnp.int8), Ns=L*L)
 hilbert_dim = state_full_hilbert.spins.shape[0]
 
