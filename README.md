@@ -1,4 +1,4 @@
-# nuxem
+# tachys
 
 ## Installation
 
@@ -6,7 +6,7 @@ Clone the repository and install with `pip`:
 
 ```bash
 git clone <repo-url>
-cd nuxem
+cd tachys
 ```
 
 **CPU:**

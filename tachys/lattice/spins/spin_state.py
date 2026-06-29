@@ -2,7 +2,7 @@ from flax import struct
 import jax
 import jax.numpy as jnp
 
-from nuxem.lattice.state import State
+from tachys.lattice.state import State
 
 class SpinState(State):
     spins: jnp.array

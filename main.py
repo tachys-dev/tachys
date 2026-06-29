@@ -1,10 +1,10 @@
 import jax.numpy as jnp
-from nuxem.lattice.exact_diag import exact_diag, fermions_hilbert_space, spins_hilbert_space
-from nuxem.lattice.fermions.fermion_state import FermionState
-from nuxem.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
-from nuxem.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc, heisenberg_square_pbc_exchange
-from nuxem.lattice.operator.base import DiagonalResult, OffdiagonalResult, DiagOffdiagResult
-from nuxem.lattice.spins.spin_state import SpinState
+from tachys.lattice.exact_diag import exact_diag, fermions_hilbert_space, spins_hilbert_space
+from tachys.lattice.fermions.fermion_state import FermionState
+from tachys.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
+from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc, heisenberg_square_pbc_exchange
+from tachys.lattice.operator.base import DiagonalResult, OffdiagonalResult, DiagOffdiagResult
+from tachys.lattice.spins.spin_state import SpinState
 import scipy
 from scipy.sparse.linalg import eigsh
 import numpy as np

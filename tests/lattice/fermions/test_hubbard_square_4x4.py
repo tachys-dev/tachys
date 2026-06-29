@@ -2,9 +2,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from nuxem.lattice.exact_diag import fermions_hilbert_space, exact_diag
-from nuxem.lattice.fermions.fermion_state import FermionState
-from nuxem.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
+from tachys.lattice.exact_diag import fermions_hilbert_space, exact_diag
+from tachys.lattice.fermions.fermion_state import FermionState
+from tachys.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
 
 L = 4
 Ns = L * L

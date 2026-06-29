@@ -2,9 +2,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from nuxem.lattice.exact_diag import spins_hilbert_space, exact_diag
-from nuxem.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
-from nuxem.lattice.spins.spin_state import SpinState
+from tachys.lattice.exact_diag import spins_hilbert_space, exact_diag
+from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
+from tachys.lattice.spins.spin_state import SpinState
 
 L = 4
 N = L * L

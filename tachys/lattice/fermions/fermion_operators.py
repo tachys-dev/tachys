@@ -2,7 +2,7 @@ from flax import struct
 import jax
 import jax.numpy as jnp
 
-from nuxem.lattice.operator.base import _OnSiteOperator, DiagonalResult, OffdiagonalResult
+from tachys.lattice.operator.base import _OnSiteOperator, DiagonalResult, OffdiagonalResult
 
 
 def _create_fermion_fn(state, site):
