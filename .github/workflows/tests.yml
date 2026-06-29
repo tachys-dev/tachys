@@ -16,7 +16,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev]" || pip install -e .
+        run: pip install -e .
 
       - name: Run tests
         run: pytest tests/ -v
