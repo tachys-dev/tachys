@@ -9,6 +9,7 @@ from tachys.lattice.ansatz.rbm import SpinRBM
 from tachys.lattice.operator.local_estimator import local_estimator
 from tachys.montecarlo import sample
 from tachys.wavefunction import WaveFunction
+from tachys.optimizer import SR, SPRING, MARCH
 
 L = 4
 N = L * L
@@ -68,4 +69,29 @@ state, log_amps, acceptance = sample(10, state, composite, mc_keys, wf)
 print("\nafter 10 sweeps (CompositeAction):")
 for i, acc in enumerate(acceptance):
     print(f"  action {i} acceptance: {acc:.3f}")
+
+# ── Optimization loop ─────────────────────────────────────────────────────────
+# Swap SR for SPRING or MARCH to use momentum / adaptive preconditioning:
+#
+#   optimizer = SPRING(diag_shift=1e-4, mu=0.9, mode="real")
+#   optimizer = MARCH(diag_shift=1e-4, mu=0.95, beta=0.995, mode="real")
+
+N_steps = 5
+eta     = 0.01
+
+optimizer = SR(diag_shift=1e-4, mode="real")
+opt_state = optimizer.init(wf.params)
+
+print("\n--- SR optimization ---")
+for step in range(N_steps):
+    key, subkey = jax.random.split(key)
+    mc_keys = jax.random.split(subkey, N_mc)
+    state, log_amps, _ = sample(10, state, action, mc_keys, wf)
+
+    O_L = local_estimator(H, state, wf, log_amps, optimize_mask=False)
+
+    updates, opt_state = optimizer(O_L, opt_state, state, wf)
+    wf = wf.apply_gradients(updates, eta)
+
+    print(f"  step {step:2d}  E/N = {jnp.mean(O_L) / N:.6f}")
 
