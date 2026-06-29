@@ -10,7 +10,7 @@ from jax import config
 config.update("jax_enable_x64", True)
 
 
-def exact_diag(state_full_hilbert, H, hilbert_dim, pack, k=1):
+def exact_diag(state_full_hilbert, H, pack, k=1):
     """
     Build the sparse Hamiltonian matrix and return the lowest k eigenvalues
     and eigenvectors.
@@ -29,7 +29,7 @@ def exact_diag(state_full_hilbert, H, hilbert_dim, pack, k=1):
     Returns
     -------
     eigenvalues : np.ndarray, shape (k,)
-    eigenvectors : np.ndarray, shape (hilbert_dim, k)
+    eigenvectors : np.ndarray, shape (n_active_states, k)
     """
     diag_idx = pack(state_full_hilbert)
 
@@ -53,9 +53,22 @@ def exact_diag(state_full_hilbert, H, hilbert_dim, pack, k=1):
     cols = np.concatenate((diag_idx, off_cols))
     vals = np.concatenate((diag_vals, off_vals))
 
-    mat = scipy.sparse.coo_array((vals, (rows, cols)), shape=(hilbert_dim, hilbert_dim))
-    mat.eliminate_zeros()
-    mat = 0.5 * (mat + mat.T)
+    # Filter explicit zeros (masked-out off-diagonal connections).
+    nz = vals != 0
+    rows, cols, vals = rows[nz], cols[nz], vals[nz]
+
+    # Remap pack indices (may be sparse, e.g. binary encoding) to contiguous
+    # 0..n_states-1.  diag_idx holds all active-state indices, so searchsorted
+    # into its sorted form gives a correct compact index for every entry.
+    sorted_active = np.sort(diag_idx)
+    n_states = len(sorted_active)
+    rows = np.searchsorted(sorted_active, rows)
+    cols = np.searchsorted(sorted_active, cols)
+
+    # The COO data already contains both (i,j) and (j,i) for every off-diagonal
+    # pair (H is Hermitian and applied to every basis state), so no explicit
+    # symmetrization is needed.
+    mat = scipy.sparse.coo_array((vals, (rows, cols)), shape=(n_states, n_states))
     mat = mat.tocsr()
 
     eigenvalues, eigenvectors = scipy.sparse.linalg.eigsh(mat, k=k, which="SA")
