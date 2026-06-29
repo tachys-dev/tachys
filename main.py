@@ -1,26 +1,44 @@
+import jax
 import jax.numpy as jnp
-from tachys.lattice.exact_diag import exact_diag, fermions_hilbert_space, spins_hilbert_space
-from tachys.lattice.fermions.fermion_state import FermionState
-from tachys.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
-from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc, heisenberg_square_pbc_exchange
-from tachys.lattice.operator.base import DiagonalResult, OffdiagonalResult, DiagOffdiagResult
-from tachys.lattice.spins.spin_state import SpinState
-import scipy
-from scipy.sparse.linalg import eigsh
-import numpy as np
+
+from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
+from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.ansatz.rbm import SpinRBM
+from tachys.lattice.operator.local_estimator import local_estimator
+from tachys.wavefunction import WaveFunction
 
 L = 4
-N = L*L
-Ne = 4
+N = L * L
+N_mc = 16
+N_hidden = N  # alpha=1 hidden units
 
-H = hubbard_square_pbc(L, U=8)
-all_states = fermions_hilbert_space(N, Ne, 2)
-state_full_hilbert = FermionState(occupations=jnp.array(all_states, dtype=jnp.int8), Ns=N, Ne=Ne)
+key = jax.random.key(0)
 
-def pack(state):
-    occupations = state.occupations
-    return (occupations * 2 ** np.arange(occupations.shape[-1])).sum(axis=-1)
+# Heisenberg Hamiltonian on a 4x4 square lattice with PBC
+H = heisenberg_square_pbc(L, J=1.0)
 
-eigenvalues, _ = exact_diag(state_full_hilbert, H, pack, k=1)
+# RBM wavefunction
+model = SpinRBM(num_hidden=N_hidden, dtype=jnp.float64)
 
-print(eigenvalues[0])
+# Batch of 16 zero-magnetisation spin configurations
+key, subkey = jax.random.split(key)
+spins = init_config_fixed_magn(subkey, N, sz=0, N_mc=N_mc)
+state = SpinState(spins=spins, Ns=N)
+
+# Initialise RBM parameters with a dummy forward pass
+key, subkey = jax.random.split(key)
+dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), Ns=N)
+params = model.init(subkey, dummy)
+wf = WaveFunction(params=params, apply_fn=model.apply)
+
+# Log-amplitudes for the batch
+log_amp = wf.apply_fn(wf.params, state)
+
+# Local energy O_L(x) = sum_{x'} <x|H|x'> psi(x') / psi(x)
+O_L = local_estimator(H, state, wf, log_amp, optimize_mask=False)
+
+print("configurations shape:", spins.shape)
+print("log amplitudes shape:", log_amp.shape)
+print("local energy shape:  ", O_L.shape)
+print("local energies:\n", O_L)
+print("mean local energy:", jnp.mean(O_L))
