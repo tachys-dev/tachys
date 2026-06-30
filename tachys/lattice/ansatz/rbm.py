@@ -14,6 +14,7 @@ def log_cosh(x):
 class SpinRBM(nn.Module):
     num_hidden: int
     dtype: Any = jnp.float64
+    complex: bool = False
 
     def setup(self):
         self.linear = nn.Dense(
@@ -21,9 +22,17 @@ class SpinRBM(nn.Module):
             use_bias=True,
             param_dtype=self.dtype,
         )
+        if self.complex:
+            self.imag_linear = nn.Dense(
+                features=self.num_hidden,
+                use_bias=True,
+                param_dtype=self.dtype,
+            )
 
     def __call__(self, lattice):
-        x = lattice.spins.astype(self.dtype)
+        x = lattice.spins
         x = self.linear(x)
-        x = log_cosh(x)
+        if self.complex:
+            x = x + 1j * self.imag_linear(x)
+        x = log_cosh(x.astype(complex))
         return jnp.sum(x, axis=-1)
