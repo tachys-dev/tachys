@@ -47,10 +47,9 @@ def _make_apply_fn(raw_fn: Callable, mode: str) -> Callable:
         raise ValueError(f"Unknown mode: {mode!r}")
 
 
-def _force(eloc: jax.Array, N_mc: int) -> jax.Array:
-    """Gradient force vector: 2 * eloc / sqrt(N_mc). Local (pre-gather)."""
-    return 2.0 * eloc / N_mc ** 0.5
-
+def _eps(eloc: jax.Array, N_mc: int) -> jax.Array:
+    """Force vector ε_i = 2 * conj(E_{Li} - Ē_L) / sqrt(M)."""
+    return 2.0 * eloc.conj() / N_mc ** 0.5
 
 def _jvp_correction(
     apply_fn: Callable,
@@ -104,7 +103,7 @@ def _parameter_updates(
     wf: Any,
     mode: str,
     diag_shift: Any,
-    force: jax.Array,
+    eps: jax.Array,
     ntk: jax.Array,
     weights: Optional[jax.Array],
 ) -> Any:
@@ -113,7 +112,7 @@ def _parameter_updates(
     Runs: cholesky solve → center → hard-shard → VJP → psum.
     Returns a pytree with the same structure as wf.params.
     """
-    sr_solution = linear_solver_cholesky(ntk, force, diag_shift, mode)
+    sr_solution = linear_solver_cholesky(ntk, eps, diag_shift, mode)
     sr_solution = center_sr_solution(sr_solution, state, mode, weights)
     sr_solution = hard_shard(sr_solution)
 
@@ -135,24 +134,24 @@ class _BaseOptimizer(struct.PyTreeNode):
     def update(self, O_L, opt_state, state, wf, weights=None):
         raise NotImplementedError
 
-    @jax.jit
+    # @jax.jit
     @partial(shard_map, mesh=mesh,
              in_specs=(P(None), P(None), P('i'), P(None), P('i')),
              out_specs=P(None), check_rep=False)
-    def _call(self, opt_state, state, wf, O_L):
-        return self.update(O_L, opt_state, state, wf)
+    def _call(self, opt_state, state, wf, E_L):
+        return self.update(E_L, opt_state, state, wf)
 
     @jax.jit
     @partial(shard_map, mesh=mesh,
              in_specs=(P(None), P(None), P('i'), P(None), P('i'), P('i')),
              out_specs=P(None), check_rep=False)
-    def _call_reweighted(self, opt_state, state, wf, O_L, weights):
-        return self.update(O_L, opt_state, state, wf, weights)
+    def _call_reweighted(self, opt_state, state, wf, E_L, weights):
+        return self.update(E_L, opt_state, state, wf, weights)
 
-    def __call__(self, O_L, opt_state, state, wf, weights=None):
+    def __call__(self, E_L, opt_state, state, wf, weights=None):
         if weights is None:
-            return self._call(opt_state, state, wf, O_L)
-        return self._call_reweighted(opt_state, state, wf, O_L, weights)
+            return self._call(opt_state, state, wf, E_L)
+        return self._call_reweighted(opt_state, state, wf, E_L, weights)
 
 
 # ─── SR ───────────────────────────────────────────────────────────────────────
@@ -163,19 +162,19 @@ class SR(_BaseOptimizer):
     def init(self, params) -> SRState:
         return SRState()
 
-    def update(self, O_L, opt_state, state, wf, weights=None):
+    def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
         N_mc_local = state.spins.shape[0]
         N_mc       = N_mc_local * n_devices
 
-        eloc = O_L - jax.lax.pmean(jnp.mean(O_L), 'i')
-        force = _force(eloc, N_mc)
+        eloc = E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
+        eps = _eps(eloc, N_mc)
         if weights is not None:
-            force = jnp.sqrt(weights) * force
-        force = jax.lax.all_gather(force, 'i', tiled=True)
+            eps = jnp.sqrt(weights) * eps
+        eps = jax.lax.all_gather(eps, 'i', tiled=True)
 
         ntk     = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local)
-        updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, force, ntk, weights)
+        updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights)
         return updates, SRState()
 
 
@@ -193,22 +192,22 @@ class SPRING(_BaseOptimizer, kw_only=True):
     def init(self, params) -> SPRINGState:
         return SPRINGState(old_updates=jax.tree.map(jnp.zeros_like, params))
 
-    def update(self, O_L, opt_state, state, wf, weights=None):
+    def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
         N_mc_local = state.spins.shape[0]
         N_mc       = N_mc_local * n_devices
 
-        eloc = O_L - jax.lax.pmean(jnp.mean(O_L), 'i')
+        eloc = E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
         correction = _jvp_correction(
             apply_fn, self.mode, wf.params, opt_state.old_updates, weights, N_mc, state
         )
-        force = _force(eloc, N_mc) - self.mu * correction
+        eps = _eps(eloc, N_mc) - self.mu * correction
         if weights is not None:
-            force = jnp.sqrt(weights) * force
-        force = jax.lax.all_gather(force, 'i', tiled=True)
+            eps = jnp.sqrt(weights) * eps
+        eps = jax.lax.all_gather(eps, 'i', tiled=True)
 
         ntk          = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local)
-        base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, force, ntk, weights)
+        base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights)
 
         updates = jax.tree.map(lambda x, y: x + self.mu * y, base_updates, opt_state.old_updates)
         return updates, SPRINGState(old_updates=updates)
@@ -233,12 +232,12 @@ class MARCH(_BaseOptimizer, kw_only=True):
             t=jnp.int32(0),
         )
 
-    def update(self, O_L, opt_state, state, wf, weights=None):
+    def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
         N_mc_local = state.spins.shape[0]
         N_mc       = N_mc_local * n_devices
 
-        eloc = O_L - jax.lax.pmean(jnp.mean(O_L), 'i')
+        eloc = E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
 
         # Bias-corrected V used for both NTK and update scaling.
         V_bc = jax.tree.map(
@@ -248,13 +247,13 @@ class MARCH(_BaseOptimizer, kw_only=True):
         correction = _jvp_correction(
             apply_fn, self.mode, wf.params, opt_state.old_updates, weights, N_mc, state
         )
-        force = _force(eloc, N_mc) - self.mu * correction
+        eps = _eps(eloc, N_mc) - self.mu * correction
         if weights is not None:
-            force = jnp.sqrt(weights) * force
-        force = jax.lax.all_gather(force, 'i', tiled=True)
+            eps = jnp.sqrt(weights) * eps
+        eps = jax.lax.all_gather(eps, 'i', tiled=True)
 
         ntk          = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, V=V_bc)
-        base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, force, ntk, weights)
+        base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights)
 
         if weights is None:
             updates = jax.tree.map(
