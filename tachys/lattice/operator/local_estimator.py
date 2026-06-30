@@ -16,12 +16,10 @@ def _boolean_partition_indices(mask: jnp.ndarray):
     perm_inv — inverse permutation (perm_inv[perm[i]] == i)
     """
     n = mask.size
-    n_true = mask.sum()
-    true_positions  = jnp.cumsum(mask) - 1
-    false_positions = jnp.cumsum(~mask) - 1 + n_true
-    dest     = jnp.where(mask, true_positions, false_positions)
-    perm     = jnp.empty_like(dest).at[dest].set(jnp.arange(n))
-    perm_inv = dest
+    # Stable argsort on a boolean key is a counting sort (O(N)); ~mask puts
+    # True entries (0) before False entries (1) in ascending order.
+    perm     = jnp.argsort(~mask, stable=True)
+    perm_inv = jnp.empty(n, dtype=perm.dtype).at[perm].set(jnp.arange(n, dtype=perm.dtype))
     return perm, perm_inv
 
 
