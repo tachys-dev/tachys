@@ -46,17 +46,35 @@ eta     = 0.01
 optimizer = SR(diag_shift=1e-4, mode="real")
 opt_state = optimizer.init(wf.params)
 
+import time
+
+class Timer:
+    def __enter__(self):
+        self._t0 = time.perf_counter()
+        return self
+    def __exit__(self, *_):
+        self.elapsed = time.perf_counter() - self._t0
+
 print("\n--- SR optimization ---")
 for step in range(N_steps):
     mc_keys = jax.random.split(jax.random.key(2), N_mc)
-    state, log_amps, acceptance = sample(1, state, action, mc_keys, wf)
 
-    E_L, e_mean, _ = compute_expectation(H, wf, state, log_amps)
+    with Timer() as t_sample:
+        state, log_amps, acceptance = sample(1, state, action, mc_keys, wf)
+        jax.block_until_ready((state, log_amps))
 
-    updates, opt_state = optimizer(E_L, opt_state, state, wf)
+    with Timer() as t_expect:
+        E_L, e_mean, _ = compute_expectation(H, wf, state, log_amps)
+        jax.block_until_ready(E_L)
 
-    wf = wf.apply_gradients(updates, eta)
+    with Timer() as t_opt:
+        updates, opt_state = optimizer(E_L, opt_state, state, wf)
+        jax.block_until_ready(updates)
+        wf = wf.apply_gradients(updates, eta)
 
-    print(f"  step {step:2d}  E/N = {e_mean / N:.6f}")
+    print(f"  step {step:2d}  E/N = {e_mean / N:.6f}  "
+          f"sample={t_sample.elapsed*1e3:.1f}ms  "
+          f"expect={t_expect.elapsed*1e3:.1f}ms  "
+          f"opt={t_opt.elapsed*1e3:.1f}ms")
 
 print(wf.params)

@@ -7,9 +7,8 @@ from flax import struct
 from jax.sharding import PartitionSpec as P
 from jax.experimental.shard_map import shard_map
 
-from tachys.parallel import mesh, n_devices
+from tachys.parallel import mesh, n_devices, hard_shard
 from tachys.optimizer._kernels import (
-    hard_shard,
     linear_solver_cholesky,
     compute_ntk,
     center_sr_solution,

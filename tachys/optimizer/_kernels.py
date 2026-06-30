@@ -12,16 +12,7 @@ import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
 from jax.scipy.linalg import solve_triangular
 
-from tachys.parallel import mesh, n_devices, rank
-
-
-# ─── Parallel utility ─────────────────────────────────────────────────────────
-
-def hard_shard(x):
-    """Slice a globally-gathered array back to this device's local chunk."""
-    chunk = x.shape[0] // n_devices
-    return x[rank * chunk : (rank + 1) * chunk]
-
+from tachys.parallel import n_devices, rank
 
 # ─── Linear solver ────────────────────────────────────────────────────────────
 

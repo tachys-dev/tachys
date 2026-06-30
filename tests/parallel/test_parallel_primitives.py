@@ -44,8 +44,7 @@ def test_mesh_size_matches_n_devices():
 ])
 def test_hard_shard_shape(total, dtype):
     """hard_shard returns exactly 1/n_devices of the leading axis."""
-    from tachys.optimizer._kernels import hard_shard
-    from tachys.parallel import n_devices
+    from tachys.parallel import n_devices, hard_shard
 
     x = jnp.ones(total, dtype=dtype)
     chunk = hard_shard(x)
@@ -55,8 +54,7 @@ def test_hard_shard_shape(total, dtype):
 @pytest.mark.parametrize("total", [8, 16])
 def test_hard_shard_correct_slice(total):
     """hard_shard returns this rank's contiguous slice of the global array."""
-    from tachys.optimizer._kernels import hard_shard
-    from tachys.parallel import n_devices, rank
+    from tachys.parallel import hard_shard, n_devices, rank
 
     x = jnp.arange(total, dtype=jnp.float64)
     chunk_size = total // n_devices
@@ -66,8 +64,7 @@ def test_hard_shard_correct_slice(total):
 
 def test_hard_shard_2d():
     """hard_shard slices the leading axis only; inner shape is preserved."""
-    from tachys.optimizer._kernels import hard_shard
-    from tachys.parallel import n_devices, rank
+    from tachys.parallel import hard_shard, n_devices, rank
 
     total, cols = 16, 4
     x = jnp.arange(total * cols, dtype=jnp.float64).reshape(total, cols)
