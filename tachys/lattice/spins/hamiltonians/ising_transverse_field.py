@@ -24,8 +24,8 @@ def ising_transverse_field_square_pbc(L, J=1.0, h=1.0):
     sites = tuple(range(L * L))
 
     # sigma_z = 2*Sz (Sz has eigenvalues ±1/2), sigma_x = 2*Sx (Sx has off-diagonal 1/2)
-    H = -4 * J * Sz(np.array(is_)) * Sz(np.array(js_))
-    H = H + (-2 * h) * Sx(np.array(sites))
+    H = -4 * J * Sz(is_) * Sz(js_)
+    H = H + (-2 * h) * Sx(sites)
 
     return H
 

@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 
 import flax.serialization as fs
+import numpy as np
 
 from tachys.utils import same_treedef
 
@@ -27,7 +28,9 @@ class _Operator(struct.PyTreeNode):
             if not f.metadata.get('pytree_node', True):
                 continue
             val = getattr(self, f.name)
-            if isinstance(val, jax.core.Tracer) or not isinstance(val, (int, float, jax.Array)):
+            if isinstance(val, jax.core.Tracer) or not isinstance(val, (int, float, jax.Array, np.ndarray, list, tuple)):
+                continue
+            if isinstance(val, tuple) and val and isinstance(val[0], _Operator):
                 continue
             object.__setattr__(self, f.name, jnp.atleast_1d(val))
 
