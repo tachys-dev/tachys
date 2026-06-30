@@ -21,6 +21,11 @@ class DiagOffdiagResult(struct.PyTreeNode):
 class _Operator(struct.PyTreeNode):
     coupling: float = struct.field(default=1.0, kw_only=True)
 
+    def __post_init__(self):
+        if isinstance(self.coupling, jax.core.Tracer) or not isinstance(self.coupling, (int, float, jax.Array)):
+            return
+        object.__setattr__(self, 'coupling', jnp.atleast_1d(jnp.asarray(self.coupling)))
+
     def __call__(self, state):
         self = jax.tree.map(jnp.atleast_1d, self)
         #* type(self).apply is the unbound method
@@ -180,10 +185,10 @@ class _OnSiteOperator(_Operator):
     site: int
 
     def __post_init__(self):
-        # During jax.vmap, tree_unflatten is called with either object() sentinels
-        # (structural consistency check) or abstract Tracers (actual tracing).
-        # Neither can be used for shape arithmetic, so skip normalization in those cases.
-        if isinstance(self.site, jax.core.Tracer) or type(self.site) is object:
+        # During jax.vmap/shard_map, tree_unflatten is called with sentinel values
+        # (e.g. object(), NoFail()) for structural checks, or abstract Tracers for tracing.
+        # Skip normalization unless site is a concrete numeric value.
+        if isinstance(self.site, jax.core.Tracer) or not isinstance(self.site, (int, float, jax.Array)):
             return
         site = jnp.atleast_1d(jnp.array(self.site))
         n = site.shape[0]

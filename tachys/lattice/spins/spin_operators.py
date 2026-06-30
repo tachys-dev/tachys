@@ -51,7 +51,7 @@ class XYExchange(_Operator):
     j: int
 
     def __post_init__(self):
-        if isinstance(self.i, jax.core.Tracer) or type(self.i) is object:
+        if isinstance(self.i, jax.core.Tracer) or not isinstance(self.i, (int, float, jax.Array)):
             return
         i = jnp.atleast_1d(jnp.array(self.i))
         j = jnp.atleast_1d(jnp.array(self.j))

@@ -129,12 +129,14 @@ class _BaseOptimizer(struct.PyTreeNode):
     nbatches: int = struct.field(pytree_node=False, default=1)
 
     def __post_init__(self):
+        if isinstance(self.diag_shift, jax.core.Tracer) or not isinstance(self.diag_shift, (int, float, jax.Array)):
+            return
         object.__setattr__(self, 'diag_shift', jnp.atleast_1d(self.diag_shift))
 
     def update(self, O_L, opt_state, state, wf, weights=None):
         raise NotImplementedError
 
-    # @jax.jit
+    @jax.jit
     @partial(shard_map, mesh=mesh,
              in_specs=(P(None), P(None), P('i'), P(None), P('i')),
              out_specs=P(None), check_rep=False)
