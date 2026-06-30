@@ -41,8 +41,8 @@ builtins.print = _master_print
 import sys
 _kind      = jax.devices()[0].platform.upper()
 _model     = jax.devices()[0].device_kind
-_n_nodes   = jax.process_count()
-_dev_node  = jax.local_device_count()
+_n_nodes   = int(os.environ.get("SLURM_NNODES", 1))
+_dev_node  = (jax.process_count() // max(1, _n_nodes)) * jax.local_device_count()
 _title     = "⚡ tachys"
 _dev_str   = f"{n_devices} × {_kind}  ({_model})"
 _node_str  = f"{_n_nodes} node{'s' if _n_nodes > 1 else ''}  ·  {_dev_node} {_kind}/node"
@@ -67,5 +67,5 @@ print(f"{_C}║{_R}{' ' * _tlp}{_B}{_title}{_R}{' ' * _trp}{_C}║{_R}")
 print(f"{_C}╟{'─' * _w}╢{_R}")
 print(f"{_C}║{_R}{_center(_dev_str)}{_C}║{_R}")
 print(f"{_C}║{_R}{_center(_node_str)}{_C}║{_R}")
-print(f"{_C}╚{'═' * _w}╝{_R}")
+print(f"{_C}╚{'═' * _w}╝{_R}", flush=True)
 
