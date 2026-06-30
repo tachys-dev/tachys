@@ -126,8 +126,8 @@ def _parameter_updates(
 
 class _BaseOptimizer(struct.PyTreeNode):
     diag_shift: float
-    nbatches: int = struct.field(pytree_node=False)
     mode: str     = struct.field(pytree_node=False)
+    nbatches: int = struct.field(pytree_node=False, default=1)
 
     def __post_init__(self):
         object.__setattr__(self, 'diag_shift', jnp.atleast_1d(self.diag_shift))
