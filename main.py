@@ -24,7 +24,7 @@ N_mc = 16
 N_hidden = N  # alpha=1 hidden units
 
 # Heisenberg Hamiltonian on a 4x4 square lattice with PBC
-H = ising_transverse_field_square_pbc(L, J=1.0)
+H = ising_transverse_field_square_pbc(L)
 
 # RBM wavefunction
 model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=False)

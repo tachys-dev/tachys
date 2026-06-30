@@ -3,7 +3,7 @@ import jax.numpy as jnp
 
 from tachys.lattice.ansatz.rbm import SpinRBM
 from tachys.lattice.operator.local_estimator import compute_expectation
-from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
+from tachys.lattice.spins.hamiltonians.ising_transverse_field import ising_transverse_field_square_pbc
 from tachys.lattice.spins.spin_action import SpinFlip
 from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
 from tachys.montecarlo import sample
@@ -16,8 +16,8 @@ N_mc = 16
 
 
 def test_spring_loop_5_steps():
-    """Regression test: 5-step SPRING loop energies and final params match expected output."""
-    H = heisenberg_square_pbc(L, J=1.0)
+    """Regression test: 5-step SPRING loop energies and final params match expected output for Ising model."""
+    H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
 
     model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
@@ -31,11 +31,11 @@ def test_spring_loop_5_steps():
     opt_state = optimizer.init(wf.params)
 
     expected_energies = [
-        0.49845034798956,
-        0.45578996859319,
-        0.48625662750767,
-        0.42548762804911,
-        0.50268573388225,
+        -0.99646772696840,
+        -0.92262547725766,
+        -1.09651551660695,
+        -1.02391125310247,
+        -1.05780590445704,
     ]
 
     for step in range(5):
@@ -49,32 +49,32 @@ def test_spring_loop_5_steps():
             f"step {step}: expected {expected_energies[step]}, got {float(e_mean.real / N):.14f}"
 
     p = wf.params["params"]
-    assert jnp.allclose(p["imag_linear"]["bias"],   jnp.array([0.00158846]),   atol=1e-7)
-    assert jnp.allclose(p["imag_linear"]["kernel"], jnp.array([[-0.3091556]]),  atol=1e-7)
-    assert jnp.allclose(p["linear"]["bias"],        jnp.array([-0.00187971]),  atol=1e-7)
+    assert jnp.allclose(p["imag_linear"]["bias"],   jnp.array([-0.02578163]),   atol=1e-7)
+    assert jnp.allclose(p["imag_linear"]["kernel"], jnp.array([[-0.1676257]]),   atol=1e-7)
+    assert jnp.allclose(p["linear"]["bias"],        jnp.array([-0.15544766]),   atol=1e-7)
     assert jnp.allclose(p["linear"]["kernel"], jnp.array([
-        [-0.01378087],
-        [ 0.08473147],
-        [-0.29646568],
-        [ 0.21469285],
-        [ 0.22388988],
-        [-0.29666483],
-        [-0.05074487],
-        [ 0.32267591],
-        [ 0.34443825],
-        [-0.43681055],
-        [ 0.42299276],
-        [-0.0502227 ],
-        [-0.4924946 ],
-        [ 0.49282716],
-        [ 0.38666276],
-        [ 0.30037682],
+        [ 0.18228742],
+        [-0.24142391],
+        [-0.05896187],
+        [ 0.2256695 ],
+        [ 0.35952003],
+        [-0.15245578],
+        [ 0.0145417 ],
+        [ 0.5528769 ],
+        [ 0.12113736],
+        [-0.24276977],
+        [ 0.60893073],
+        [ 0.29019877],
+        [-0.16040583],
+        [ 0.23057249],
+        [ 0.32995867],
+        [ 0.45889089],
     ]), atol=1e-7)
 
 
 def test_spring_real_loop_5_steps():
-    """Regression test: 5-step SPRING (real mode) loop energies and final params match expected output."""
-    H = heisenberg_square_pbc(L, J=1.0)
+    """Regression test: 5-step SPRING (real mode) loop energies and final params match expected output for Ising model."""
+    H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
 
     model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=False)
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
@@ -88,11 +88,11 @@ def test_spring_real_loop_5_steps():
     opt_state = optimizer.init(wf.params)
 
     expected_energies = [
-        0.51014276542612,
-        0.46348845408898,
-        0.49979477415191,
-        0.44894247297603,
-        0.50330481603641,
+        -1.00735553414256,
+        -0.93472240035012,
+        -1.12694723517243,
+        -0.87005214379056,
+        -1.13877833321891,
     ]
 
     for step in range(5):
@@ -106,22 +106,22 @@ def test_spring_real_loop_5_steps():
             f"step {step}: expected {expected_energies[step]}, got {float(e_mean.real / N):.14f}"
 
     p = wf.params["params"]
-    assert jnp.allclose(p["linear"]["bias"], jnp.array([-0.04768529]), atol=1e-7)
+    assert jnp.allclose(p["linear"]["bias"], jnp.array([-0.41525903]), atol=1e-7)
     assert jnp.allclose(p["linear"]["kernel"], jnp.array([
-        [-0.20778383],
-        [-0.01692071],
-        [-0.25202451],
-        [ 0.26055509],
-        [ 0.32571181],
-        [-0.30236951],
-        [ 0.00659781],
-        [ 0.37524398],
-        [ 0.29397111],
-        [-0.390382  ],
-        [ 0.51047904],
-        [-0.05280636],
-        [-0.40244537],
-        [ 0.55792174],
-        [ 0.39663766],
-        [ 0.27021184],
+        [-0.02687334],
+        [-0.40836172],
+        [-0.39555034],
+        [ 0.15339498],
+        [ 0.35678344],
+        [-0.1961157 ],
+        [ 0.04453948],
+        [ 0.39765335],
+        [-0.04488276],
+        [-0.40713003],
+        [ 1.25552396],
+        [ 0.17200909],
+        [ 0.07376105],
+        [ 0.35774067],
+        [ 0.53686779],
+        [ 0.57626538],
     ]), atol=1e-7)
