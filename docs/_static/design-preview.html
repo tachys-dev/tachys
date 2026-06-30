@@ -321,10 +321,10 @@ footer a{color:#6B7FA0}
 <!-- HERO -->
 <section class="hero" id="top">
   <div class="hero-in">
-    <div class="eyebrow">Neural Quantum States · JAX</div>
-    <h1>Operators are <em>functions</em>.<br>Physics is composable.</h1>
+    <div class="eyebrow">Variational Monte Carlo · JAX</div>
+    <h1>Quantum many-body physics<br>at <em>functional</em> scale.</h1>
     <p class="lead">
-      Tachys is a JAX library for quantum many-body physics on lattices. Operators are callable objects — you compose them with ordinary arithmetic, apply them to batched states, and hand the result to an exact-diagonalization engine.
+      Built on functional programming principles, fully compatible with the JAX ecosystem. Write your physics once — compose, differentiate, and scale to hundreds of GPUs without changing a line. The VMC engine is fast, easy to use, and simple to extend to your own problems.
     </p>
     <div class="hero-acts">
       <a href="#quickstart" class="btn">Get started →</a>
@@ -341,23 +341,108 @@ footer a{color:#6B7FA0}
   <div class="container">
     <div class="feat-grid">
       <div class="fc">
-        <div class="fc-icon b">⊕</div>
-        <h3>Functional operator algebra</h3>
-        <p>Operators compose with <code>+</code> and <code>*</code>. Any linear combination or product is itself a callable — there is no boundary between a primitive operator and a full Hamiltonian.</p>
+        <div class="fc-icon b">↑↓</div>
+        <h3>Spin systems</h3>
+        <p>Simulate spin-½ lattice models at scale — benchmarked up to <strong>~2 000 spins</strong>.</p>
       </div>
       <div class="fc">
-        <div class="fc-icon v">⟩</div>
-        <h3>JAX-native state pytrees</h3>
-        <p>States extend Flax <code>PyTreeNode</code>. They flow through <code>jit</code>, <code>vmap</code>, and <code>grad</code> without adaptation — batching is built in, not bolted on.</p>
+        <div class="fc-icon v">ψ</div>
+        <h3>Fermionic systems</h3>
+        <p>Simulate fermionic systems — benchmarked up to <strong>500 electrons</strong>. Spin and fermionic degrees of freedom can be freely combined in a single Hamiltonian.</p>
       </div>
       <div class="fc">
-        <div class="fc-icon g">λ</div>
-        <h3>One-call exact diagonalization</h3>
-        <p>Generate the full Hilbert space, build the sparse matrix, and compute the lowest eigenvalues — from basis to spectrum in a single function call.</p>
+        <div class="fc-icon g">∇</div>
+        <h3>Foundation models</h3>
+        <p>Train neural quantum states and foundation models for quantum many-body physics.</p>
       </div>
     </div>
   </div>
 </div>
+
+<!-- MINIMAL EXAMPLE -->
+<section class="sec" style="background:var(--surface)">
+  <div class="content">
+    <div class="sec-lbl">Example</div>
+    <h2>A simulation in ten lines</h2>
+    <p class="lead-p">Build a Hamiltonian, define an ansatz, and run a variational Monte Carlo optimisation loop.</p>
+    <div class="cb">
+      <div class="cb-head"><span class="cb-file">main.py</span><span class="cb-lang">python</span></div>
+      <pre><span class="kw">from</span> tachys.lattice.spins.hamiltonians.ising_transverse_field <span class="kw">import</span> ising_transverse_field_square_pbc
+<span class="kw">from</span> tachys.lattice.spins.spin_state <span class="kw">import</span> SpinState, init_config_fixed_magn
+<span class="kw">from</span> tachys.lattice.ansatz.rbm <span class="kw">import</span> SpinRBM
+<span class="kw">from</span> tachys.lattice.operator.local_estimator <span class="kw">import</span> compute_expectation
+<span class="kw">from</span> tachys.montecarlo <span class="kw">import</span> sample
+<span class="kw">from</span> tachys.wavefunction <span class="kw">import</span> WaveFunction
+<span class="kw">from</span> tachys.optimizer <span class="kw">import</span> SR
+
+H     = <span class="fn">ising_transverse_field_square_pbc</span>(L=<span class="nm">4</span>)
+model = <span class="cls">SpinRBM</span>(num_hidden=<span class="nm">1</span>, dtype=jnp.float64)
+state = <span class="cls">SpinState</span>(spins=<span class="fn">init_config_fixed_magn</span>(key, N, sz=<span class="nm">0</span>, N_mc=<span class="nm">16</span>), Ns=N)
+wf    = <span class="cls">WaveFunction</span>(params=model.<span class="fn">init</span>(key, state), apply_fn=model.apply)
+
+optimizer = <span class="cls">SR</span>(diag_shift=<span class="nm">1e-4</span>)
+opt_state = optimizer.<span class="fn">init</span>(wf.params)
+
+<span class="kw">for</span> step <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">100</span>):
+    state, log_amps, _ = <span class="fn">sample</span>(<span class="nm">1</span>, state, action, keys, wf)
+    E_L, e_mean, e2_mean = <span class="fn">compute_expectation</span>(H, wf, state, log_amps)
+    updates, opt_state = <span class="fn">optimizer</span>(E_L, opt_state, state, wf)
+    wf = wf.<span class="fn">apply_gradients</span>(updates, eta=<span class="nm">0.01</span>)</pre>
+    </div>
+
+    <style>
+    .steps{list-style:none;margin-top:2rem;display:flex;flex-direction:column;gap:.75rem}
+    .step{display:flex;gap:1rem;align-items:baseline}
+    .step-n{
+      flex-shrink:0;width:22px;height:22px;border-radius:50%;
+      background:var(--blue);color:#fff;
+      font-size:.7rem;font-weight:700;font-family:var(--mono);
+      display:flex;align-items:center;justify-content:center;
+    }
+    .step-body{font-size:.875rem;color:var(--text2)}
+    .step-body strong{color:var(--navy);font-family:var(--mono);font-size:.85em}
+    </style>
+
+    <ol class="steps">
+      <li class="step">
+        <span class="step-n">1</span>
+        <span class="step-body"><strong>ising_transverse_field_square_pbc</strong> — builds the Hamiltonian as a callable operator sum. Adding or scaling terms returns a new operator — no matrix is allocated yet.</span>
+      </li>
+      <li class="step">
+        <span class="step-n">2</span>
+        <span class="step-body"><strong>SpinRBM</strong> — a Flax neural network module implementing a Restricted Boltzmann Machine ansatz for spin-½ systems. <code>num_hidden</code> sets the hidden layer width.</span>
+      </li>
+      <li class="step">
+        <span class="step-n">3</span>
+        <span class="step-body"><strong>init_config_fixed_magn</strong> — samples a batch of random spin configurations with a fixed total magnetization <code>sz</code>. Returns a <code>SpinState</code> JAX pytree of shape <code>(N_mc, N)</code>.</span>
+      </li>
+      <li class="step">
+        <span class="step-n">4</span>
+        <span class="step-body"><strong>WaveFunction</strong> — wraps the model parameters and its apply function into a single JAX pytree, so the wavefunction itself can flow through <code>jit</code>, <code>vmap</code>, and <code>grad</code>.</span>
+      </li>
+      <li class="step">
+        <span class="step-n">5</span>
+        <span class="step-body"><strong>SR</strong> — Stochastic Reconfiguration optimizer. Computes the natural gradient by preconditioning the energy gradient with the quantum geometric tensor (via NTK). <code>diag_shift</code> regularises the inversion.</span>
+      </li>
+      <li class="step">
+        <span class="step-n">6</span>
+        <span class="step-body"><strong>sample</strong> — runs <code>nsweeps × N</code> Metropolis-Hastings steps. Returns the updated state, its log-amplitudes, and the per-action acceptance rate.</span>
+      </li>
+      <li class="step">
+        <span class="step-n">7</span>
+        <span class="step-body"><strong>compute_expectation</strong> — evaluates the local energy estimator <code>E_L</code> for each sample, then reduces to the global mean <code>e_mean = ⟨E⟩</code> and second moment <code>e2_mean = ⟨|E|²⟩</code> across all devices.</span>
+      </li>
+      <li class="step">
+        <span class="step-n">8</span>
+        <span class="step-body"><strong>optimizer</strong> — applies SR to <code>E_L</code> and returns the parameter updates and the new optimizer state.</span>
+      </li>
+      <li class="step">
+        <span class="step-n">9</span>
+        <span class="step-body"><strong>apply_gradients</strong> — performs a gradient descent step: <code>θ ← θ − η · updates</code>, returning a new <code>WaveFunction</code> with updated parameters.</span>
+      </li>
+    </ol>
+  </div>
+</section>
 
 <!-- TOC -->
 <div class="toc">
@@ -377,17 +462,6 @@ footer a{color:#6B7FA0}
     <div class="sec-lbl">Setup</div>
     <h2>Installation</h2>
     <p class="lead-p">Tachys requires Python ≥ 3.9. Install JAX first with the backend that matches your hardware, then install Tachys.</p>
-    <div class="cb">
-      <div class="cb-head"><span class="cb-file">shell</span><span class="cb-lang">bash</span></div>
-      <pre><span class="cm"># CPU-only JAX</span>
-pip install jax
-
-<span class="cm"># GPU (CUDA 12)</span>
-pip install "jax[cuda12]"
-
-<span class="cm"># Tachys</span>
-pip install tachys</pre>
-    </div>
   </div>
 </section>
 
@@ -397,33 +471,6 @@ pip install tachys</pre>
     <div class="sec-lbl">Quickstart</div>
     <h2>Ground state in ten lines</h2>
     <p class="lead-p">Compute the ground state energy of the antiferromagnetic Heisenberg model on a 4×4 square lattice. The three steps — build an operator, generate the basis, run exact diagonalization — are the same for every model in Tachys.</p>
-    <div class="cb">
-      <div class="cb-head"><span class="cb-file">heisenberg_quickstart.py</span><span class="cb-lang">python</span></div>
-      <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
-<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
-<span class="kw">from</span> tachys.lattice.spins.spin_state <span class="kw">import</span> SpinState
-<span class="kw">from</span> tachys.lattice.spins.hamiltonians.heisenberg <span class="kw">import</span> heisenberg_square_pbc
-<span class="kw">from</span> tachys.lattice.exact_diag <span class="kw">import</span> spins_hilbert_space, exact_diag
-
-L, N = <span class="nm">4</span>, <span class="nm">16</span>
-
-<span class="cm"># 1. Build the Hamiltonian — the result is a callable</span>
-H = <span class="fn">heisenberg_square_pbc</span>(L=L, J=<span class="nm">1.0</span>)
-
-<span class="cm"># 2. Generate the complete 2^16-dimensional basis</span>
-all_configs = <span class="fn">spins_hilbert_space</span>(N)                             <span class="cm"># shape (65536, 16)</span>
-state_full  = <span class="cls">SpinState</span>(spins=jnp.<span class="fn">array</span>(all_configs, dtype=jnp.int8), Ns=N)
-
-<span class="cm"># 3. Pack function: spin config → unique integer index</span>
-<span class="kw">def</span> <span class="fn">pack</span>(state):
-    bits = (np.<span class="fn">asarray</span>(state.spins) <span class="op">+</span> <span class="nm">1</span>) <span class="op">//</span> <span class="nm">2</span>         <span class="cm"># {-1,+1} → {0,1}</span>
-    <span class="kw">return</span> (bits <span class="op">*</span> <span class="nm">2</span> <span class="op">**</span> np.<span class="fn">arange</span>(bits.shape[<span class="op">-</span><span class="nm">1</span>])).<span class="fn">sum</span>(axis=<span class="op">-</span><span class="nm">1</span>)
-
-eigenvalues, _ = <span class="fn">exact_diag</span>(state_full, H, pack, k=<span class="nm">1</span>)
-
-<span class="fn">print</span>(<span class="st">f"E₀     = {eigenvalues[0]:.6f}"</span>)       <span class="cm"># -11.228452</span>
-<span class="fn">print</span>(<span class="st">f"E₀ / N = {eigenvalues[0] / N:.6f}"</span>)   <span class="cm"># -0.701778</span></pre>
-    </div>
   </div>
 </section>
 
@@ -438,21 +485,6 @@ eigenvalues, _ = <span class="fn">exact_diag</span>(state_full, H, pack, k=<span
     <div class="cc" id="concept-states">
       <h3>States as pytrees</h3>
       <p>A <code>State</code> holds a <em>batch</em> of configurations. The first axis is the batch dimension; the second indexes sites or modes. Extending <code>flax.struct.PyTreeNode</code> means every state is a valid JAX pytree — it passes through <code>jit</code>, <code>vmap</code>, and <code>grad</code> without any wrapping.</p>
-      <div class="cb">
-        <div class="cb-head"><span class="cb-file">states.py</span><span class="cb-lang">python</span></div>
-        <pre><span class="kw">from</span> tachys.lattice.spins.spin_state <span class="kw">import</span> SpinState
-<span class="kw">from</span> tachys.lattice.fermions.fermion_state <span class="kw">import</span> FermionState
-<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
-
-<span class="cm"># Spin-½: values ∈ {-1, +1}, shape (batch, N_sites)</span>
-spins = jnp.<span class="fn">array</span>([[<span class="op">-</span><span class="nm">1</span>, <span class="nm">1</span>, <span class="op">-</span><span class="nm">1</span>, <span class="nm">1</span>]], dtype=jnp.int8)
-s = <span class="cls">SpinState</span>(spins=spins, Ns=<span class="nm">4</span>)
-
-<span class="cm"># Fermionic: binary occupation n_{i,σ} ∈ {0,1}</span>
-<span class="cm"># Modes ordered: (site 0 ↑, site 0 ↓, site 1 ↑, site 1 ↓, …)</span>
-occ = jnp.<span class="fn">array</span>([[<span class="nm">1</span>, <span class="nm">0</span>, <span class="nm">0</span>, <span class="nm">1</span>]], dtype=jnp.int8)
-f = <span class="cls">FermionState</span>(occupations=occ, Ns=<span class="nm">2</span>, Ne=<span class="nm">2</span>)</pre>
-      </div>
       <div class="note">
         <p><strong>Batching is automatic.</strong> Operators vmap over the batch axis internally. Pass a full Hilbert space of 65 536 configs and get back 65 536 results — no Python loop required.</p>
       </div>
@@ -462,50 +494,12 @@ f = <span class="cls">FermionState</span>(occupations=occ, Ns=<span class="nm">2
     <div class="cc" id="concept-operators">
       <h3>Operators as callables</h3>
       <p>An operator is an object with a <code>__call__</code> method. Call it on a batched state and it returns either a <code>DiagonalResult</code> (for diagonal operators like S<sup>z</sup>) or an <code>OffdiagonalResult</code> (for operators that connect different basis states). The caller never manages vmapping — that is handled by the base class.</p>
-      <div class="cb">
-        <div class="cb-head"><span class="cb-file">operators.py</span><span class="cb-lang">python</span></div>
-        <pre><span class="kw">from</span> tachys.lattice.spins.spin_operators <span class="kw">import</span> Sz, Splus, Sminus
-
-sz0  = <span class="cls">Sz</span>(site=<span class="nm">0</span>)      <span class="cm"># S^z at site 0 — diagonal</span>
-sp1  = <span class="cls">Splus</span>(site=<span class="nm">1</span>)   <span class="cm"># S^+ at site 1 — off-diagonal</span>
-
-<span class="cm"># Call like any function</span>
-diag_result    = <span class="fn">sz0</span>(state)    <span class="cm"># DiagonalResult</span>
-offdiag_result = <span class="fn">sp1</span>(state)    <span class="cm"># OffdiagonalResult</span>
-
-<span class="cm"># DiagonalResult</span>
-diag_result.matrix_element          <span class="cm"># shape (batch,)</span>
-
-<span class="cm"># OffdiagonalResult</span>
-offdiag_result.connected_states     <span class="cm"># shape (batch, N) — the reached state</span>
-offdiag_result.mask                 <span class="cm"># shape (batch,)  — False when operator annihilates</span>
-offdiag_result.matrix_element       <span class="cm"># shape (batch,)</span></pre>
-      </div>
     </div>
 
     <!-- Operator algebra -->
     <div class="cc" id="concept-algebra">
       <h3>Operator algebra</h3>
       <p>Operators support arithmetic. Adding two operators returns an <code>_OperatorSum</code>; multiplying by a scalar rescales the coupling; multiplying two operators produces their sequential product. Every composite is itself a callable — there is no distinction between a primitive operator and a Hamiltonian built from a hundred terms.</p>
-      <div class="cb">
-        <div class="cb-head"><span class="cb-file">algebra.py</span><span class="cb-lang">python</span></div>
-        <pre><span class="kw">from</span> tachys.lattice.spins.spin_operators <span class="kw">import</span> Sz, Splus, Sminus
-<span class="kw">from</span> tachys.lattice.spins.hamiltonians.heisenberg <span class="kw">import</span> heisenberg_square_pbc
-
-<span class="cm"># Scalar multiplication — rescales the coupling</span>
-half_sz = <span class="nm">0.5</span> <span class="op">*</span> <span class="cls">Sz</span>(site=<span class="nm">0</span>)
-
-<span class="cm"># Operator sum — returns _OperatorSum, still callable</span>
-ising_chain = <span class="cls">Sz</span>(site=<span class="nm">0</span>) <span class="op">*</span> <span class="cls">Sz</span>(site=<span class="nm">1</span>) <span class="op">+</span> <span class="cls">Sz</span>(site=<span class="nm">1</span>) <span class="op">*</span> <span class="cls">Sz</span>(site=<span class="nm">2</span>)
-
-<span class="cm"># Operator product — sequential application with Jordan-Wigner signs intact</span>
-hopping_term = <span class="cls">Splus</span>(site=<span class="nm">0</span>) <span class="op">*</span> <span class="cls">Sminus</span>(site=<span class="nm">1</span>)
-
-<span class="cm"># Compose freely — add a uniform field to any existing Hamiltonian</span>
-H = <span class="fn">heisenberg_square_pbc</span>(L=<span class="nm">4</span>)
-H_field = H <span class="op">+</span> <span class="nm">0.1</span> <span class="op">*</span> <span class="cls">Sz</span>(site=<span class="nm">0</span>)   <span class="cm"># perturb site 0</span>
-result  = <span class="fn">H_field</span>(state)            <span class="cm"># DiagOffdiagResult — same interface as always</span></pre>
-      </div>
       <div class="note tip">
         <p><strong>Differentiability.</strong> Because operators are <code>PyTreeNode</code>s, coupling constants are leaves in the pytree. You can differentiate through them with <code>jax.grad</code> — which opens the door to variational optimization over Hamiltonian parameters.</p>
       </div>
@@ -515,43 +509,12 @@ result  = <span class="fn">H_field</span>(state)            <span class="cm"># D
     <div class="cc" id="concept-hamiltonians">
       <h3>Built-in Hamiltonians</h3>
       <p>Tachys ships Hamiltonians for two standard lattice models, both on the square lattice with periodic boundary conditions. Each factory function returns an operator that can be further composed, scaled, or perturbed.</p>
-      <div class="cb">
-        <div class="cb-head"><span class="cb-file">hamiltonians.py</span><span class="cb-lang">python</span></div>
-        <pre><span class="kw">from</span> tachys.lattice.spins.hamiltonians.heisenberg <span class="kw">import</span> heisenberg_square_pbc
-<span class="kw">from</span> tachys.lattice.fermions.hamiltonians.hubbard <span class="kw">import</span> hubbard_square_pbc
-
-<span class="cm"># Heisenberg: H = J Σ_{⟨i,j⟩} [S^z_i S^z_j + ½(S^+_i S^-_j + h.c.)]</span>
-H_heis = <span class="fn">heisenberg_square_pbc</span>(L=<span class="nm">4</span>, J=<span class="nm">1.0</span>)
-
-<span class="cm"># Hubbard: H = -t Σ c†_{i,σ} c_{j,σ} + U Σ n_{i,↑} n_{i,↓}</span>
-H_hub  = <span class="fn">hubbard_square_pbc</span>(L=<span class="nm">4</span>, t=<span class="nm">1.0</span>, U=<span class="nm">8.0</span>)
-
-<span class="cm"># They are ordinary operators — compose them freely</span>
-H_combined = H_heis <span class="op">+</span> <span class="nm">0.5</span> <span class="op">*</span> H_hub</pre>
-      </div>
     </div>
 
     <!-- Exact diag -->
     <div class="cc" id="concept-exact-diag">
       <h3>Exact diagonalization</h3>
       <p><code>exact_diag</code> applies the Hamiltonian to every basis state, assembles a sparse COO matrix from the diagonal and off-diagonal results, and calls <code>scipy.sparse.linalg.eigsh</code> to find the <code>k</code> lowest eigenvalues. The only thing you provide beyond the operator and the basis is a <em>pack</em> function that maps states to unique integer indices — the single point of contact between your state representation and the matrix structure.</p>
-      <div class="cb">
-        <div class="cb-head"><span class="cb-file">exact_diag_demo.py</span><span class="cb-lang">python</span></div>
-        <pre><span class="kw">from</span> tachys.lattice.exact_diag <span class="kw">import</span> exact_diag, spins_hilbert_space
-<span class="kw">import</span> numpy <span class="kw">as</span> np
-
-all_configs = <span class="fn">spins_hilbert_space</span>(N=<span class="nm">16</span>)                <span class="cm"># (65536, 16)</span>
-state_full  = <span class="cls">SpinState</span>(spins=jnp.<span class="fn">array</span>(all_configs), Ns=<span class="nm">16</span>)
-
-<span class="cm"># The pack function only needs to be injective</span>
-<span class="kw">def</span> <span class="fn">pack</span>(state):
-    bits = (np.<span class="fn">asarray</span>(state.spins) <span class="op">+</span> <span class="nm">1</span>) <span class="op">//</span> <span class="nm">2</span>
-    <span class="kw">return</span> (bits <span class="op">*</span> <span class="nm">2</span> <span class="op">**</span> np.<span class="fn">arange</span>(bits.shape[<span class="op">-</span><span class="nm">1</span>])).<span class="fn">sum</span>(axis=<span class="op">-</span><span class="nm">1</span>)
-
-eigenvalues, eigenvectors = <span class="fn">exact_diag</span>(state_full, H, pack, k=<span class="nm">1</span>)
-<span class="cm"># eigenvalues: (1,)  — k lowest eigenvalues, ascending</span>
-<span class="cm"># eigenvectors: (65536, 1)</span></pre>
-      </div>
     </div>
   </div>
 </section>
@@ -870,60 +833,9 @@ eigenvalues, eigenvectors = <span class="fn">exact_diag</span>(state_full, H, pa
 
     <h3 style="margin-top:2rem;margin-bottom:.4rem">Heisenberg model on a 4×4 lattice</h3>
     <p style="margin-bottom:1.25rem">Benchmarked against E₀/N ≈ −0.7018 (Sandvik, 1997).</p>
-    <div class="cb">
-      <div class="cb-head"><span class="cb-file">examples/heisenberg_4x4.py</span><span class="cb-lang">python</span></div>
-      <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
-<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
-<span class="kw">from</span> tachys.lattice.spins.spin_state <span class="kw">import</span> SpinState
-<span class="kw">from</span> tachys.lattice.spins.hamiltonians.heisenberg <span class="kw">import</span> heisenberg_square_pbc
-<span class="kw">from</span> tachys.lattice.exact_diag <span class="kw">import</span> spins_hilbert_space, exact_diag
-
-L, N = <span class="nm">4</span>, <span class="nm">16</span>
-H = <span class="fn">heisenberg_square_pbc</span>(L=L, J=<span class="nm">1.0</span>)
-
-all_configs = <span class="fn">spins_hilbert_space</span>(N)
-state_full  = <span class="cls">SpinState</span>(spins=jnp.<span class="fn">array</span>(all_configs, dtype=jnp.int8), Ns=N)
-
-<span class="kw">def</span> <span class="fn">pack</span>(state):
-    bits = (np.<span class="fn">asarray</span>(state.spins) <span class="op">+</span> <span class="nm">1</span>) <span class="op">//</span> <span class="nm">2</span>
-    <span class="kw">return</span> (bits <span class="op">*</span> <span class="nm">2</span> <span class="op">**</span> np.<span class="fn">arange</span>(bits.shape[<span class="op">-</span><span class="nm">1</span>])).<span class="fn">sum</span>(axis=<span class="op">-</span><span class="nm">1</span>)
-
-eigenvalues, _ = <span class="fn">exact_diag</span>(state_full, H, pack, k=<span class="nm">1</span>)
-
-<span class="fn">print</span>(<span class="st">f"E₀     = {eigenvalues[0]:.8f}"</span>)      <span class="cm"># -11.22845248</span>
-<span class="fn">print</span>(<span class="st">f"E₀ / N = {eigenvalues[0] / N:.8f}"</span>)  <span class="cm"># -0.70177828</span></pre>
-    </div>
 
     <h3 style="margin-top:2.5rem;margin-bottom:.4rem">Hubbard model at quarter filling</h3>
     <p style="margin-bottom:1.25rem">4×4 lattice, N<sub>e</sub> = 4 electrons, two values of U/t. Benchmarked against Dagotto et al. (1992).</p>
-    <div class="cb">
-      <div class="cb-head"><span class="cb-file">examples/hubbard_4x4.py</span><span class="cb-lang">python</span></div>
-      <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
-<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
-<span class="kw">from</span> tachys.lattice.fermions.fermion_state <span class="kw">import</span> FermionState
-<span class="kw">from</span> tachys.lattice.fermions.hamiltonians.hubbard <span class="kw">import</span> hubbard_square_pbc
-<span class="kw">from</span> tachys.lattice.exact_diag <span class="kw">import</span> fermions_hilbert_space, exact_diag
-
-L, Ns, Ne = <span class="nm">4</span>, <span class="nm">16</span>, <span class="nm">4</span>
-
-all_configs = <span class="fn">fermions_hilbert_space</span>(Ns, Ne)  <span class="cm"># C(32, 4) = 35 960 states</span>
-state_full  = <span class="cls">FermionState</span>(
-    occupations=jnp.<span class="fn">array</span>(all_configs, dtype=jnp.int8),
-    Ns=Ns, Ne=Ne,
-)
-
-<span class="kw">def</span> <span class="fn">pack</span>(state):
-    occ = np.<span class="fn">asarray</span>(state.occupations)
-    <span class="kw">return</span> (occ <span class="op">*</span> <span class="nm">2</span> <span class="op">**</span> np.<span class="fn">arange</span>(occ.shape[<span class="op">-</span><span class="nm">1</span>])).<span class="fn">sum</span>(axis=<span class="op">-</span><span class="nm">1</span>)
-
-<span class="kw">for</span> U <span class="kw">in</span> (<span class="nm">4.0</span>, <span class="nm">8.0</span>):
-    H = <span class="fn">hubbard_square_pbc</span>(L=L, t=<span class="nm">1.0</span>, U=U)
-    eigenvalues, _ = <span class="fn">exact_diag</span>(state_full, H, pack, k=<span class="nm">1</span>)
-    <span class="fn">print</span>(<span class="st">f"U={U:.0f}:  E₀ = {eigenvalues[0]:.5f}"</span>)
-
-<span class="cm"># U=4:  E₀ = -11.53029    (Dagotto 1992: -11.5303)</span>
-<span class="cm"># U=8:  E₀ = -11.32150    (Dagotto 1992: -11.3215)</span></pre>
-    </div>
   </div>
 </section>
 
