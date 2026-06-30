@@ -32,7 +32,7 @@ class _Operator(struct.PyTreeNode):
                 continue
             if isinstance(val, tuple) and val and isinstance(val[0], _Operator):
                 continue
-            object.__setattr__(self, f.name, jnp.atleast_1d(val))
+            object.__setattr__(self, f.name, jnp.atleast_1d(jnp.asarray(val)))
 
     def __call__(self, state):
         # self = jax.tree.map(jnp.atleast_1d, self) # unnecessary
