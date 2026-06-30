@@ -93,7 +93,7 @@ class CompositeAction(_BaseAction):
         return new_state, allowed_move, log_prob_correction, action_id
 
 
-def mc_step(state, key, action, wf, log_amps, optimize_mask=True, batch_expand=1):
+def mc_step(state, key, action, wf, log_amps, optimize_mask=True, batch_expand=0.25):
     """Perform one Metropolis–Hastings step across all chains.
 
     Parameters
