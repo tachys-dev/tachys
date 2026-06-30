@@ -32,7 +32,17 @@ class _Operator(struct.PyTreeNode):
             object.__setattr__(self, f.name, jnp.atleast_1d(val))
 
     def __call__(self, state):
-        self = jax.tree.map(jnp.atleast_1d, self)
+        # self = jax.tree.map(jnp.atleast_1d, self) # unnecessary
+        leaves, treedef = jax.tree_util.tree_flatten(self)
+        n = max((l.shape[0] for l in leaves if l.ndim >= 1), default=1)
+        if n > 1:
+            leaves = [
+                jnp.broadcast_to(l, (n,) + l.shape[1:])
+                if l.ndim >= 1 and l.shape[0] == 1 else l
+                for l in leaves
+            ]
+            self = treedef.unflatten(leaves)
+
         #* type(self).apply is the unbound method
         result = jax.vmap(type(self).apply, in_axes=(0, None))(self, state)
         return result

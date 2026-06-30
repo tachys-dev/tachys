@@ -6,6 +6,7 @@ from jax.sharding import PartitionSpec as P
 from jax.experimental.shard_map import shard_map
 
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
+from tachys.lattice.spins.hamiltonians.ising_transverse_field import ising_transverse_field_square_pbc
 from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
 from tachys.lattice.spins.spin_action import SpinFlip
 from tachys.montecarlo import CompositeAction
@@ -23,7 +24,7 @@ N_mc = 16
 N_hidden = N  # alpha=1 hidden units
 
 # Heisenberg Hamiltonian on a 4x4 square lattice with PBC
-H = heisenberg_square_pbc(L, J=1.0)
+H = ising_transverse_field_square_pbc(L, J=1.0)
 
 # RBM wavefunction
 model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=False)

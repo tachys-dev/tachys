@@ -44,6 +44,21 @@ class Sminus(_OnSiteOperator):
                                  matrix_element=matrix_element)
 
 
+class Sx(_OnSiteOperator):
+    def apply(self, state):
+        spins = state.spins
+        assert spins.ndim == 2
+
+        mask = jnp.ones(spins.shape[0], dtype=bool)
+        connected_spins = spins.at[:, self.site].set(-spins[:, self.site])
+        connected_states = state.replace(spins=connected_spins)
+        matrix_element = jnp.full(mask.shape, self.coupling * 0.5)
+
+        return OffdiagonalResult(connected_states=connected_states,
+                                 mask=mask,
+                                 matrix_element=matrix_element)
+
+
 class XYExchange(_Operator):
     '''S+(i)S-(j) + S-(i)S+(j): flips both spins, non-zero only when i and j differ.'''
     i: int
