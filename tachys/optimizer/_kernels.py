@@ -25,11 +25,11 @@ def hard_shard(x):
 
 # ─── Linear solver ────────────────────────────────────────────────────────────
 
-def linear_solver_cholesky(ntk, dv, diag_shift, mode="complex"):
+def linear_solver_cholesky(ntk, forces, diag_shift, mode="complex"):
     """Cholesky-based solver for the SR linear system.
 
     mode="real"   : ntk is (..., M, M) real SPD; returns (..., M).
-    mode="complex": ntk is (..., M, M, 2, 2) block matrix; dv is (..., M)
+    mode="complex": ntk is (..., M, M, 2, 2) block matrix; forces is (..., M)
                     complex; returns (..., 2*M) real [u, v] with x = u + iv.
     """
     if mode == "real":
@@ -38,12 +38,12 @@ def linear_solver_cholesky(ntk, dv, diag_shift, mode="complex"):
         idx = jnp.arange(n)
         A = A.at[..., idx, idx].add(jnp.asarray(diag_shift, dtype=A.dtype))
         L = jnp.linalg.cholesky(A)
-        y = solve_triangular(L, dv.real, lower=True, trans=0)
+        y = solve_triangular(L, forces.real, lower=True, trans=0)
         u = solve_triangular(L, y, lower=True, trans=1)
         return u
 
     elif mode == "complex":
-        eR, eI = dv.real, dv.imag
+        eR, eI = forces.real, forces.imag
         A = ntk[..., 0, 0]
         B = ntk[..., 0, 1]
         C = ntk[..., 1, 1]
