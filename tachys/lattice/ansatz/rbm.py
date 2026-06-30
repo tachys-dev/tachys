@@ -2,7 +2,7 @@ from typing import Any
 
 import jax.numpy as jnp
 import flax.linen as nn
-
+import jax
 
 def log_cosh(x):
     """Numerically stable log(cosh(x))."""

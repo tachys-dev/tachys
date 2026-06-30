@@ -129,9 +129,14 @@ class _BaseOptimizer(struct.PyTreeNode):
     nbatches: int = struct.field(pytree_node=False, default=1)
 
     def __post_init__(self):
-        if isinstance(self.diag_shift, jax.core.Tracer) or not isinstance(self.diag_shift, (int, float, jax.Array)):
-            return
-        object.__setattr__(self, 'diag_shift', jnp.atleast_1d(self.diag_shift))
+        import dataclasses
+        for f in dataclasses.fields(self):
+            if not f.metadata.get('pytree_node', True):
+                continue
+            val = getattr(self, f.name)
+            if isinstance(val, jax.core.Tracer) or not isinstance(val, (int, float, jax.Array)):
+                continue
+            object.__setattr__(self, f.name, jnp.atleast_1d(val))
 
     def update(self, O_L, opt_state, state, wf, weights=None):
         raise NotImplementedError
@@ -189,7 +194,7 @@ class SPRING(_BaseOptimizer, kw_only=True):
     then adds momentum to the final parameter updates.
     """
 
-    mu: float
+    mu: float = 0.9
 
     def init(self, params) -> SPRINGState:
         return SPRINGState(old_updates=jax.tree.map(jnp.zeros_like, params))
@@ -224,14 +229,14 @@ class MARCH(_BaseOptimizer, kw_only=True):
     and uses its bias-corrected value to scale the NTK and the final updates.
     """
 
-    mu: float
-    beta: float
+    mu: float = 0.95
+    beta: float = 0.995
 
     def init(self, params) -> MARCHState:
         return MARCHState(
             old_updates=jax.tree.map(jnp.zeros_like, params),
             V=jax.tree.map(jnp.ones_like, params),
-            t=jnp.int32(0),
+            t=jnp.array([0], dtype=jnp.int32),
         )
 
     def update(self, E_L, opt_state, state, wf, weights=None):

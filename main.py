@@ -1,13 +1,19 @@
+from functools import partial
+
 import jax
 import jax.numpy as jnp
+from jax.sharding import PartitionSpec as P
+from jax.experimental.shard_map import shard_map
 
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
 from tachys.lattice.spins.spin_action import SpinFlip
 from tachys.montecarlo import CompositeAction
 from tachys.lattice.ansatz.rbm import SpinRBM
-from tachys.lattice.operator.local_estimator import local_estimator
+from tachys.lattice.operator.local_estimator import compute_expectation, local_estimator
 from tachys.montecarlo import sample
+from tachys.optimizer.optimizers import _build_ntk as _build_ntk_base
+from tachys.parallel import mesh
 from tachys.wavefunction import WaveFunction
 from tachys.optimizer import SR, SPRING, MARCH
 
@@ -16,65 +22,22 @@ N = L * L
 N_mc = 16
 N_hidden = N  # alpha=1 hidden units
 
-key = jax.random.key(0)
-
 # Heisenberg Hamiltonian on a 4x4 square lattice with PBC
 H = heisenberg_square_pbc(L, J=1.0)
 
 # RBM wavefunction
-model = SpinRBM(num_hidden=N_hidden, dtype=jnp.float64)
+model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=False)
 
 # Batch of 16 zero-magnetisation spin configurations
-key, subkey = jax.random.split(key)
-spins = init_config_fixed_magn(subkey, N, sz=0, N_mc=N_mc)
+spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
 state = SpinState(spins=spins, Ns=N)
 
 # Initialise RBM parameters with a dummy forward pass
-key, subkey = jax.random.split(key)
-dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), Ns=N)
-params = model.init(subkey, dummy)
+params = model.init(jax.random.key(0), state)
 wf = WaveFunction(params=params, apply_fn=model.apply)
-
-# Log-amplitudes for the batch
-log_amp = wf.apply_fn(wf.params, state)
-
-# Local energy O_L(x) = sum_{x'} <x|H|x'> psi(x') / psi(x)
-O_L = local_estimator(H, state, wf, log_amp, optimize_mask=False)
-
-print("configurations shape:", spins.shape)
-print("log amplitudes shape:", log_amp.shape)
-print("local energy shape:  ", O_L.shape)
-print("local energies:\n", O_L)
-print("mean local energy:", jnp.mean(O_L))
 
 # MC sampling
 action = SpinFlip()
-key, subkey = jax.random.split(key)
-mc_keys = jax.random.split(subkey, N_mc)
-
-state, log_amps, acceptance = sample(10, state, action, mc_keys, wf)
-
-print("\nafter 10 sweeps (SpinFlip):")
-print("acceptance rate:", acceptance[0])
-print("log_amps shape: ", log_amps.shape)
-
-# MC sampling with CompositeAction (70% SpinFlip, 30% SpinFlip — replace second with
-# SpinExchange once the lattice geometry fields are available in the state)
-composite = CompositeAction(actions=(SpinFlip(), SpinFlip()), probs=(0.7, 0.3))
-key, subkey = jax.random.split(key)
-mc_keys = jax.random.split(subkey, N_mc)
-
-state, log_amps, acceptance = sample(10, state, composite, mc_keys, wf)
-
-print("\nafter 10 sweeps (CompositeAction):")
-for i, acc in enumerate(acceptance):
-    print(f"  action {i} acceptance: {acc:.3f}")
-
-# ── Optimization loop ─────────────────────────────────────────────────────────
-# Swap SR for SPRING or MARCH to use momentum / adaptive preconditioning:
-#
-#   optimizer = SPRING(diag_shift=1e-4, mu=0.9, mode="real")
-#   optimizer = MARCH(diag_shift=1e-4, mu=0.95, beta=0.995, mode="real")
 
 N_steps = 5
 eta     = 0.01
@@ -84,14 +47,15 @@ opt_state = optimizer.init(wf.params)
 
 print("\n--- SR optimization ---")
 for step in range(N_steps):
-    key, subkey = jax.random.split(key)
-    mc_keys = jax.random.split(subkey, N_mc)
-    state, log_amps, _ = sample(10, state, action, mc_keys, wf)
+    mc_keys = jax.random.split(jax.random.key(2), N_mc)
+    state, log_amps, acceptance = sample(1, state, action, mc_keys, wf)
 
-    O_L = local_estimator(H, state, wf, log_amps, optimize_mask=False)
+    E_L, e_mean, _ = compute_expectation(H, wf, state, log_amps)
 
-    updates, opt_state = optimizer(O_L, opt_state, state, wf)
+    updates, opt_state = optimizer(E_L, opt_state, state, wf)
+
     wf = wf.apply_gradients(updates, eta)
 
-    print(f"  step {step:2d}  E/N = {jnp.mean(O_L) / N:.6f}")
+    print(f"  step {step:2d}  E/N = {e_mean / N:.6f}")
 
+print(wf.params)
