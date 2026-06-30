@@ -36,7 +36,7 @@ def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
     connected_states : pytree, leaves shape (N_terms, N_mc_local, ...)
     mask             : (N_terms, N_mc_local) — nonzero entries mark active connections
     log_amp          : (N_mc_local,) — current log-amplitudes, used only for dtype
-    batch_expand     : int — batch enlargement factor; N_terms must be divisible
+    batch_expand     : float — batch scale factor; int(batch_expand * N_mc_local) must divide N_terms * N_mc_local
 
     Returns
     -------
@@ -44,7 +44,8 @@ def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
     """
     active = mask.astype(bool)
     N_terms, N_mc_local = active.shape
-    assert (N_terms * N_mc_local) % batch_expand == 0
+    batch_size = int(batch_expand * N_mc_local)
+    assert batch_size > 0 and (N_terms * N_mc_local) % batch_size == 0
 
     # Flatten (N_terms, N_mc_local) -> (N_terms * N_mc_local,)
     flat_active = active.reshape(-1)
@@ -55,8 +56,7 @@ def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
     flat_active = flat_active[perm]
     flat_states = jax.tree.map(lambda x: x[perm], flat_states)
 
-    # Rebatch: new batch size = batch_expand * N_mc_local
-    batch_size = batch_expand * N_mc_local
+    # Rebatch: new batch size = int(batch_expand * N_mc_local)
     n_batches  = (N_terms * N_mc_local) // batch_size
     flat_states = jax.tree.map(
         lambda x: x.reshape(n_batches, batch_size, *x.shape[1:]), flat_states
@@ -92,8 +92,7 @@ def local_estimator(operator, state, wf, log_amp, optimize_mask=True, batch_expa
     wf            : wave function with .apply_fn(params, state) -> (N_mc_local,) log-amplitudes
     log_amp       : jax.Array, shape (N_mc_local,)
     optimize_mask : bool — skip zero-mask batches via while_loop (default True)
-    batch_expand  : int — batch enlargement factor for _apply_masked (N_terms must
-                    be divisible; only used when optimize_mask=True)
+    batch_expand  : float — batch scale factor for _apply_masked (only used when optimize_mask=True)
 
     Returns
     -------
