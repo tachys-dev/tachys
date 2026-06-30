@@ -4,12 +4,12 @@ Ported from the jaxvmc reference implementation; adapted for tachys naming
 conventions (state / wf instead of lattice / vstate).
 """
 
+import operator
 from itertools import combinations_with_replacement
 
 from einops import rearrange, einsum
 import jax
 import jax.numpy as jnp
-from jax.flatten_util import ravel_pytree
 from jax.scipy.linalg import solve_triangular
 
 from tachys.parallel import n_devices, rank
@@ -67,43 +67,30 @@ def linear_solver_cholesky(ntk, eps, diag_shift, mode="complex"):
 
 # ─── NTK computation ──────────────────────────────────────────────────────────
 
-def _jacobian_batch(wf, batch_state, mode):
-    """Per-sample Jacobian via jax.grad + ravel_pytree.
+def _ntk_contraction(J1, J2, mode, V=None):
+    """Contract pytree Jacobians into the NTK block for a pair of batches.
 
-    Returns:
-        real    mode: (N_mc, N_params) real array
-        complex mode: (N_mc, 2, N_params) real array — axis 1 is [J_re, J_im]
+    J1, J2 : pytrees with leaves of shape (N_i, *leaf_shape)       [real]
+                                           (N_i, 2, *leaf_shape)    [complex]
+    V      : pytree matching wf.params (MARCH preconditioner), optional.
+             Each leaf has shape (*leaf_shape); broadcast is automatic.
+    Returns: (N_i, N_j)           [real]
+             (N_i, N_j, 2, 2)    [complex]
     """
-    f_real = lambda params, s: jnp.squeeze(wf.apply_fn(params, s).real)
-    J_re = jax.vmap(jax.grad(f_real), in_axes=(None, 0))(wf.params, batch_state)
-    J_re = jax.vmap(lambda x: ravel_pytree(x)[0], in_axes=0)(J_re)  # (N_mc, N_params)
+    def contract(x, y, v=None):
+        if v is not None:
+            x = x / (v ** 0.5 + 1e-8)
+        if mode == "complex":
+            return einsum(x, y, 'i j ..., k l ... -> i k j l')
+        else:
+            return einsum(x, y, 'i ..., j ... -> i j')
 
-    if mode == "complex":
-        f_imag = lambda params, s: jnp.squeeze(wf.apply_fn(params, s).imag)
-        J_im = jax.vmap(jax.grad(f_imag), in_axes=(None, 0))(wf.params, batch_state)
-        J_im = jax.vmap(lambda x: ravel_pytree(x)[0], in_axes=0)(J_im)
-        return jnp.stack([J_re, J_im], axis=1)  # (N_mc, 2, N_params)
-
-    return J_re  # (N_mc, N_params)
-
-
-def _ntk_contraction(J1, J2, mode, V_flat=None):
-    """Contract flat Jacobian matrices into the NTK block for a pair of batches.
-
-    J1, J2  : (N_i, N_params)       [real]
-              (N_i, 2, N_params)    [complex]
-    V_flat  : (N_params,) optional diagonal preconditioner (MARCH)
-
-    Returns  : (N_i, N_j)           [real]
-               (N_i, N_j, 2, 2)    [complex]
-    """
-    if V_flat is not None:
-        J1 = J1 * (1.0 / (V_flat ** 0.5 + 1e-8))  # scale along last axis
-
-    if mode == "complex":
-        return einsum(J1, J2, 'i a p, k b p -> i k a b')
+    if V is not None:
+        pairs = jax.tree.map(contract, J1, J2, V)
     else:
-        return J1 @ J2.T
+        pairs = jax.tree.map(lambda x, y: contract(x, y), J1, J2)
+
+    return jax.tree.reduce(operator.add, pairs)
 
 
 def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
@@ -125,7 +112,16 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
     N_batches      = global_state.spins.shape[0]
     N_mc_per_batch = global_state.spins.shape[1]
 
-    V_flat = ravel_pytree(V)[0] if V is not None else None
+    # Build jacobian_fn once outside body_fun so it is compiled once.
+    if mode == "complex":
+        def _f(params, s):
+            log_amp = jnp.squeeze(wf.apply_fn(params, s))
+            return jnp.stack([log_amp.real, log_amp.imag])  # (2,)
+    else:
+        _f = lambda params, s: jnp.squeeze(wf.apply_fn(params, s)).real  # scalar
+
+    # vmap over samples: leaves become (N_mc, 2, *leaf_shape) or (N_mc, *leaf_shape).
+    jacobian_fn = jax.vmap(jax.jacobian(_f), in_axes=(None, 0))
 
     # Distribute upper-triangular pairs across devices.
     pairs = list(combinations_with_replacement(range(N_batches), 2))
@@ -145,9 +141,9 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
         i, j    = device_pairs[k, 0], device_pairs[k, 1]
         state_i = jax.tree.map(lambda x: x[i], global_state)
         state_j = jax.tree.map(lambda x: x[j], global_state)
-        J1      = _jacobian_batch(wf, state_i, mode)
-        J2      = _jacobian_batch(wf, state_j, mode)
-        ntk_ij  = _ntk_contraction(J1, J2, mode, V_flat=V_flat)
+        J1      = jacobian_fn(wf.params, state_i)
+        J2      = jacobian_fn(wf.params, state_j)
+        ntk_ij  = _ntk_contraction(J1, J2, mode, V=V)
         ntk = ntk.at[i, :, j].set(ntk_ij)
         if mode == "complex":
             ntk = ntk.at[j, :, i].set(ntk_ij.transpose(1, 0, 3, 2))
