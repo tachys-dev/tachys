@@ -22,9 +22,14 @@ class _Operator(struct.PyTreeNode):
     coupling: float = struct.field(default=1.0, kw_only=True)
 
     def __post_init__(self):
-        if isinstance(self.coupling, jax.core.Tracer) or not isinstance(self.coupling, (int, float, jax.Array)):
-            return
-        object.__setattr__(self, 'coupling', jnp.atleast_1d(jnp.asarray(self.coupling)))
+        import dataclasses
+        for f in dataclasses.fields(self):
+            if not f.metadata.get('pytree_node', True):
+                continue
+            val = getattr(self, f.name)
+            if isinstance(val, jax.core.Tracer) or not isinstance(val, (int, float, jax.Array)):
+                continue
+            object.__setattr__(self, f.name, jnp.atleast_1d(val))
 
     def __call__(self, state):
         self = jax.tree.map(jnp.atleast_1d, self)
@@ -183,16 +188,3 @@ class _OperatorMul(_Operator):
 
 class _OnSiteOperator(_Operator):
     site: int
-
-    def __post_init__(self):
-        # During jax.vmap/shard_map, tree_unflatten is called with sentinel values
-        # (e.g. object(), NoFail()) for structural checks, or abstract Tracers for tracing.
-        # Skip normalization unless site is a concrete numeric value.
-        if isinstance(self.site, jax.core.Tracer) or not isinstance(self.site, (int, float, jax.Array)):
-            return
-        site = jnp.atleast_1d(jnp.array(self.site))
-        n = site.shape[0]
-        coupling = jnp.broadcast_to(jnp.atleast_1d(jnp.asarray(self.coupling)), (n,)).copy()
-
-        object.__setattr__(self, 'site', site)
-        object.__setattr__(self, 'coupling', coupling)

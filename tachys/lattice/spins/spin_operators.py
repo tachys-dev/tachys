@@ -1,4 +1,3 @@
-import jax
 import jax.numpy as jnp
 
 from ..operator.base import _Operator, _OnSiteOperator, DiagonalResult, OffdiagonalResult
@@ -49,17 +48,6 @@ class XYExchange(_Operator):
     '''S+(i)S-(j) + S-(i)S+(j): flips both spins, non-zero only when i and j differ.'''
     i: int
     j: int
-
-    def __post_init__(self):
-        if isinstance(self.i, jax.core.Tracer) or not isinstance(self.i, (int, float, jax.Array)):
-            return
-        i = jnp.atleast_1d(jnp.array(self.i))
-        j = jnp.atleast_1d(jnp.array(self.j))
-        n = i.shape[0]
-        coupling = jnp.broadcast_to(jnp.atleast_1d(jnp.asarray(self.coupling)), (n,)).copy()
-        object.__setattr__(self, 'i', i)
-        object.__setattr__(self, 'j', j)
-        object.__setattr__(self, 'coupling', coupling)
 
     def apply(self, state):
         spins = state.spins
