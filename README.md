@@ -37,3 +37,4 @@ pip install -e ".[cuda]"  # CUDA
 - [Flax](https://github.com/google/flax) 0.12.0
 - NumPy
 - SciPy
+- [einops](https://github.com/arogozhnikov/einops)
