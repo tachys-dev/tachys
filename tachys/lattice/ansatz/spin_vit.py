@@ -73,7 +73,7 @@ class SpinViT(nn.Module):
     complex: bool = True
     transl_invariant: bool = False
     two_dimensional: bool = False
-    dtype = jnp.float64
+    dtype: Any = jnp.float64
 
     def setup(self):
         self.patches_and_embed = Embed(
@@ -94,6 +94,7 @@ class SpinViT(nn.Module):
 
     @nn.remat
     def __call__(self, lattice):
+        lattice = jax.tree.map(jnp.atleast_2d, lattice)
         s = lattice.spins
         
         x = self.patches_and_embed(s)
