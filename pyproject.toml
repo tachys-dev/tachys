@@ -7,7 +7,7 @@ name = "tachys"
 version = "0.1.0"
 requires-python = ">=3.9"
 dependencies = [
-    "jax==0.7.2",
+    "jax==0.10.2",
     "flax==0.12.0",
     "numpy",
     "scipy",
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = ["jax[cuda12]==0.7.2"]
+cuda = ["jax[cuda12]==0.10.2"]
 docs = [
     "sphinx>=7.2",
     "pydata-sphinx-theme>=0.15",
