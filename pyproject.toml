@@ -13,6 +13,7 @@ dependencies = [
     "scipy",
     "einops",
     "pytest",
+    "numba",
 ]
 
 [project.optional-dependencies]

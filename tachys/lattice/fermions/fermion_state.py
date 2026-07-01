@@ -9,6 +9,13 @@ class FermionState(State):
     Ne: int = struct.field(pytree_node=False)
     Nbands: int = struct.field(pytree_node=False, default=2) #* single-band spinful fermions by default
 
+    @property
+    def config(self):
+        return self.occupations
+
+    def replace_config(self, new_config):
+        return self.replace(occupations=new_config)
+
 def init_config_spinful(key, Ns, Ne, sz=0, N_mc=1, particle_hole=False):
     assert Ne % 2 == 0
 

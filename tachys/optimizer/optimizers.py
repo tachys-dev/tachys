@@ -170,7 +170,7 @@ class SR(_BaseOptimizer):
 
     def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
-        N_mc_local = state.spins.shape[0]
+        N_mc_local = state.config.shape[0]
         N_mc       = N_mc_local * n_devices
 
         eloc = E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
@@ -200,7 +200,7 @@ class SPRING(_BaseOptimizer, kw_only=True):
 
     def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
-        N_mc_local = state.spins.shape[0]
+        N_mc_local = state.config.shape[0]
         N_mc       = N_mc_local * n_devices
 
         eloc = E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
@@ -240,7 +240,7 @@ class MARCH(_BaseOptimizer, kw_only=True):
 
     def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
-        N_mc_local = state.spins.shape[0]
+        N_mc_local = state.config.shape[0]
         N_mc       = N_mc_local * n_devices
 
         eloc = E_L - jax.lax.pmean(jnp.mean(E_L), 'i')

@@ -99,7 +99,7 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
     Each device computes a subset of (batch_i, batch_j) pairs; contributions
     are summed via psum to yield the (N_mc × N_mc) NTK.
     """
-    global_state = jax.lax.all_gather(state, 'i')  # spins: (n_devices, N_mc_local, N)
+    global_state = jax.lax.all_gather(state, 'i')  # config: (n_devices, N_mc_local, N)
 
     if nbatches > 1:
         global_state = jax.tree.map(
@@ -109,8 +109,8 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
             global_state,
         )
 
-    N_batches      = global_state.spins.shape[0]
-    N_mc_per_batch = global_state.spins.shape[1]
+    N_batches      = global_state.config.shape[0]
+    N_mc_per_batch = global_state.config.shape[1]
 
     # Build jacobian_fn once outside body_fun so it is compiled once.
     if mode == "complex":
@@ -192,7 +192,7 @@ def compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1):
 
 def center_sr_solution(sr_solution, state, mode, weights):
     """Center the linear-solve output before the VJP step."""
-    N_mc = state.spins.shape[0] * n_devices
+    N_mc = state.config.shape[0] * n_devices
 
     if mode == "complex":
         sr_solution = sr_solution.reshape(2, -1).T  # (N_mc, 2)
