@@ -4,14 +4,18 @@ import numpy as np
 
 
 def same_treedef(tree1, tree2):
-    """Identical pytree structure (types + nesting + static fields)."""
-    return jax.tree.structure(tree1) == jax.tree.structure(tree2)
+    """Identical pytree structure (types + nesting + static fields).
+
+    Uses repr() comparison because JAX >=0.10 / Flax >=0.12 changed PyTreeDef.__eq__
+    to ignore the registered node type (e.g. Splus == Sminus under __eq__).
+    """
+    return repr(jax.tree.structure(tree1)) == repr(jax.tree.structure(tree2))
 
 def same_treedef_and_avals(tree1, tree2):
     """Identical structure AND matching leaf shape/dtype."""
     leaves1, td1 = jax.tree.flatten(tree1)
     leaves2, td2 = jax.tree.flatten(tree2)
-    if td1 != td2:
+    if repr(td1) != repr(td2):
         return False
     return all(
         jnp.shape(l1) == jnp.shape(l2) and jnp.result_type(l1) == jnp.result_type(l2)

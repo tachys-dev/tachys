@@ -2,7 +2,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
-from jax.experimental.shard_map import shard_map
+from jax import shard_map
 from jax.sharding import PartitionSpec as P
 
 from tachys.lattice.ansatz.rbm import SpinRBM
@@ -27,7 +27,7 @@ def test_ntk_values():
 
     _build_ntk = partial(shard_map, mesh=mesh,
                          in_specs=(P('i'), P(None)),
-                         out_specs=P(None), check_rep=False)(
+                         out_specs=P(None), check_vma=False)(
                     partial(_build_ntk_base, mode="complex", weights=None, nbatches=1, N_mc_local=N_mc, V=None))
     ntk = _build_ntk(state, wf)
 

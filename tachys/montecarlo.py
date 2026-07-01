@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 from flax import struct
 from jax.sharding import PartitionSpec as P
-from jax.experimental.shard_map import shard_map
+from jax import shard_map
 
 from tachys.parallel import mesh
 from tachys.lattice.operator.local_estimator import _apply_masked
@@ -140,7 +140,7 @@ def mc_step(state, key, action, wf, log_amps, optimize_mask=True, batch_expand=0
          mesh=mesh,
          in_specs=(P(), P('i'), P(None), P('i'), P(None)),
          out_specs=(P('i'), P('i'), P()),
-         check_rep=False,
+         check_vma=False,
          )
 def sample(nsweeps, state, action, key, wf):
     """Run ``nsweeps * Ns`` Metropolis steps across all sharded chains.

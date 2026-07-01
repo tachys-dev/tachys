@@ -3,7 +3,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 from jax.sharding import PartitionSpec as P
-from jax.experimental.shard_map import shard_map
+from jax import shard_map
 
 from tachys.lattice.operator.base import DiagonalResult, OffdiagonalResult, DiagOffdiagResult
 from tachys.parallel import mesh, n_devices
@@ -161,5 +161,5 @@ def compute_expectation(operator, wf, state, log_amp, optimize_mask=True, batch_
         mesh=mesh,
         in_specs=(P(None), P(None), P('i'), P('i')),
         out_specs=(P('i'), P(), P()),
-        check_rep=False,
+        check_vma=False,
     )(operator, wf, state, log_amp)

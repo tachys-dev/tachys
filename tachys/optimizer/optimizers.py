@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 from flax import struct
 from jax.sharding import PartitionSpec as P
-from jax.experimental.shard_map import shard_map
+from jax import shard_map
 
 from tachys.parallel import mesh, n_devices, hard_shard
 from tachys.optimizer._kernels import (
@@ -143,14 +143,14 @@ class _BaseOptimizer(struct.PyTreeNode):
     @jax.jit
     @partial(shard_map, mesh=mesh,
              in_specs=(P(None), P(None), P('i'), P(None), P('i')),
-             out_specs=P(None), check_rep=False)
+             out_specs=P(None), check_vma=False)
     def _call(self, opt_state, state, wf, E_L):
         return self.update(E_L, opt_state, state, wf)
 
     @jax.jit
     @partial(shard_map, mesh=mesh,
              in_specs=(P(None), P(None), P('i'), P(None), P('i'), P('i')),
-             out_specs=P(None), check_rep=False)
+             out_specs=P(None), check_vma=False)
     def _call_reweighted(self, opt_state, state, wf, E_L, weights):
         return self.update(E_L, opt_state, state, wf, weights)
 
