@@ -2,7 +2,7 @@ from flax import struct
 import jax
 import jax.numpy as jnp
 
-from tachys.lattice.operator.base import _OnSiteOperator, DiagonalResult, OffdiagonalResult
+from tachys.lattice.operator.base import _Operator, _OnSiteOperator, DiagonalResult, OffdiagonalResult
 
 
 def _create_fermion_fn(state, site):
@@ -79,4 +79,43 @@ class Cup_dag(C_dag):
     band: int = struct.field(pytree_node=False, default=0)
 
 class Cdn_dag(C_dag):
+    band: int = struct.field(pytree_node=False, default=1)
+
+
+class Hopping(_Operator):
+    '''alpha * c_dag(i) c(j) + conj(alpha) * c_dag(j) c(i).'''
+    i: int
+    j: int
+    band: int = struct.field(pytree_node=False)
+
+    def apply(self, state):
+        assert state.occupations.ndim == 2
+        occ = state.occupations
+        size = occ.shape[-1]
+
+        i = self.band * state.Ns + self.i
+        j = self.band * state.Ns + self.j
+
+        count1 = ((jnp.arange(size) < i) * occ).sum(axis=-1)
+        count2 = ((jnp.arange(size) < j) * occ).sum(axis=-1)
+        mask1 = i < j
+        mask2 = i > j
+        count = count1 + count2 - occ[..., i] * mask1 - occ[..., j] * mask2
+        sign = (-1) ** (count % 2)
+
+        new_occ = occ.at[..., i].set(occ[..., j])
+        new_occ = new_occ.at[..., j].set(occ[..., i])
+        mask = occ[..., i] != occ[..., j]
+        connected_states = state.replace(occupations=new_occ)
+
+        matrix_element = sign * jnp.where(occ[..., j] == 1, self.coupling, jnp.conj(self.coupling))
+
+        return OffdiagonalResult(connected_states=connected_states,
+                                 mask=mask,
+                                 matrix_element=matrix_element)
+
+class HoppingUp(Hopping):
+    band: int = struct.field(pytree_node=False, default=0)
+
+class HoppingDown(Hopping):
     band: int = struct.field(pytree_node=False, default=1)
