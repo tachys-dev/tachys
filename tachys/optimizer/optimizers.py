@@ -142,15 +142,15 @@ class _BaseOptimizer(struct.PyTreeNode):
 
     @jax.jit
     @partial(shard_map, mesh=mesh,
-             in_specs=(P(None), P(None), P('i'), P(None), P('i')),
-             out_specs=P(None), check_vma=False)
+             in_specs=(P(),     P(),     P('i'), P(),     P('i')),
+             out_specs=P(), check_vma=False)
     def _call(self, opt_state, state, wf, E_L):
         return self.update(E_L, opt_state, state, wf)
 
     @jax.jit
     @partial(shard_map, mesh=mesh,
-             in_specs=(P(None), P(None), P('i'), P(None), P('i'), P('i')),
-             out_specs=P(None), check_vma=False)
+             in_specs=(P(),     P(),     P('i'), P(),     P('i'), P('i')),
+             out_specs=P(), check_vma=False)
     def _call_reweighted(self, opt_state, state, wf, E_L, weights):
         return self.update(E_L, opt_state, state, wf, weights)
 

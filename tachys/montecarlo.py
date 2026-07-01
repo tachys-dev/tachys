@@ -138,7 +138,7 @@ def mc_step(state, key, action, wf, log_amps, optimize_mask=True, batch_expand=0
 @jax.jit
 @partial(shard_map,
          mesh=mesh,
-         in_specs=(P(), P('i'), P(None), P('i'), P(None)),
+         in_specs=(P(), P('i'), P(),     P('i'), P()    ),
          out_specs=(P('i'), P('i'), P()),
          check_vma=False,
          )

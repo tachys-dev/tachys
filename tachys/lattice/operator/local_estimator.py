@@ -159,7 +159,7 @@ def compute_expectation(operator, wf, state, log_amp, optimize_mask=True, batch_
     return shard_map(
         _body,
         mesh=mesh,
-        in_specs=(P(None), P(None), P('i'), P('i')),
+        in_specs=(P(),     P(),     P('i'), P('i')),
         out_specs=(P('i'), P(), P()),
         check_vma=False,
     )(operator, wf, state, log_amp)
