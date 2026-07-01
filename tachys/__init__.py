@@ -39,6 +39,7 @@ builtins.print = _master_print
 # Shows device platform/model, total device count, and node layout.
 # -----------------------------------------------------------------------
 import sys
+import importlib.metadata
 _kind      = jax.devices()[0].platform.upper()
 _model     = jax.devices()[0].device_kind
 _n_nodes   = int(os.environ.get("SLURM_NNODES", 1))
@@ -47,12 +48,26 @@ _title     = "⚡ tachys"
 _dev_str   = f"{n_devices} × {_kind}  ({_model})"
 _node_str  = f"{_n_nodes} node{'s' if _n_nodes > 1 else ''}  ·  {_dev_node} {_kind}/node"
 
+def _pkg_version(name):
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return "n/a"
+
+_jax_str  = f"jax {_pkg_version('jax')}  ·  flax {_pkg_version('flax')}"
+
+_conda_env = os.environ.get("CONDA_DEFAULT_ENV") or os.environ.get("VIRTUAL_ENV")
+if _conda_env:
+    _conda_env = os.path.basename(_conda_env)
+_py_ver   = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+_env_str  = f"python {_py_ver}  {sys.executable}" + (f"  ({_conda_env})" if _conda_env else "")
+
 _USE_COLOR = sys.stdout.isatty()
 _C = "\033[36m" if _USE_COLOR else ""
 _B = "\033[1m"  if _USE_COLOR else ""
 _R = "\033[0m"  if _USE_COLOR else ""
 
-_cw  = max(len(_title), len(_dev_str), len(_node_str))
+_cw  = max(len(_title), len(_dev_str), len(_node_str), len(_jax_str), len(_env_str))
 _w   = _cw + 24
 
 def _center(s):
@@ -67,5 +82,8 @@ print(f"{_C}║{_R}{' ' * _tlp}{_B}{_title}{_R}{' ' * _trp}{_C}║{_R}")
 print(f"{_C}╟{'─' * _w}╢{_R}")
 print(f"{_C}║{_R}{_center(_dev_str)}{_C}║{_R}")
 print(f"{_C}║{_R}{_center(_node_str)}{_C}║{_R}")
+print(f"{_C}╟{'─' * _w}╢{_R}")
+print(f"{_C}║{_R}{_center(_env_str)}{_C}║{_R}")
+print(f"{_C}║{_R}{_center(_jax_str)}{_C}║{_R}")
 print(f"{_C}╚{'═' * _w}╝{_R}", flush=True)
 
