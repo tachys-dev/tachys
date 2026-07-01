@@ -65,11 +65,7 @@ pip install -e .          # CPU
 pip install -e ".[cuda]"  # CUDA
 ```
 
-## Requirements
+## Developers
 
-- Python >= 3.9
-- [JAX](https://github.com/google/jax) 0.7.2
-- [Flax](https://github.com/google/flax) 0.12.0
-- NumPy
-- SciPy
-- [einops](https://github.com/arogozhnikov/einops)
+- Riccardo Rende
+- Luciano Loris Viteritti
