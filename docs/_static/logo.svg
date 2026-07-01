@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 190 32" width="285" height="48" role="img" aria-label="tachys">
+  <rect x="0" y="0" width="32" height="32" rx="7" fill="#1A5FEB"/>
+  <circle cx="9" cy="9" r="2.5" fill="#fff"/>
+  <circle cx="16" cy="9" r="2.5" fill="#fff"/>
+  <circle cx="23" cy="9" r="2.5" fill="#fff"/>
+  <circle cx="9" cy="16" r="2.5" fill="#fff"/>
+  <circle cx="16" cy="16" r="2.5" fill="#fff"/>
+  <circle cx="23" cy="16" r="2.5" fill="#fff"/>
+  <circle cx="9" cy="23" r="2.5" fill="#fff"/>
+  <circle cx="16" cy="23" r="2.5" fill="#fff"/>
+  <circle cx="23" cy="23" r="2.5" fill="#fff"/>
+  <text x="42" y="24" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="25" font-weight="800" letter-spacing="-0.7" fill="#0D1B2E">tachys</text>
+</svg>

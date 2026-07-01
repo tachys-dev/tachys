@@ -44,9 +44,6 @@ _kind      = jax.devices()[0].platform.upper()
 _model     = jax.devices()[0].device_kind
 _n_nodes   = int(os.environ.get("SLURM_NNODES", 1))
 _dev_node  = (jax.process_count() // max(1, _n_nodes)) * jax.local_device_count()
-_title     = "⚡ tachys"
-_dev_str   = f"{n_devices} × {_kind}  ({_model})"
-_node_str  = f"{_n_nodes} node{'s' if _n_nodes > 1 else ''}  ·  {_dev_node} {_kind}/node"
 
 def _pkg_version(name):
     try:
@@ -54,6 +51,9 @@ def _pkg_version(name):
     except importlib.metadata.PackageNotFoundError:
         return "n/a"
 
+_title     = f"⚡ tachys {_pkg_version('tachys')}"
+_dev_str   = f"{n_devices} × {_kind}  ({_model})"
+_node_str  = f"{_n_nodes} node{'s' if _n_nodes > 1 else ''}  ·  {_dev_node} {_kind}/node"
 _jax_str  = f"jax {_pkg_version('jax')}  ·  flax {_pkg_version('flax')}"
 
 _conda_env = os.environ.get("CONDA_DEFAULT_ENV") or os.environ.get("VIRTUAL_ENV")
