@@ -3,35 +3,34 @@ import jax.numpy as jnp
 
 from ..spin_operators import Sminus, Splus, Sz, XYExchange
 
-def heisenberg_lattice(lat, nn, J=1.0):
+def heisenberg_hamiltonian(lat, nn):
     """Heisenberg Hamiltonian on a generic Lattice.
 
-    H = J * sum_{<i,j>} [ Sz_i Sz_j + (1/2)(S+_i S-_j + S-_i S+_j) ]
+    H = sum_{<i,j>} J_ij * [ Sz_i Sz_j + (1/2)(S+_i S-_j + S-_i S+_j) ]
 
     Args:
         lat: Lattice object.
-        nn:  Bond specifications. Each element is one of:
-               (d1, d2)             — displacement in (a1,a2) units, b_from=0
-               ((d1,d2), b_from)    — explicit source sublattice
-               ((d1,d2), b_from, b_to) — explicit source and target sublattice
-        J:   exchange coupling (positive = antiferromagnetic).
+        nn:  Bond specifications, each pairing a displacement with its coupling:
+               ((d1, d2), J_ij)                     — b_from=0
+               ((d1, d2), J_ij, b_from)              — explicit source sublattice
+               ((d1, d2), J_ij, b_from, b_to)        — explicit source and target sublattice
+             List further shells (e.g. next-nearest-neighbour bonds) as additional
+             specs with their own displacement/coupling/sublattices.
     """
-    bond_src, bond_dst = [], []
-    for spec in nn:
-        if hasattr(spec[0], '__len__'):
-            d      = spec[0]
-            b_from = spec[1] if len(spec) > 1 else 0
-            b_to   = spec[2] if len(spec) > 2 else None
-        else:
-            d, b_from, b_to = spec, 0, None
+    bond_src, bond_dst, bond_J = [], [], []
+    for d, J_ij, *rest in nn:
+        b_from = rest[0] if len(rest) > 0 else 0
+        b_to   = rest[1] if len(rest) > 1 else None
         s, t = lat.bonds(d, b_from=b_from, b_to=b_to)
         bond_src.append(s)
         bond_dst.append(t)
+        bond_J.append(np.full(len(s), J_ij, dtype=float))
     src = np.concatenate(bond_src)
     dst = np.concatenate(bond_dst)
+    coupling = np.concatenate(bond_J)
 
-    H = J * Sz(src) * Sz(dst) 
-    H = H + J/2 * XYExchange(i=src, j=dst)
+    H = Sz(src, coupling=coupling) * Sz(dst, coupling=np.ones_like(coupling))
+    H = H + XYExchange(i=src, j=dst, coupling=coupling / 2)
     return H
 
 
