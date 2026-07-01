@@ -1,5 +1,10 @@
 # tachys
 
+TO CHECK:
+
+ - NTK
+ - BondExchange
+
 ## Installation
 
 Clone the repository and install with `pip`:
