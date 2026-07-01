@@ -35,7 +35,7 @@ def kagome_2x3_energy():
     lat = kagome(shape=(2, 3))
     H = heisenberg_hamiltonian(lat, nn=KAGOME_NN)
     all_states = spins_hilbert_space(lat.Ns)
-    state = SpinState(spins=jnp.array(all_states, dtype=jnp.int8), Ns=lat.Ns)
+    state = SpinState(spins=jnp.array(all_states, dtype=jnp.int8), lattice=lat)
     eigenvalues, _ = exact_diag(state, H, _pack, k=1)
     return float(eigenvalues[0])
 

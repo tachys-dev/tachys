@@ -24,9 +24,9 @@ def _pack(state):
     return (bits * 2 ** np.arange(state.spins.shape[-1])).sum(axis=-1)
 
 
-def _run_ed(H, N):
-    all_states = spins_hilbert_space(N)
-    state = SpinState(spins=jnp.array(all_states, dtype=jnp.int8), Ns=N)
+def _run_ed(H, lat):
+    all_states = spins_hilbert_space(lat.Ns)
+    state = SpinState(spins=jnp.array(all_states, dtype=jnp.int8), lattice=lat)
     eigenvalues, _ = exact_diag(state, H, _pack, k=1)
     return float(eigenvalues[0])
 
@@ -35,14 +35,14 @@ def _run_ed(H, N):
 def square_4x4_energy():
     lat = square(shape=(4, 4))
     H = heisenberg_hamiltonian(lat, nn=[((1, 0), 1.0), ((0, 1), 1.0)])
-    return _run_ed(H, lat.Ns)
+    return _run_ed(H, lat)
 
 
 @pytest.fixture(scope="module")
 def triangular_4x4_energy():
     lat = triangular(shape=(4, 4))
     H = heisenberg_hamiltonian(lat, nn=[((1, 0), 1.0), ((0, 1), 1.0), ((-1, 1), 1.0)])
-    return _run_ed(H, lat.Ns)
+    return _run_ed(H, lat)
 
 
 @pytest.fixture(scope="module")
@@ -53,7 +53,7 @@ def j1j2_square_4x4_energy():
         ((1, 0), J1), ((0, 1), J1),
         ((1, 1), J2), ((1, -1), J2),
     ])
-    return _run_ed(H, lat.Ns)
+    return _run_ed(H, lat)
 
 
 def test_square_4x4_ground_state_energy(square_4x4_energy):

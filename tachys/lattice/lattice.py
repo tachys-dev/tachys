@@ -136,6 +136,14 @@ class Lattice(NamedTuple):
     nb:              int
     pbc:             tuple        # (pbc_x, pbc_y)
 
+    # Identity-based, NOT value-based: lets a Lattice sit as static (pytree_node=False)
+    # metadata on a State without JAX trying to hash/compare its numpy array fields.
+    def __hash__(self):
+        return id(self)
+
+    def __eq__(self, other):
+        return self is other
+
     # ------------------------------------------------------------------ build #
     @classmethod
     def create(cls, a1, a2, basis, shape, pbc_x=True, pbc_y=True):

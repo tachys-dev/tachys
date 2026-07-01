@@ -6,6 +6,7 @@ from tachys.lattice.ansatz.rbm import SpinRBM
 from tachys.lattice.operator.local_estimator import local_estimator
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.lattice_database import square
 from tachys.wavefunction import WaveFunction
 
 L = 4
@@ -19,12 +20,13 @@ def setup():
 
     H = heisenberg_square_pbc(L, J=1.0)
 
+    lattice = square(shape=(L, L))
     key, k1, k2 = jax.random.split(key, 3)
     spins = init_config_fixed_magn(k1, N, sz=0, N_mc=N_mc)
-    state = SpinState(spins=spins, Ns=N)
+    state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(num_hidden=N, dtype=jnp.float64)
-    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), Ns=N)
+    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
     params = model.init(k2, dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
@@ -58,11 +60,12 @@ def test_local_estimator_num_hidden_1_values():
     """Regression test: O_L values for num_hidden=1, keys matching main.py."""
     H = heisenberg_square_pbc(L, J=1.0)
 
+    lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
-    state = SpinState(spins=spins, Ns=N)
+    state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(num_hidden=1, dtype=jnp.float64)
-    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), Ns=N)
+    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
@@ -82,11 +85,12 @@ def test_local_estimator_num_hidden_1_complex_values():
     """Regression test: O_L values for num_hidden=1, complex=True, keys matching main.py."""
     H = heisenberg_square_pbc(L, J=1.0)
 
+    lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
-    state = SpinState(spins=spins, Ns=N)
+    state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
-    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), Ns=N)
+    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 

@@ -23,7 +23,7 @@ def hubbard_lattice_ground_state_energies():
     lat = square(shape=(4, 4))
     all_states = fermions_hilbert_space(lat.Ns, Ne)
     state_full = FermionState(
-        occupations=jnp.array(all_states, dtype=jnp.int8), Ns=lat.Ns, Ne=Ne
+        occupations=jnp.array(all_states, dtype=jnp.int8), lattice=lat, Ne=Ne
     )
     results = {}
     for U in (4.0, 8.0):

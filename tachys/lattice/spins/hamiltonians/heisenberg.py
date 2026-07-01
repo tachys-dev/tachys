@@ -33,30 +33,6 @@ def heisenberg_hamiltonian(lat, nn):
     H = H + XYExchange(i=src, j=dst, coupling=coupling / 2)
     return H
 
-
-def heisenberg_square_pbc_exchange(L, J=1.0):
-    """Heisenberg Hamiltonian on an L×L square lattice with periodic boundary conditions.
-
-    H = J * sum_{<i,j>} [ Sz_i Sz_j + (1/2)(S+_i S-_j + S-_i S+_j) ]
-
-    Sites are indexed row-major: site(x, y) = x*L + y, with x in [0,L) and y in [0,L).
-    """
-    bonds = [
-        (x * L + y, x * L + (y + 1) % L)
-        for x in range(L) for y in range(L)
-    ] + [
-        (x * L + y, ((x + 1) % L) * L + y)
-        for x in range(L) for y in range(L)
-    ]
-
-    is_, js_ = zip(*bonds)
-
-    H = XYExchange(i=is_, j=js_, coupling= J / 2)
-    H = H + J * Sz(is_) * Sz(js_)
-
-    return H
-
-
 def heisenberg_square_pbc(L, J=1.0):
     """Heisenberg Hamiltonian on an L×L square lattice with periodic boundary conditions.
 

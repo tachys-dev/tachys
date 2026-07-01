@@ -5,6 +5,7 @@ import pytest
 from tachys.lattice.exact_diag import fermions_hilbert_space, exact_diag
 from tachys.lattice.fermions.fermion_state import FermionState
 from tachys.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
+from tachys.lattice.lattice_database import square
 
 L = 4
 Ns = L * L
@@ -21,9 +22,10 @@ def _pack(state):
 
 @pytest.fixture(scope="module")
 def hubbard_ground_state_energies():
+    lattice = square(shape=(L, L))
     all_states = fermions_hilbert_space(Ns, Ne)
     state_full = FermionState(
-        occupations=jnp.array(all_states, dtype=jnp.int8), Ns=Ns, Ne=Ne
+        occupations=jnp.array(all_states, dtype=jnp.int8), lattice=lattice, Ne=Ne
     )
     results = {}
     for U in (4.0, 8.0):

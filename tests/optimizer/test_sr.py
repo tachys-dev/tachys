@@ -7,6 +7,7 @@ from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from tachys.lattice.spins.hamiltonians.ising_transverse_field import ising_transverse_field_square_pbc
 from tachys.lattice.spins.spin_action import SpinFlip
 from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.lattice_database import square
 from tachys.montecarlo import sample
 from tachys.optimizer import SR
 from tachys.wavefunction import WaveFunction
@@ -18,11 +19,12 @@ N_mc = 16
 
 def test_sr_one_step_updates():
     """Regression test: SR optimizer updates after one step match main.py output."""
-    H = heisenberg_square_pbc(L, J=1.0)
+    H = heisenberg_square_pbc(L, J=1.0) #! ising should be used
 
     model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
-    state = SpinState(spins=spins, Ns=N)
+    state = SpinState(spins=spins, lattice=lattice)
     params = model.init(jax.random.key(0), state)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
@@ -68,8 +70,9 @@ def test_sr_loop_5_steps():
     H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
 
     model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
-    state = SpinState(spins=spins, Ns=N)
+    state = SpinState(spins=spins, lattice=lattice)
     params = model.init(jax.random.key(0), state)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
@@ -125,8 +128,9 @@ def test_sr_real_loop_5_steps():
     H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
 
     model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=False)
+    lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
-    state = SpinState(spins=spins, Ns=N)
+    state = SpinState(spins=spins, lattice=lattice)
     params = model.init(jax.random.key(0), state)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 

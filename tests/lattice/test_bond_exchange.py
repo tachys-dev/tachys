@@ -26,7 +26,7 @@ def lat():
 @pytest.fixture(scope="module")
 def fermion_setup(lat):
     config, _, _ = init_config_spinful(jax.random.key(1), Ns, Ne=Ne, N_mc=N_mc)
-    state = FermionState(occupations=config, Ns=Ns, Ne=Ne, Nbands=2)
+    state = FermionState(occupations=config, lattice=lat, Ne=Ne, Nbands=2)
     action = BondExchange.create(lat, max_dist=1, Nbands=2)
     mc_keys = jax.random.split(jax.random.key(2), N_mc)
     return state, action, mc_keys
@@ -35,7 +35,7 @@ def fermion_setup(lat):
 @pytest.fixture(scope="module")
 def spin_setup(lat):
     spins = init_config_fixed_magn(jax.random.key(1), Ns, sz=0, N_mc=N_mc)
-    state = SpinState(spins=spins, Ns=Ns)
+    state = SpinState(spins=spins, lattice=lat)
     action = BondExchange.create(lat, max_dist=1)
     mc_keys = jax.random.split(jax.random.key(2), N_mc)
     return state, action, mc_keys
@@ -112,7 +112,7 @@ def test_state_structure_preserved(setup_name, request):
 def test_two_site_chain_deterministic_swap():
     lat2 = chain(2, pbc=False)
     spins = jnp.array([[-1, 1]] * N_mc, dtype=jnp.int8)
-    state = SpinState(spins=spins, Ns=2)
+    state = SpinState(spins=spins, lattice=lat2)
     action = BondExchange.create(lat2, max_dist=1)
 
     mc_keys = jax.random.split(jax.random.key(0), N_mc)
@@ -130,7 +130,7 @@ def test_sample_spin_conserves_magnetization(spin_setup):
     state, action, mc_keys = spin_setup
 
     model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
-    dummy = SpinState(spins=jnp.ones((1, Ns), dtype=jnp.float64), Ns=Ns)
+    dummy = SpinState(spins=jnp.ones((1, Ns), dtype=jnp.float64), lattice=state.lattice)
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
