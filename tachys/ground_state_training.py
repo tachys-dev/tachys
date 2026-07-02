@@ -122,7 +122,6 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
             state, log_amps, acceptance = sample(1, state, action, mc_keys, wf)
             jax.block_until_ready((state, log_amps))
 
-        log_amps = wf.apply_fn(wf.params, state)
         with Timer() as t_expect:
             E_L, e_mean, e2_mean = compute_expectation(H, wf, state, log_amps)
             jax.block_until_ready(E_L)
