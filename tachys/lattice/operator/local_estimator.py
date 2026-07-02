@@ -7,7 +7,7 @@ from jax import shard_map
 
 from tachys.lattice.operator.base import DiagonalResult, OffdiagonalResult, DiagOffdiagResult
 from tachys.parallel import mesh, n_devices
-
+from tachys.utils import _cast_floating_to
 
 def _boolean_partition_indices(mask: jnp.ndarray):
     """Return (perm, perm_inv) that partitions mask True-first.
@@ -172,6 +172,8 @@ def compute_expectation(operator, wf, state, log_amp, optimize_mask=True, batch_
     O_mean  : scalar — global mean <O>
     O2_mean : scalar — global mean <|O|^2>
     """
+    wf, state = _cast_floating_to((wf, state), wf.dtype)
+
     def _body(operator, wf, state, log_amp):
         O_L     = local_estimator(operator, state, wf, log_amp,
                                   optimize_mask=optimize_mask,
