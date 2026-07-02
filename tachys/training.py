@@ -62,23 +62,26 @@ def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, 
     print(C.DIM + "-" * 60 + C.RESET)
 
 
-def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc, wandb_run=None):
+def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
+          wandb_run=None, log_callback_fn=None):
     """Run the SR optimization loop, printing live diagnostics.
 
     Parameters
     ----------
-    key         : jax.random.key
-    H           : Hamiltonian operator
-    state       : State — its lattice determines N, the number of sites used to report energy per site
-    wf          : WaveFunction
-    optimizer   : optimizer (e.g. SR, SPRING, MARCH)
-    action      : _BaseAction used for MC sampling
-    N_steps     : int — number of optimization steps
-    lr_schedule : callable(step: int) -> float — learning rate as a function of step
-    N_mc        : int — number of Markov chains
-    wandb_run   : optional wandb run (e.g. from ``wandb.init(...)``) — if given, logs
-                  lr, energy, variance and acceptance every step. Caller owns its
-                  lifecycle (init/finish); tachys.training never imports wandb itself.
+    key             : jax.random.key
+    H               : Hamiltonian operator
+    state           : State — its lattice determines N, the number of sites used to report energy per site
+    wf              : WaveFunction
+    optimizer       : optimizer (e.g. SR, SPRING, MARCH)
+    action          : _BaseAction used for MC sampling
+    N_steps         : int — number of optimization steps
+    lr_schedule     : callable(step: int) -> float — learning rate as a function of step
+    N_mc            : int — number of Markov chains
+    wandb_run       : optional wandb run (e.g. from ``wandb.init(...)``) — if given, logs
+                      lr, energy, variance and acceptance every step. Caller owns its
+                      lifecycle (init/finish); tachys.training never imports wandb itself.
+    log_callback_fn : optional callable(state, wf) -> dict — extra metrics merged into
+                      the wandb log every step. Ignored if wandb_run is None.
 
     Returns
     -------
@@ -137,12 +140,15 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc, wand
         history["lr"].append(lr)
 
         if wandb_run is not None:
-            wandb_run.log({
+            metrics = {
                 "lr": lr,
                 "energy": energy / N,
                 "variance": variance / N ** 2,
                 "acceptance": acc,
-            }, step=step)
+            }
+            if log_callback_fn is not None:
+                metrics.update(log_callback_fn(state, wf, step))
+            wandb_run.log(metrics, step=step)
 
         improved = energy < best_energy
         best_energy = min(best_energy, energy)
