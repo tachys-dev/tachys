@@ -1,4 +1,5 @@
 import dataclasses
+import sys
 import time
 
 import jax
@@ -17,14 +18,17 @@ class Timer:
         self.elapsed = time.perf_counter() - self._t0
 
 
+_USE_COLOR = sys.stdout.isatty()
+
+
 class C:
-    RESET  = "\033[0m"
-    BOLD   = "\033[1m"
-    DIM    = "\033[2m"
-    GREEN  = "\033[32m"
-    YELLOW = "\033[33m"
-    RED    = "\033[31m"
-    CYAN   = "\033[36m"
+    RESET  = "\033[0m"  if _USE_COLOR else ""
+    BOLD   = "\033[1m"  if _USE_COLOR else ""
+    DIM    = "\033[2m"  if _USE_COLOR else ""
+    GREEN  = "\033[32m" if _USE_COLOR else ""
+    YELLOW = "\033[33m" if _USE_COLOR else ""
+    RED    = "\033[31m" if _USE_COLOR else ""
+    CYAN   = "\033[36m" if _USE_COLOR else ""
 
 
 def _format_fields(obj):
@@ -80,8 +84,9 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
     wandb_run       : optional wandb run (e.g. from ``wandb.init(...)``) — if given, logs
                       lr, energy, variance and acceptance every step. Caller owns its
                       lifecycle (init/finish); tachys.training never imports wandb itself.
-    log_callback_fn : optional callable(state, wf) -> dict — extra metrics merged into
-                      the wandb log every step. Ignored if wandb_run is None.
+    log_callback_fn : optional callable(state, wf, step) -> dict | None, or list of such
+                      callables — extra metrics merged into the wandb log every step.
+                      Callables that return None are skipped. Ignored if wandb_run is None.
 
     Returns
     -------
@@ -89,6 +94,9 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
     """
     N = state.Ns
     _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc)
+
+    if callable(log_callback_fn):
+        log_callback_fn = [log_callback_fn]
 
     opt_state = optimizer.init(wf.params)
     history = {"energy": [], "energy_err": [], "acceptance": [], "step_time": [], "lr": []}
@@ -147,7 +155,10 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
                 "acceptance": acc,
             }
             if log_callback_fn is not None:
-                metrics.update(log_callback_fn(state, wf, step))
+                for cb in log_callback_fn:
+                    result = cb(state, wf, step)
+                    if result is not None:
+                        metrics.update(result)
             wandb_run.log(metrics, step=step)
 
         improved = energy < best_energy
@@ -163,8 +174,8 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
         print(
             f"{step:5d} │ {acc_color}{acc:7.3f}{C.RESET} │ "
             f"{e_color}{energy / N:14.6f}{C.RESET} │ {energy_err / N:10.2e} │ {lr:9.2e} │ "
-            f"{t_sample.elapsed:6.2f} │ {t_expect.elapsed:6.2f} │ {t_opt.elapsed:6.2f} │ {t_step:6.2f} │ "
-            f"{C.CYAN}{eta_hours:7.2f}{C.RESET}",
+            f"{t_sample.elapsed:6.2f} │ {t_expect.elapsed:6.2f} │ {t_opt.elapsed:6.2f} │ {t_step:6.2f} (s) │ "
+            f"{C.CYAN}{eta_hours:7.2f}{C.RESET} (hours)",
             flush=True,
         )
 
