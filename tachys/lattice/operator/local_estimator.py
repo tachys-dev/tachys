@@ -82,6 +82,38 @@ def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
     return log_amps_connected.reshape(-1)[perm_inv].reshape(N_terms, N_mc_local)
 
 
+def _offdiagonal_terms(offdiag, wf, log_amp, optimize_mask=True, batch_expand=1):
+    """Per-term, unsummed off-diagonal contributions to <x|O|x'> * psi(x') / psi(x).
+
+    Parameters
+    ----------
+    offdiag       : OffdiagonalResult
+    wf            : wave function with .apply_fn(params, state) -> (N_mc_local,) log-amplitudes
+    log_amp       : jax.Array, shape (N_mc_local,)
+    optimize_mask : bool — skip zero-mask batches via while_loop (default True)
+    batch_expand  : float — batch scale factor for _apply_masked (only used when optimize_mask=True)
+
+    Returns
+    -------
+    matrix_element, mask, psi_ratio : each jax.Array, shape (N_terms, N_mc_local)
+        The summand is ``matrix_element * mask * psi_ratio``; callers that need the
+        per-term breakdown (e.g. DMC's Green's-function step) use these directly,
+        while ``local_estimator`` sums over the term axis.
+    """
+    if optimize_mask:
+        log_amps_connected = _apply_masked(
+            wf, offdiag.connected_states, offdiag.mask, log_amp,
+            batch_expand=batch_expand,
+        )
+    else:
+        log_amps_connected = jax.lax.map(
+            lambda s: wf.apply_fn(wf.params, s),
+            offdiag.connected_states,
+        )
+    psi_ratio = jnp.exp(log_amps_connected - log_amp[None, :])
+    return offdiag.matrix_element, offdiag.mask, psi_ratio
+
+
 def local_estimator(operator, state, wf, log_amp, optimize_mask=True, batch_expand=1):
     """Local estimator O_L(x) = sum_{x'} <x|O|x'> * psi(x') / psi(x).
 
@@ -104,18 +136,10 @@ def local_estimator(operator, state, wf, log_amp, optimize_mask=True, batch_expa
         return jnp.sum(diag.matrix_element, axis=0)
 
     def _offdiagonal(offdiag):
-        if optimize_mask:
-            log_amps_connected = _apply_masked(
-                wf, offdiag.connected_states, offdiag.mask, log_amp,
-                batch_expand=batch_expand,
-            )
-        else:
-            log_amps_connected = jax.lax.map(
-                lambda s: wf.apply_fn(wf.params, s),
-                offdiag.connected_states,
-            )
-        psi_ratio = jnp.exp(log_amps_connected - log_amp[None, :])
-        return jnp.sum(offdiag.matrix_element * offdiag.mask * psi_ratio, axis=0)
+        matrix_element, mask, psi_ratio = _offdiagonal_terms(
+            offdiag, wf, log_amp, optimize_mask=optimize_mask, batch_expand=batch_expand,
+        )
+        return jnp.sum(matrix_element * mask * psi_ratio, axis=0)
 
     if isinstance(result, DiagOffdiagResult):
         return _diagonal(result.diagonal) + _offdiagonal(result.offdiagonal)
