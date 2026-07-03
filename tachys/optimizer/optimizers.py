@@ -261,21 +261,10 @@ class MARCH(_BaseOptimizer, kw_only=True):
         ntk          = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, V=V_bc)
         base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights)
 
-        if weights is None:
-            updates = jax.tree.map(
-                lambda x, y, v: x / (jnp.sqrt(v) + 1e-8) + self.mu * y,
-                base_updates, opt_state.old_updates, V_bc,
-            )
-        else:
-            # Reweighted variant: denominator is V / sqrt(1 - beta^t) + eps.
-            V_bc_half = jax.tree.map(
-                lambda v: v / (1 - self.beta ** (opt_state.t + 1)) ** 0.5 + 1e-8,
-                opt_state.V,
-            )
-            updates = jax.tree.map(
-                lambda x, y, v: x / v + self.mu * y,
-                base_updates, opt_state.old_updates, V_bc_half,
-            )
+        updates = jax.tree.map(
+            lambda x, y, v: x / (jnp.sqrt(v) + 1e-8) + self.mu * y,
+            base_updates, opt_state.old_updates, V_bc,
+        )
 
         dtheta2 = jax.tree.map(lambda x, y: jnp.abs(x - y) ** 2, updates, opt_state.old_updates)
         new_V   = jax.tree.map(
