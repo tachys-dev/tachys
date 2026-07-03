@@ -46,6 +46,16 @@ def _format_fields(obj):
     return ", ".join(parts)
 
 
+def _compute_metrics(mean_e, mean_E2, Ns):
+    """Derive scalar metrics from energy moments."""
+    e = jnp.real(mean_e).item()
+    e2 = jnp.real(mean_E2).item()
+    vscore = Ns * (e2 - e**2) / e**2
+    variance_per_site = (e2 - e**2) / Ns
+    e_per_site = e / Ns
+    return e, e2, e_per_site, vscore, variance_per_site
+
+
 def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc):
     lattice = state.lattice
     model = getattr(wf.apply_fn, "__self__", None)
@@ -67,7 +77,7 @@ def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, 
 
 
 def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
-          wandb_run=None, log_callback_fn=None):
+          wandb_run=None, log_callback_fn=None, skip_optimization=False):
     """Run the SR optimization loop, printing live diagnostics.
 
     Parameters
@@ -87,6 +97,8 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
     log_callback_fn : optional callable(state, wf, step) -> dict | None, or list of such
                       callables — extra metrics merged into the wandb log every step.
                       Callables that return None are skipped. Ignored if wandb_run is None.
+    skip_optimization : bool — if True, skip the optimizer step and parameter update each
+                      iteration, only sampling and evaluating the energy of ``wf``.
 
     Returns
     -------
@@ -99,11 +111,11 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
         log_callback_fn = [log_callback_fn]
 
     opt_state = optimizer.init(wf.params)
-    history = {"energy": [], "energy_err": [], "acceptance": [], "step_time": [], "lr": []}
+    history = {"energy": [], "variance_per_site": [], "vscore": [], "acceptance": [], "step_time": [], "lr": []}
     best_energy = jnp.inf
 
     header = (
-        f"{C.BOLD}{'step':>5} │ {'accept':>7} │ {'E/N':>14} │ {'err(E)/N':>10} │ {'lr':>9} │ "
+        f"{C.BOLD}{'step':>5} │ {'E/N':>14} │ {'var/N':>10} │ {'vscore':>8} │ {'accept':>7} │ {'lr':>9} │ "
         f"{'t_mc':>6} │ {'t_exp':>6} │ {'t_opt':>6} │ {'t_tot':>6} │ {'ETA(h)':>7}{C.RESET}"
     )
     rule = C.DIM + "─" * (len(header) - len(C.BOLD) - len(C.RESET)) + C.RESET
@@ -128,20 +140,20 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
 
         lr = lr_schedule(step)
         with Timer() as t_opt:
-            updates, opt_state = optimizer(E_L, opt_state, state, wf)
-            jax.block_until_ready(updates)
-            wf = wf.apply_gradients(updates, lr)
+            if not skip_optimization:
+                updates, opt_state = optimizer(E_L, opt_state, state, wf)
+                jax.block_until_ready(updates)
+                wf = wf.apply_gradients(updates, lr)
 
         t_step = time.perf_counter() - t_step0
 
-        # Derived quantities: variance from <|E_L|^2> - |<E_L>|^2, error bar of the mean
-        energy   = float(jnp.real(e_mean))
-        variance = max(float(jnp.real(e2_mean)) - float(jnp.abs(e_mean)) ** 2, 0.0)
-        energy_err = (variance / N_mc) ** 0.5
+        # Derived quantities: variance from <|E_L|^2> - |<E_L>|^2
+        energy, _, e_per_site, vscore, variance_per_site = _compute_metrics(e_mean, e2_mean, N)
         acc = float(jnp.mean(acceptance))
 
-        history["energy"].append(energy / N)
-        history["energy_err"].append(energy_err / N)
+        history["energy"].append(e_per_site)
+        history["variance_per_site"].append(variance_per_site)
+        history["vscore"].append(vscore)
         history["acceptance"].append(acc)
         history["step_time"].append(t_step)
         history["lr"].append(lr)
@@ -149,8 +161,9 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
         if wandb_run is not None:
             metrics = {
                 "lr": lr,
-                "energy": energy / N,
-                "variance": variance / N ** 2,
+                "energy": e_per_site,
+                "variance_per_site": variance_per_site,
+                "vscore": vscore,
                 "acceptance": acc,
             }
             if log_callback_fn is not None:
@@ -171,8 +184,9 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
         e_color   = C.GREEN if improved else C.RESET
 
         print(
-            f"{step:5d} │ {acc_color}{acc:7.3f}{C.RESET} │ "
-            f"{e_color}{energy / N:14.6f}{C.RESET} │ {energy_err / N:10.2e} │ {lr:9.2e} │ "
+            f"{step:5d} │ "
+            f"{e_color}{e_per_site:14.6f}{C.RESET} │ {variance_per_site:10.2e} │ {vscore:8.4f} │ "
+            f"{acc_color}{acc:7.3f}{C.RESET} │ {lr:9.2e} │ "
             f"{t_sample.elapsed:6.2f} │ {t_expect.elapsed:6.2f} │ {t_opt.elapsed:6.2f} │ {t_step:6.2f} (s) │ "
             f"{C.CYAN}{eta_hours:7.2f}{C.RESET} (hours)",
             flush=True,
