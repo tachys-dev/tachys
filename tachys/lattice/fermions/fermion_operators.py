@@ -69,6 +69,17 @@ class Nup(N):
 class Ndn(N):
     band: int = struct.field(pytree_node=False, default=1)
 
+class Sz_f(_OnSiteOperator):
+    """0.5*(n_up - n_dn): the z-spin of the fermionic (conduction-electron)
+    degree of freedom at a site."""
+
+    def apply(self, state):
+        assert state.occupations.ndim == 2
+        assert 2*state.Ns == state.occupations.shape[-1]
+        n_up = state.occupations[..., self.site]
+        n_dn = state.occupations[..., state.Ns + self.site]
+        return DiagonalResult(matrix_element=0.5 * (n_up - n_dn) * self.coupling)
+
 class Cup(C):
     band: int = struct.field(pytree_node=False, default=0)
 
