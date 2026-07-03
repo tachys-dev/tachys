@@ -109,7 +109,12 @@ def _offdiagonal_terms(offdiag, wf, log_amps, optimize_mask=True, batch_expand=1
             lambda s: wf.apply_fn(wf.params, s),
             offdiag.connected_states,
         ).astype(jnp.complex128)
-    psi_ratio = jnp.exp(log_amps_connected - log_amps[None, :])
+    diff = log_amps_connected - log_amps[None, :]
+    # Mask the exponent, not the result: for inactive connections
+    # `log_amps_connected` may be a placeholder, so an unmasked `diff` can
+    # overflow to inf, and `mask * inf` downstream is NaN even though the
+    # term should contribute exactly 0.
+    psi_ratio = jnp.exp(jnp.where(offdiag.mask.astype(bool), diff, 0.0))
     return offdiag.matrix_element, offdiag.mask, psi_ratio
 
 
