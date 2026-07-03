@@ -40,7 +40,15 @@ class _BaseAction(struct.PyTreeNode):
             _orig = cls.__dict__['__call__']
             def _wrapped(self, key, state, _orig=_orig):
                 result = _orig(self, key, state)
-                return (*result, jnp.int32(0)) if len(result) == 3 else result
+                if len(result) == 3:
+                    result = (*result, jnp.int32(0))
+                new_state, allowed_move, log_prob_correction, *rest = result
+                # Some actions return a genuine per-chain log_prob_correction (e.g.
+                # BondExchange), others a bare 0.0 constant for symmetric proposals —
+                # broadcasting to allowed_move's shape here gives every action a
+                # uniform output shape, which jax.lax.switch (CompositeAction) requires.
+                log_prob_correction = jnp.broadcast_to(jnp.asarray(log_prob_correction), jnp.shape(allowed_move))
+                return (new_state, allowed_move, log_prob_correction, *rest)
             cls.__call__ = _wrapped
 
     def __call__(self, *_):
@@ -88,6 +96,7 @@ class CompositeAction(_BaseAction):
         new_state, allowed_move, log_prob_correction, _ = jax.vmap(_select)(action_id, key, state)
 
         allowed_move = allowed_move[:, 0]
+        log_prob_correction = log_prob_correction[:, 0]
         new_state    = jax.tree.map(lambda x: x[:, 0], new_state)
 
         return new_state, allowed_move, log_prob_correction, action_id

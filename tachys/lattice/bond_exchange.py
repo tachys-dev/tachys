@@ -33,7 +33,7 @@ class BondExchange(_BaseAction):
     """
 
     max_dist: int = struct.field(pytree_node=False)
-    bonds: jnp.array = struct.field(pytree_node=False)
+    bonds: tuple = struct.field(pytree_node=False)
     Nbands: int = struct.field(pytree_node=False, default=1)
 
     @classmethod
@@ -41,20 +41,23 @@ class BondExchange(_BaseAction):
         bonds = [np.column_stack((src, dst)) for _, src, dst in lattice.shells(max_dist)]
         bonds = np.vstack(bonds)
 
-        return cls(max_dist=max_dist, bonds=jnp.array(bonds), Nbands=Nbands)
+        # A hashable tuple-of-tuples, not a jnp.array, so BondExchange instances stay
+        # hashable — required for jax.lax.switch when composed inside CompositeAction.
+        return cls(max_dist=max_dist, bonds=tuple(map(tuple, bonds.tolist())), Nbands=Nbands)
 
     def __call__(self, key, state):
         key = jax.vmap(jax.random.split)(key)
         subkey1, subkey2 = key[:, 0], key[:, 1]
 
         Ns = state.Ns
-        N_bonds = self.bonds.shape[0]
+        bonds_arr = jnp.asarray(self.bonds)
+        N_bonds = bonds_arr.shape[0]
         N_mc = state.config.shape[0]
 
         rands = jax.vmap(jax.random.uniform)(subkey1)
         band_index = (rands * self.Nbands).astype(int)
         #* notice no inter-band mixing
-        bonds = band_index[:, None, None] * Ns + self.bonds  # [N_mc, N_bonds, 2]
+        bonds = band_index[:, None, None] * Ns + bonds_arr  # [N_mc, N_bonds, 2]
 
         valid_mask = jax.vmap(_compute_valid_bonds_mask)(bonds, state.config)
         sampled_indices = jax.vmap(lambda p, k: jax.random.choice(k, N_bonds, p=p))(valid_mask, subkey2)
