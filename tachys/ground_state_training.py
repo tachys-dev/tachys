@@ -116,11 +116,11 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
 
     header = (
         f"{C.BOLD}{'step':>5} │ {'E/N':>14} │ {'var/N':>10} │ {'vscore':>8} │ {'accept':>7} │ {'lr':>9} │ "
-        f"{'t_mc':>6} │ {'t_exp':>6} │ {'t_opt':>6} │ {'t_tot':>6} │ {'ETA(h)':>7}{C.RESET}"
+        f"{'t_mc':>6} │ {'t_exp':>6} │ {'t_opt':>6} │ {'t_tot':>10} │ {'ETA (h)':>11}{C.RESET}"
     )
     rule = C.DIM + "─" * (len(header) - len(C.BOLD) - len(C.RESET)) + C.RESET
 
-    print("\n--- SR optimization ---", flush=True)
+    print("\n--- START TRAINING ---", flush=True)
     print(header, flush=True)
     print(rule, flush=True)
 
@@ -188,7 +188,7 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
             f"{e_color}{e_per_site:14.6f}{C.RESET} │ {variance_per_site:10.2e} │ {vscore:8.4f} │ "
             f"{acc_color}{acc:7.3f}{C.RESET} │ {lr:9.2e} │ "
             f"{t_sample.elapsed:6.2f} │ {t_expect.elapsed:6.2f} │ {t_opt.elapsed:6.2f} │ {t_step:6.2f} (s) │ "
-            f"{C.CYAN}{eta_hours:7.2f}{C.RESET} (hours)",
+            f"{C.CYAN}{eta_hours:7.2f}{C.RESET} (h)",
             flush=True,
         )
 

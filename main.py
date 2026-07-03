@@ -17,7 +17,7 @@ from tachys.optimizer.optimizers import _build_ntk as _build_ntk_base
 from tachys.parallel import mesh
 from tachys.wavefunction import WaveFunction
 from tachys.optimizer import SR, SPRING, MARCH
-from tachys.training import train
+from tachys.ground_state_training import train
 
 L = 4
 seed = 0
