@@ -18,7 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 cuda = ["jax[cuda12]==0.7.2"]
-wandb = ["wandb"]
+wandb = ["wandb", "jsonargparse"]
 docs = [
     "sphinx>=7.2",
     "pydata-sphinx-theme>=0.15",

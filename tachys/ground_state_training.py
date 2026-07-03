@@ -6,8 +6,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from tachys.checkpoint import build_checkpoint_manager, resolve_checkpoint_settings, save_training_checkpoint
 from tachys.lattice.operator.local_estimator import compute_expectation
 from tachys.montecarlo import sample
+from tachys.parallel import rank, MASTER
 
 
 class Timer:
@@ -56,7 +58,7 @@ def _compute_metrics(mean_e, mean_E2, Ns):
     return e, e2, e_per_site, vscore, variance_per_site
 
 
-def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc):
+def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc, start_step=0):
     lattice = state.lattice
     model = getattr(wf.apply_fn, "__self__", None)
 
@@ -71,13 +73,14 @@ def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, 
     print(f"             : {wf.num_params:,} parameters")
     print(f"Optimizer    : {type(optimizer).__name__}({_format_fields(optimizer)})")
     print(f"MC action    : {type(action).__name__}({_format_fields(action)})")
-    print(f"N_mc         : {N_mc}    N_steps: {N_steps}")
-    print(f"lr schedule  : {lr_schedule(0):.2e} -> {lr_schedule(N_steps - 1):.2e}")
+    print(f"N_mc         : {N_mc}    N_steps: {N_steps}" + (f"    start_step: {start_step}" if start_step else ""))
+    print(f"lr schedule  : {lr_schedule(start_step):.2e} -> {lr_schedule(start_step + N_steps - 1):.2e}")
     print(C.DIM + "-" * 60 + C.RESET)
 
 
 def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
-          wandb_run=None, log_callback_fn=None, skip_optimization=False, nsweeps=1):
+          wandb_run=None, log_callback_fn=None, skip_optimization=False, nsweeps=1,
+          opt_state=None, start_step=0):
     """Run the SR optimization loop, printing live diagnostics.
 
     Parameters
@@ -94,26 +97,46 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
     wandb_run       : optional wandb run (e.g. from ``wandb.init(...)``) — if given, logs
                       lr, energy, variance and acceptance every step. Caller owns its
                       lifecycle (init/finish); tachys.training never imports wandb itself.
+                      Also checkpoints wf.params, state, opt_state and key (via
+                      orbax, see tachys.checkpoint) into wandb_run.dir/checkpoints every
+                      ``wandb_run.config["checkpoint_every"]`` steps (defaults to N_steps,
+                      i.e. once at the end) and on the final step. wandb_run is expected
+                      to be non-None only on the MASTER rank (as in existing callers);
+                      every rank still participates in the collective checkpoint calls.
     log_callback_fn : optional callable(state, wf, step) -> dict | None, or list of such
                       callables — extra metrics merged into the wandb log every step.
                       Callables that return None are skipped. Ignored if wandb_run is None.
     skip_optimization : bool — if True, skip the optimizer step and parameter update each
                       iteration, only sampling and evaluating the energy of ``wf``.
     nsweeps         : int — number of MC sweeps per step passed to ``sample`` (default 1).
+    opt_state       : optional pre-initialized optimizer state (e.g. restored from a
+                      checkpoint via tachys.checkpoint.load_checkpoint) to resume training
+                      from. Defaults to a fresh ``optimizer.init(wf.params)``.
+    start_step      : int — absolute step number to resume at (e.g. the step count
+                      recovered alongside ``opt_state`` when resuming from a checkpoint).
+                      Offsets ``lr_schedule``, the wandb log step, the printed step
+                      column and the checkpoint step numbering so they continue from
+                      where the previous run left off instead of restarting at 0.
+                      ``N_steps`` still counts iterations run by *this* call — pass the
+                      remaining steps, not the original total.
 
     Returns
     -------
     key, state, wf, opt_state, history
     """
     N = state.Ns
-    _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc)
+    _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc, start_step)
 
     if callable(log_callback_fn):
         log_callback_fn = [log_callback_fn]
 
-    opt_state = optimizer.init(wf.params)
-    history = {"energy": [], "variance_per_site": [], "vscore": [], "acceptance": [], "step_time": [], "lr": []}
+    if opt_state is None:
+        opt_state = optimizer.init(wf.params)
+    history = {"energy": [], "variance_per_site": [], "vscore": [], "acceptance": [], "lr": []}
     best_energy = jnp.inf
+
+    ckpt_dir, checkpoint_every, checkpoint_keep = resolve_checkpoint_settings(wandb_run, N_steps, rank, MASTER)
+    manager = build_checkpoint_manager(ckpt_dir, checkpoint_every, checkpoint_keep) if ckpt_dir else None
 
     header = (
         f"{C.BOLD}{'step':>5} │ {'E/N':>20} │ {'var/N':>10} │ {'vscore':>8} │ {'accept':>7} │ {'lr':>9} │ "
@@ -126,7 +149,8 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
     print(rule, flush=True)
 
     t_start = time.perf_counter()
-    for step in range(N_steps):
+    for local_step in range(N_steps):
+        step = start_step + local_step
         key, subkey = jax.random.split(key)
         t_step0 = time.perf_counter()
 
@@ -146,8 +170,6 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
                 jax.block_until_ready(updates)
                 wf = wf.apply_gradients(updates, lr)
 
-        t_step = time.perf_counter() - t_step0
-
         # Derived quantities: variance from <|E_L|^2> - |<E_L>|^2
         energy, _, e_per_site, vscore, variance_per_site = _compute_metrics(e_mean, e2_mean, N)
         acc = float(jnp.mean(acceptance))
@@ -156,7 +178,6 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
         history["variance_per_site"].append(variance_per_site)
         history["vscore"].append(vscore)
         history["acceptance"].append(acc)
-        history["step_time"].append(t_step)
         history["lr"].append(lr)
 
         if wandb_run is not None:
@@ -174,11 +195,16 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
                         metrics.update(result)
             wandb_run.log(metrics, step=step)
 
+        if manager is not None:
+            save_training_checkpoint(manager, step + 1, key, state, wf.params, opt_state,
+                                      force=(local_step == N_steps - 1))
+
         improved = energy < best_energy
         best_energy = min(best_energy, energy)
 
         # ETA: last step time (no averaging) * steps remaining
-        remaining_steps = N_steps - (step + 1)
+        t_step = time.perf_counter() - t_step0
+        remaining_steps = N_steps - (local_step + 1)
         eta_hours = t_step * remaining_steps / 3600.0
 
         acc_color = C.GREEN if acc > 0.4 else (C.YELLOW if acc > 0.2 else C.RED)
@@ -205,5 +231,13 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
         f"({total_time / N_steps:.3f}s/step avg)"
     )
     print(f"E/N over last {window} steps = {mean_energy_tail:.6f} ± {var_energy_tail ** 0.5:.2e}  (var = {var_energy_tail:.2e})")
+
+    if wandb_run is not None:
+        wandb_run.summary["mean_energy"] = mean_energy_tail
+        wandb_run.summary["var_energy"] = var_energy_tail
+
+    if manager is not None:
+        manager.wait_until_finished()
+        manager.close()
 
     return key, state, wf, opt_state, history
