@@ -77,7 +77,7 @@ def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, 
 
 
 def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
-          wandb_run=None, log_callback_fn=None, skip_optimization=False):
+          wandb_run=None, log_callback_fn=None, skip_optimization=False, nsweeps=1):
     """Run the SR optimization loop, printing live diagnostics.
 
     Parameters
@@ -99,6 +99,7 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
                       Callables that return None are skipped. Ignored if wandb_run is None.
     skip_optimization : bool — if True, skip the optimizer step and parameter update each
                       iteration, only sampling and evaluating the energy of ``wf``.
+    nsweeps         : int — number of MC sweeps per step passed to ``sample`` (default 1).
 
     Returns
     -------
@@ -131,7 +132,7 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
 
         with Timer() as t_sample:
             mc_keys = jax.random.split(subkey, N_mc)
-            state, log_amps, acceptance = sample(1, state, action, mc_keys, wf)
+            state, log_amps, acceptance = sample(nsweeps, state, action, mc_keys, wf)
             jax.block_until_ready((state, log_amps))
 
         with Timer() as t_expect:
