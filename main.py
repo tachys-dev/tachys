@@ -43,7 +43,7 @@ model = FermionicTransformer(num_layers=2,
 # Initialise RBM parameters with a dummy forward pass
 key, subkey = jax.random.split(key)
 params = model.init(subkey, state)
-wf = WaveFunction(params=params, apply_fn=model.apply, dtype=jnp.float32)
+wf = WaveFunction(params=params, apply_fn=model.apply, dtype=jnp.float64)
 
 # MC sampling
 action = BondExchange.create(lattice, max_dist=1, Nbands=2)
