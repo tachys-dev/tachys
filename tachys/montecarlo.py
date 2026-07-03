@@ -93,7 +93,7 @@ class CompositeAction(_BaseAction):
         return new_state, allowed_move, log_prob_correction, action_id
 
 
-def mc_step(state, key, action, wf, log_amps, optimize_mask=True, batch_expand=0.25):
+def mc_step(state, key, action, wf, log_amps, optimize_mask=False, batch_expand=0.25):
     """Perform one Metropolis–Hastings step across all chains.
 
     Parameters
@@ -119,10 +119,10 @@ def mc_step(state, key, action, wf, log_amps, optimize_mask=True, batch_expand=0
 
     if optimize_mask:
         _state = jax.tree.map(lambda x: x[None], new_state)
-        log_amps_new = _apply_masked(wf, _state, allowed_move[None], log_amps, batch_expand=batch_expand)
+        log_amps_new = _apply_masked(wf, _state, allowed_move[None], batch_expand=batch_expand)
         log_amps_new = log_amps_new[0]
     else:
-        log_amps_new = wf.apply_fn(wf.params, new_state)
+        log_amps_new = wf.apply_fn(wf.params, new_state).astype(jnp.complex128)
 
     log_prob = 2.0 * (jnp.real(log_amps_new) - jnp.real(log_amps)) + log_prob_correction
 
@@ -161,7 +161,7 @@ def sample(nsweeps, state, action, key, wf):
     """
     wf, state = _cast_floating_to((wf, state), wf.dtype)
 
-    log_amps   = wf.apply_fn(wf.params, state)
+    log_amps   = wf.apply_fn(wf.params, state).astype(jnp.complex128)
     Ns         = state.Ns
     N_mc_local = state.config.shape[0]
     n_actions  = action.n_actions

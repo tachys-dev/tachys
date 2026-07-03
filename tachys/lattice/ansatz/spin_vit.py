@@ -101,6 +101,6 @@ class SpinViT(nn.Module):
         
         y = self.encoder(x)
         
-        out = self.output(y)
+        log_amps = self.output(y)
 
-        return out.astype(jnp.complex128)
+        return log_amps

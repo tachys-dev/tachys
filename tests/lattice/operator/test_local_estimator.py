@@ -30,29 +30,29 @@ def setup():
     params = model.init(k2, dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
-    log_amp = wf.apply_fn(wf.params, state)
+    log_amps = wf.apply_fn(wf.params, state)
 
-    return H, state, wf, log_amp
+    return H, state, wf, log_amps
 
 
 def test_optimize_mask_matches_no_mask(setup):
-    H, state, wf, log_amp = setup
-    ref = local_estimator(H, state, wf, log_amp, optimize_mask=False)
-    out = local_estimator(H, state, wf, log_amp, optimize_mask=True, batch_expand=1)
+    H, state, wf, log_amps = setup
+    ref = local_estimator(H, state, wf, log_amps, optimize_mask=False)
+    out = local_estimator(H, state, wf, log_amps, optimize_mask=True, batch_expand=1)
     assert jnp.allclose(ref, out, atol=1e-10)
 
 
 def test_batch_expand_2_matches_no_mask(setup):
-    H, state, wf, log_amp = setup
-    ref = local_estimator(H, state, wf, log_amp, optimize_mask=False)
-    out = local_estimator(H, state, wf, log_amp, optimize_mask=True, batch_expand=2)
+    H, state, wf, log_amps = setup
+    ref = local_estimator(H, state, wf, log_amps, optimize_mask=False)
+    out = local_estimator(H, state, wf, log_amps, optimize_mask=True, batch_expand=2)
     assert jnp.allclose(ref, out, atol=1e-10)
 
 
 def test_batch_expand_1_matches_batch_expand_2(setup):
-    H, state, wf, log_amp = setup
-    out1 = local_estimator(H, state, wf, log_amp, optimize_mask=True, batch_expand=1)
-    out2 = local_estimator(H, state, wf, log_amp, optimize_mask=True, batch_expand=2)
+    H, state, wf, log_amps = setup
+    out1 = local_estimator(H, state, wf, log_amps, optimize_mask=True, batch_expand=1)
+    out2 = local_estimator(H, state, wf, log_amps, optimize_mask=True, batch_expand=2)
     assert jnp.allclose(out1, out2, atol=1e-10)
 
 
@@ -69,8 +69,8 @@ def test_local_estimator_num_hidden_1_values():
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
-    log_amp = wf.apply_fn(wf.params, state)
-    O_L = local_estimator(H, state, wf, log_amp, optimize_mask=False)
+    log_amps = wf.apply_fn(wf.params, state)
+    O_L = local_estimator(H, state, wf, log_amps, optimize_mask=False)
 
     expected = jnp.array([
         10.08800221+0.j,  6.67422546+0.j,  8.98978462+0.j,  8.16693411+0.j,
@@ -94,8 +94,8 @@ def test_local_estimator_num_hidden_1_complex_values():
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
-    log_amp = wf.apply_fn(wf.params, state)
-    O_L = local_estimator(H, state, wf, log_amp, optimize_mask=False)
+    log_amps = wf.apply_fn(wf.params, state)
+    O_L = local_estimator(H, state, wf, log_amps, optimize_mask=False)
 
     expected = jnp.array([
          9.87823677-1.24439457j,  6.49979171+0.10703017j,  8.82752373-0.66993061j,

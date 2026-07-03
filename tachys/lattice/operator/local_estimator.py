@@ -23,7 +23,7 @@ def _boolean_partition_indices(mask: jnp.ndarray):
     return perm, perm_inv
 
 
-def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
+def _apply_masked(wf, connected_states, mask, batch_expand=1):
     """Compute log-amplitudes for connected states, skipping all-zero-mask batches.
 
     Flattens (N_terms, N_mc_local) into a single sequence, sorts active connections
@@ -35,7 +35,6 @@ def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
     ----------
     connected_states : pytree, leaves shape (N_terms, N_mc_local, ...)
     mask             : (N_terms, N_mc_local) — nonzero entries mark active connections
-    log_amp          : (N_mc_local,) — current log-amplitudes, used only for dtype
     batch_expand     : float — batch scale factor; int(batch_expand * N_mc_local) must divide N_terms * N_mc_local
 
     Returns
@@ -64,12 +63,12 @@ def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
     flat_active = flat_active.reshape(n_batches, batch_size)
 
     batch_has_active = flat_active.sum(1) > 0
-    log_amps_connected = jnp.zeros(flat_active.shape, dtype=log_amp.dtype)
+    log_amps_connected = jnp.zeros(flat_active.shape, dtype=jnp.complex128)
 
     def body_fun(val):
         i, log_amps_connected = val
         batch_states   = jax.tree.map(lambda x: x[i], flat_states)
-        log_amps_batch = wf.apply_fn(wf.params, batch_states)
+        log_amps_batch = wf.apply_fn(wf.params, batch_states).astype(jnp.complex128)
         return i + 1, log_amps_connected.at[i].set(log_amps_batch)
 
     def cond_fun(val):
@@ -82,14 +81,14 @@ def _apply_masked(wf, connected_states, mask, log_amp, batch_expand=1):
     return log_amps_connected.reshape(-1)[perm_inv].reshape(N_terms, N_mc_local)
 
 
-def _offdiagonal_terms(offdiag, wf, log_amp, optimize_mask=True, batch_expand=1):
+def _offdiagonal_terms(offdiag, wf, log_amps, optimize_mask=True, batch_expand=1):
     """Per-term, unsummed off-diagonal contributions to <x|O|x'> * psi(x') / psi(x).
 
     Parameters
     ----------
     offdiag       : OffdiagonalResult
     wf            : wave function with .apply_fn(params, state) -> (N_mc_local,) log-amplitudes
-    log_amp       : jax.Array, shape (N_mc_local,)
+    log_amps       : jax.Array, shape (N_mc_local,)
     optimize_mask : bool — skip zero-mask batches via while_loop (default True)
     batch_expand  : float — batch scale factor for _apply_masked (only used when optimize_mask=True)
 
@@ -102,19 +101,19 @@ def _offdiagonal_terms(offdiag, wf, log_amp, optimize_mask=True, batch_expand=1)
     """
     if optimize_mask:
         log_amps_connected = _apply_masked(
-            wf, offdiag.connected_states, offdiag.mask, log_amp,
+            wf, offdiag.connected_states, offdiag.mask,
             batch_expand=batch_expand,
         )
     else:
         log_amps_connected = jax.lax.map(
             lambda s: wf.apply_fn(wf.params, s),
             offdiag.connected_states,
-        )
-    psi_ratio = jnp.exp(log_amps_connected - log_amp[None, :])
+        ).astype(jnp.complex128)
+    psi_ratio = jnp.exp(log_amps_connected - log_amps[None, :])
     return offdiag.matrix_element, offdiag.mask, psi_ratio
 
 
-def local_estimator(operator, state, wf, log_amp, optimize_mask=True, batch_expand=1):
+def local_estimator(operator, state, wf, log_amps, optimize_mask=True, batch_expand=1):
     """Local estimator O_L(x) = sum_{x'} <x|O|x'> * psi(x') / psi(x).
 
     Parameters
@@ -122,7 +121,7 @@ def local_estimator(operator, state, wf, log_amp, optimize_mask=True, batch_expa
     operator      : _Operator or _OperatorSum
     state         : State, batch axis 0 of size N_mc_local
     wf            : wave function with .apply_fn(params, state) -> (N_mc_local,) log-amplitudes
-    log_amp       : jax.Array, shape (N_mc_local,)
+    log_amps       : jax.Array, shape (N_mc_local,)
     optimize_mask : bool — skip zero-mask batches via while_loop (default True)
     batch_expand  : float — batch scale factor for _apply_masked (only used when optimize_mask=True)
 
@@ -137,7 +136,7 @@ def local_estimator(operator, state, wf, log_amp, optimize_mask=True, batch_expa
 
     def _offdiagonal(offdiag):
         matrix_element, mask, psi_ratio = _offdiagonal_terms(
-            offdiag, wf, log_amp, optimize_mask=optimize_mask, batch_expand=batch_expand,
+            offdiag, wf, log_amps, optimize_mask=optimize_mask, batch_expand=batch_expand,
         )
         return jnp.sum(matrix_element * mask * psi_ratio, axis=0)
 
@@ -151,10 +150,10 @@ def local_estimator(operator, state, wf, log_amp, optimize_mask=True, batch_expa
 
 
 @partial(jax.jit, static_argnames=('optimize_mask', 'batch_expand'))
-def compute_expectation(operator, wf, state, log_amp, optimize_mask=True, batch_expand=1):
+def compute_expectation(operator, wf, state, log_amps, optimize_mask=True, batch_expand=1):
     """Sharded expectation value of an operator.
 
-    Shards state and log_amp across all devices, evaluates local_estimator on
+    Shards state and log_amps across all devices, evaluates local_estimator on
     each shard, then reduces to global statistics via psum.
 
     Parameters
@@ -162,7 +161,7 @@ def compute_expectation(operator, wf, state, log_amp, optimize_mask=True, batch_
     operator      : _Operator or _OperatorSum — replicated across devices
     wf            : wave function — replicated across devices
     state         : State, batch axis 0 sharded across devices
-    log_amp       : jax.Array, shape (N_mc_local,) sharded across devices
+    log_amps       : jax.Array, shape (N_mc_local,) sharded across devices
     optimize_mask : bool
     batch_expand  : int
 
@@ -174,8 +173,8 @@ def compute_expectation(operator, wf, state, log_amp, optimize_mask=True, batch_
     """
     wf, state = _cast_floating_to((wf, state), wf.dtype)
 
-    def _body(operator, wf, state, log_amp):
-        O_L     = local_estimator(operator, state, wf, log_amp,
+    def _body(operator, wf, state, log_amps):
+        O_L     = local_estimator(operator, state, wf, log_amps,
                                   optimize_mask=optimize_mask,
                                   batch_expand=batch_expand)
         O_mean  = jax.lax.psum(jnp.mean(O_L),               'i') / n_devices
@@ -188,4 +187,4 @@ def compute_expectation(operator, wf, state, log_amp, optimize_mask=True, batch_
         in_specs=(P(),     P(),     P('i'), P('i')),
         out_specs=(P('i'), P(), P()),
         check_vma=False,
-    )(operator, wf, state, log_amp)
+    )(operator, wf, state, log_amps)

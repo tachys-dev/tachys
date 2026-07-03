@@ -115,8 +115,8 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
     # Build jacobian_fn once outside body_fun so it is compiled once.
     if mode == "complex":
         def _f(params, s):
-            log_amp = jnp.squeeze(wf.apply_fn(params, s))
-            return jnp.stack([log_amp.real, log_amp.imag])  # (2,)
+            log_amps = jnp.squeeze(wf.apply_fn(params, s))
+            return jnp.stack([log_amps.real, log_amps.imag])  # (2,)
     else:
         _f = lambda params, s: jnp.squeeze(wf.apply_fn(params, s)).real  # scalar
 

@@ -37,8 +37,8 @@ def _make_apply_fn(raw_fn: Callable, mode: str) -> Callable:
     """Wrap the raw wavefunction to return real or (re, im) stacked output."""
     if mode == "complex":
         def apply_fn(params, state):
-            log_amp = raw_fn(params, state)
-            return jnp.concatenate((log_amp.real[:, None], log_amp.imag[:, None]), axis=-1)
+            log_amps = raw_fn(params, state)
+            return jnp.concatenate((log_amps.real[:, None], log_amps.imag[:, None]), axis=-1)
         return apply_fn
     elif mode == "real":
         return lambda params, state: raw_fn(params, state).real

@@ -90,4 +90,4 @@ class FermionicTransformer(nn.Module):
         R = jax.vmap(f_non_zero)(state.config) #* shape = [batch, Ne]
         log_amps = self.output_layer(y, R) #* notice the skip connection
 
-        return log_amps.astype(jnp.complex128)
+        return log_amps
