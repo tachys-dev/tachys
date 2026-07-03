@@ -31,7 +31,11 @@ def linear_solver_cholesky(ntk, eps, diag_shift, mode="complex"):
         L = jnp.linalg.cholesky(A)
         y = solve_triangular(L, eps.real, lower=True, trans=0)
         u = solve_triangular(L, y, lower=True, trans=1)
-        return u
+        # jnp.linalg.cholesky doesn't raise on a non-PD input under jit; it
+        # fills the offending row (and every row after it) with NaN, which
+        # would otherwise silently poison every parameter for the rest of
+        # training. Degrade to a no-op update instead.
+        return jnp.where(jnp.all(jnp.isfinite(u), axis=-1, keepdims=True), u, 0.0)
 
     elif mode == "complex":
         eR, eI = eps.real, eps.imag
@@ -59,7 +63,10 @@ def linear_solver_cholesky(ntk, eps, diag_shift, mode="complex"):
 
         y = w_e - W @ v
         u = solve_triangular(L, y, lower=True, trans=1)
-        return jnp.concatenate([u, v], axis=-1)
+        sol = jnp.concatenate([u, v], axis=-1)
+        # See the "real" branch above: guard against a non-PD pivot (in
+        # either cholesky call) silently NaN-poisoning the whole update.
+        return jnp.where(jnp.all(jnp.isfinite(sol), axis=-1, keepdims=True), sol, 0.0)
 
     else:
         raise ValueError("mode must be 'real' or 'complex'")
