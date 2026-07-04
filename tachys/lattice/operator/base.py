@@ -139,7 +139,18 @@ class _OperatorSum(_Operator):
                 "Cannot multiply a sum of operators; distribute the product manually "
                 "(e.g. (A + B) * C → A*C + B*C)."
             )
-        return super().__mul__(other)   # scalar multiplication is fine
+        if isinstance(other, (int, float, complex)):
+            # __call__ above never reads self.coupling, so storing the scalar
+            # there would be silently dropped; distribute onto every term
+            # instead (c * (A + B) == c*A + c*B, exact with no edge cases).
+            return self.replace(operators=tuple(op * other for op in self.operators))
+        return NotImplemented
+    __rmul__ = __mul__                          # must be rebound here: _Operator.__rmul__
+                                                 # is an alias to _Operator.__mul__ captured at
+                                                 # class-definition time, so without this,
+                                                 # `scalar * this_instance` would silently fall
+                                                 # through to the base class's __mul__ instead
+                                                 # of the override above.
 
 class _OperatorMul(_Operator):
     operators: tuple
@@ -185,7 +196,20 @@ class _OperatorMul(_Operator):
                 "(e.g. A * (B + C) → A*B + A*C)."
             )
         if isinstance(other, (int, float, complex)):
-            return self.replace(coupling=self.coupling * other)
+            # Push the scalar onto operators[0] rather than this wrapper's own
+            # `coupling`: __add__'s same-treedef merge above rebuilds a fresh
+            # _OperatorMul without preserving either side's outer coupling, so
+            # anything stored there is silently lost the moment two
+            # structurally-identical products are summed (the original bug).
+            # operators[0] is always a genuine leaf-or-product factor, never
+            # this same wrapper -- every code path that builds an _OperatorMul
+            # appends new factors to the *end* of the tuple -- so this is exact
+            # and terminates (recursing into this same branch again if
+            # operators[0] happens to itself be an _OperatorMul). Scalar
+            # placement doesn't matter mathematically: __call__ just
+            # multiplies every factor's matrix element together.
+            new_first = self.operators[0] * other
+            return self.replace(operators=(new_first,) + self.operators[1:])
         if isinstance(other, _Operator):
             n_self  = jnp.atleast_1d(jnp.asarray(self.operators[0].coupling)).shape[0]
             n_other = jnp.atleast_1d(jnp.asarray(other.coupling)).shape[0]
@@ -197,6 +221,8 @@ class _OperatorMul(_Operator):
                 )
             return _OperatorMul(operators=self.operators + (other,))
         return NotImplemented
+    __rmul__ = __mul__                          # see _OperatorSum.__rmul__ for why this
+                                                 # rebinding is required, not inherited.
 
 
 class _OnSiteOperator(_Operator):
