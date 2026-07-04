@@ -105,7 +105,10 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
                       every rank still participates in the collective checkpoint calls.
     log_callback_fn : optional callable(state, wf, step) -> dict | None, or list of such
                       callables — extra metrics merged into the wandb log every step.
-                      Callables that return None are skipped. Ignored if wandb_run is None.
+                      Callables that return None are skipped. Called on every rank
+                      regardless of wandb_run (callbacks are typically jitted and may
+                      touch mesh-sharded arrays, so all ranks must call them in lockstep);
+                      only the merged result is actually logged, and only on MASTER.
     skip_optimization : bool — if True, skip the optimizer step and parameter update each
                       iteration, only sampling and evaluating the energy of ``wf``.
     nsweeps         : int — number of MC sweeps per step passed to ``sample`` (default 1).
@@ -180,6 +183,18 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
         history["acceptance"].append(acc)
         history["lr"].append(lr)
 
+        # log_callback_fn entries are typically jax.jit-compiled and may touch
+        # arrays sharded across the global (multi-process) device mesh, so
+        # every rank must call them in lockstep even though only MASTER
+        # actually logs the result — otherwise MASTER blocks on a collective
+        # the other ranks never join, deadlocking the whole run.
+        callback_metrics = {}
+        if log_callback_fn is not None:
+            for cb in log_callback_fn:
+                result = cb(state, wf, step)
+                if result is not None:
+                    callback_metrics.update(result)
+
         if wandb_run is not None:
             metrics = {
                 "lr": lr,
@@ -187,12 +202,8 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
                 "variance_per_site": variance_per_site,
                 "vscore": vscore,
                 "acceptance": acc,
+                **callback_metrics,
             }
-            if log_callback_fn is not None:
-                for cb in log_callback_fn:
-                    result = cb(state, wf, step)
-                    if result is not None:
-                        metrics.update(result)
             wandb_run.log(metrics, step=step)
 
         if manager is not None:
