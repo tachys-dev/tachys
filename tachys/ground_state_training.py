@@ -252,3 +252,90 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
         manager.close()
 
     return key, state, wf, opt_state, history
+
+
+def compute_observables(key, N_steps, state, action, wf, N_mc, op_groups, nsweeps=1, log_every=1):
+    """Measure a fixed set of observables along a Markov chain.
+
+    Unlike ``train``, ``wf`` is held fixed here — this only samples and
+    evaluates ``op_groups``, it never updates parameters. Every operator is
+    evaluated on the same sampled batch at each step, so different
+    observables share Monte Carlo statistics rather than being measured from
+    independent runs.
+
+    Parameters
+    ----------
+    key       : jax.random.key
+    N_steps   : int — number of sampling steps (measurements)
+    state     : State — current Monte Carlo configuration
+    action    : _BaseAction used for MC sampling
+    wf        : WaveFunction — fixed guiding wavefunction
+    N_mc      : int — number of Markov chains
+    op_groups : dict[str, Sequence[_Operator]] — named groups of observables
+                (e.g. the output of an observable-construction helper like
+                ``spin_spin_alm``), every operator of every group evaluated at
+                every step. A bare sequence of operators is also accepted and
+                treated as a single group named ``"obs"``.
+    nsweeps   : int — number of MC sweeps per step passed to ``sample`` (default 1).
+    log_every : print a status line every this many steps (0 disables).
+
+    Returns
+    -------
+    key, state, metrics
+        metrics : dict[str, np.ndarray] — ``metrics[name]`` has shape
+                  ``(N_steps, len(op_groups[name]))``, the real part of ``<O>``
+                  at every step.
+    """
+    if not isinstance(op_groups, dict):
+        op_groups = {"obs": op_groups}
+
+    n_ops = sum(len(ops) for ops in op_groups.values())
+    print(f"\n{C.BOLD}--- Observable measurement ---{C.RESET}")
+    print(f"N_mc: {N_mc}    N_steps: {N_steps}    nsweeps: {nsweeps}    n_observables: {n_ops}")
+    print(C.DIM + "-" * 60 + C.RESET)
+
+    metrics = {name: [] for name in op_groups}
+
+    for step in range(N_steps):
+        key, subkey = jax.random.split(key)
+        t_step0 = time.perf_counter()
+
+        with Timer() as t_sample:
+            mc_keys = jax.random.split(subkey, N_mc)
+            state, log_amps, acceptance = sample(nsweeps, state, action, mc_keys, wf)
+            jax.block_until_ready((state, log_amps))
+
+        with Timer() as t_expect:
+            step_means = {}
+            op_i = 0
+            for name, ops in op_groups.items():
+                means = []
+                for op in ops:
+                    if _USE_COLOR and rank == MASTER:
+                        print(f"\r{C.DIM}  step {step:4d} - observable {op_i+1:>4d}/{n_ops} ({name}){C.RESET}",
+                              end="", flush=True)
+                    means.append(compute_expectation(op, wf, state, log_amps)[1])
+                    op_i += 1
+                step_means[name] = jnp.stack(means)
+            jax.block_until_ready(step_means)
+            if _USE_COLOR and rank == MASTER:
+                print("\r" + " " * 60 + "\r", end="", flush=True)
+
+        for name, means in step_means.items():
+            metrics[name].append(np.asarray(means.real))
+
+        t_step = time.perf_counter() - t_step0
+        eta_hours = t_step * (N_steps - step - 1) / 3600.0
+
+        if log_every and rank == MASTER and (step % log_every == 0 or step == N_steps - 1):
+            print(
+                f"{step:5d} │ accept: {float(jnp.mean(acceptance)):.3f} │ "
+                f"t_mc: {t_sample.elapsed:6.2f}s │ t_obs: {t_expect.elapsed:6.2f}s │ "
+                f"t_tot: {t_step:6.2f}s │ ETA: {eta_hours:7.2f}h",
+                flush=True,
+            )
+
+    for name in metrics:
+        metrics[name] = np.array(metrics[name])
+
+    return key, state, metrics
