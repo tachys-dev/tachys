@@ -78,6 +78,13 @@ def build_checkpoint_manager(directory, save_interval_steps, max_to_keep):
     return ocp.CheckpointManager(directory, options=options)
 
 
+def get_last_step(checkpoint_dir):
+    manager = build_checkpoint_manager(checkpoint_dir, save_interval_steps=1, max_to_keep=1)
+    step = manager.latest_step()
+    manager.close()
+    return step
+
+
 def save_training_checkpoint(manager, step, key, state, params, opt_state, force=False):
     """Checkpoint params, key, and the mutable parts of state/opt_state as one atomic
     composite checkpoint.
