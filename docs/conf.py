@@ -21,6 +21,16 @@ source_suffix = {
     ".md": "markdown",
 }
 
+# README.md holds build instructions for contributors, not site content.
+exclude_patterns = ["_build", "README.md"]
+
+# The documentation hub holds the master toctree; the site root (index.html) is a
+# standalone animated landing page rendered from _templates/landing.html.
+root_doc = "contents"
+
+templates_path = ["_templates"]
+html_additional_pages = {"index": "landing.html"}
+
 html_theme = "pydata_sphinx_theme"
 html_title = "tachys"
 html_static_path = ["_static"]

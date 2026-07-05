@@ -1,0 +1,695 @@
+{% raw %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tachys — Neural Quantum States for JAX</title>
+<meta name="description" content="Functional NQS library for lattice quantum systems. Operators are callables, states are pytrees, physics is composable.">
+<link rel="icon" href="_static/logo.svg" type="image/svg+xml">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#F7F9FD;
+  --surface:#FFFFFF;
+  --hero:#081525;
+  --navy:#0D1B2E;
+  --blue:#1A5FEB;
+  --blue-dim:#1550C8;
+  --blue-lt:#4F8EF7;
+  --violet:#7C3AED;
+  --green:#10B981;
+  --orange:#D97706;
+  --muted:#5B6E8A;
+  --border:#D4DCEB;
+  --code:#0D1B2E;
+  --text:#111827;
+  --text2:#374151;
+  --font:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,monospace;
+  --r:6px;--rl:10px;
+}
+
+html{scroll-behavior:smooth}
+body{font-family:var(--font);font-size:1rem;line-height:1.7;color:var(--text);background:var(--bg);overflow-x:hidden}
+
+h1,h2,h3,h4{color:var(--navy);line-height:1.2;text-wrap:balance;font-weight:700}
+h2{font-size:1.875rem;letter-spacing:-.02em;margin-bottom:.75rem}
+h3{font-size:1.25rem;letter-spacing:-.01em;margin-bottom:.5rem}
+p{max-width:65ch;color:var(--text2)}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+strong{font-weight:600;color:var(--navy)}
+code{font-family:var(--mono);font-size:.875em}
+sub,sup{font-size:.75em}
+
+.container{max-width:1100px;margin:0 auto;padding:0 2rem}
+.content{max-width:860px;margin:0 auto;padding:0 2rem}
+
+/* ── nav ── */
+nav.top{
+  position:sticky;top:0;z-index:100;
+  background:rgba(247,249,253,.85);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid transparent;
+  height:56px;display:flex;align-items:center;
+  justify-content:space-between;padding:0 2rem;
+  transition:border-color .25s,box-shadow .25s,background .25s;
+}
+nav.top.scrolled{
+  border-bottom-color:var(--border);
+  box-shadow:0 4px 24px -12px rgba(13,27,46,.25);
+}
+.n-logo{
+  display:flex;align-items:center;gap:9px;
+  font-weight:700;font-size:1.05rem;
+  color:var(--navy);letter-spacing:-.03em;
+}
+.n-logo:hover{text-decoration:none}
+.n-logo .lm{
+  width:26px;height:26px;background:var(--blue);border-radius:5px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:5px;
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+.n-logo:hover .lm{transform:rotate(90deg)}
+.n-logo .dot{background:#fff;border-radius:50%}
+.n-links{display:flex;align-items:center;gap:1.5rem}
+.n-links a{font-size:.875rem;color:var(--muted);font-weight:500;position:relative}
+.n-links a:not(.n-ver)::after{
+  content:'';position:absolute;left:0;bottom:-4px;height:2px;width:0;
+  background:var(--blue);transition:width .22s ease;
+}
+.n-links a:not(.n-ver):hover{color:var(--blue);text-decoration:none}
+.n-links a:not(.n-ver):hover::after{width:100%}
+.n-ver{
+  font-family:var(--mono);font-size:.7rem;
+  background:var(--border);color:var(--muted);
+  padding:2px 8px;border-radius:100px;
+}
+
+/* ── hero ── */
+.hero{
+  background:var(--hero);
+  padding:6.5rem 2rem 5.5rem;
+  position:relative;overflow:hidden;
+}
+#lattice{
+  position:absolute;inset:0;width:100%;height:100%;
+  z-index:0;opacity:.9;
+}
+.hero::after{
+  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 75% 60% at 50% -8%,rgba(26,95,235,.20) 0%,transparent 60%);
+}
+.hero-in{max-width:820px;margin:0 auto;position:relative;z-index:2}
+.eyebrow{
+  font-size:.75rem;font-family:var(--mono);color:var(--blue-lt);
+  letter-spacing:.1em;text-transform:uppercase;
+  margin-bottom:1.25rem;display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{
+  content:'';width:0;height:1px;background:var(--blue-lt);
+  animation:lineGrow .8s .1s ease forwards;
+}
+@keyframes lineGrow{to{width:18px}}
+.hero h1{
+  font-size:clamp(2.4rem,5.5vw,3.6rem);
+  color:#E8EDF7;letter-spacing:-.04em;
+  margin-bottom:1.1rem;line-height:1.08;
+}
+.hero h1 .w{display:inline-block;opacity:0;transform:translateY(18px);filter:blur(4px)}
+.reveal-word{animation:wordUp .6s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes wordUp{to{opacity:1;transform:translateY(0);filter:blur(0)}}
+.hero h1 em{
+  font-style:normal;
+  background:linear-gradient(100deg,var(--blue-lt) 0%,#9Fc4ff 30%,#E8EDF7 50%,#9Fc4ff 70%,var(--blue-lt) 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:shimmer 5s linear infinite;
+}
+@keyframes shimmer{to{background-position:-220% 0}}
+.hero .lead{
+  font-size:1.1rem;color:#8B96B0;
+  max-width:52ch;line-height:1.65;margin-bottom:2.25rem;
+  opacity:0;transform:translateY(14px);
+  animation:fadeUp .7s .55s ease forwards;
+}
+.hero-acts{
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+  opacity:0;transform:translateY(14px);
+  animation:fadeUp .7s .7s ease forwards;
+}
+@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--blue);color:#fff;
+  padding:11px 24px;border-radius:var(--r);
+  font-size:.875rem;font-weight:600;
+  transition:background .15s,transform .15s,box-shadow .2s;
+  box-shadow:0 6px 20px -8px rgba(26,95,235,.8);
+}
+.btn:hover{background:var(--blue-dim);text-decoration:none;transform:translateY(-2px);box-shadow:0 10px 28px -8px rgba(26,95,235,.9)}
+.btn .arr{transition:transform .2s}
+.btn:hover .arr{transform:translateX(4px)}
+.install-pill{
+  display:inline-flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:var(--r);padding:10px 14px 10px 16px;
+  font-family:var(--mono);font-size:.875rem;color:#8B96B0;
+  cursor:pointer;transition:border-color .2s,background .2s;
+}
+.install-pill:hover{border-color:rgba(79,142,247,.5);background:rgba(255,255,255,.09)}
+.install-pill .pr{color:#4F6280}
+.install-pill .cm{color:#E8EDF7}
+.install-pill .cp{
+  margin-left:2px;display:inline-flex;color:#4F6280;
+  transition:color .2s,transform .15s;
+}
+.install-pill:hover .cp{color:var(--blue-lt)}
+.install-pill.copied .cp{color:var(--green);transform:scale(1.15)}
+.install-pill .cp svg{display:block}
+
+/* ── feature strip ── */
+.feat{background:var(--surface);border-bottom:1px solid var(--border);padding:3.5rem 0}
+.feat-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:2px;background:var(--border);
+  border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;
+}
+.fc{
+  background:var(--surface);padding:2rem;position:relative;
+  transition:transform .3s cubic-bezier(.2,.7,.3,1),box-shadow .3s;
+}
+.fc::before{
+  content:'';position:absolute;inset:0;pointer-events:none;opacity:0;
+  transition:opacity .3s;
+  background:radial-gradient(120% 90% at 50% 0%,rgba(26,95,235,.06),transparent 70%);
+}
+.fc:hover{transform:translateY(-4px);box-shadow:0 18px 40px -24px rgba(13,27,46,.5);z-index:2}
+.fc:hover::before{opacity:1}
+.fc-icon{
+  width:38px;height:38px;border-radius:var(--r);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.05rem;margin-bottom:1rem;font-family:var(--mono);
+  font-weight:700;transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+.fc:hover .fc-icon{transform:scale(1.12) rotate(-6deg)}
+.fc-icon.b{background:rgba(26,95,235,.1);color:var(--blue)}
+.fc-icon.v{background:rgba(124,58,237,.1);color:var(--violet)}
+.fc-icon.g{background:rgba(16,185,129,.1);color:var(--green)}
+.fc h3{font-size:1rem;margin-bottom:.4rem}
+.fc p{font-size:.875rem;color:var(--muted);max-width:none}
+.count{font-variant-numeric:tabular-nums}
+
+/* ── sections ── */
+.sec{padding:4.5rem 0;border-bottom:1px solid var(--border)}
+.sec-lbl{
+  font-size:.7rem;font-family:var(--mono);color:var(--blue);
+  letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+  margin-bottom:.4rem;
+}
+.sec h2{margin-bottom:.75rem}
+.sec .lead-p{margin-bottom:2rem}
+
+/* ── code block ── */
+.cb{
+  background:var(--code);border-radius:var(--rl);overflow:hidden;
+  margin:1.5rem 0;border:1px solid rgba(255,255,255,.06);
+  box-shadow:0 24px 60px -30px rgba(8,21,37,.9);
+}
+.cb-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 16px;border-bottom:1px solid rgba(255,255,255,.06);
+}
+.cb-file{font-family:var(--mono);font-size:.7rem;color:#4F6280;display:flex;align-items:center;gap:7px}
+.cb-file .dots{display:inline-flex;gap:5px;margin-right:4px}
+.cb-file .dots i{width:9px;height:9px;border-radius:50%;display:block}
+.cb-file .dots i:nth-child(1){background:#ff5f57}
+.cb-file .dots i:nth-child(2){background:#febc2e}
+.cb-file .dots i:nth-child(3){background:#28c840}
+.cb-lang{
+  font-family:var(--mono);font-size:.7rem;
+  background:rgba(26,95,235,.18);color:var(--blue-lt);
+  padding:2px 8px;border-radius:4px;
+}
+.cb pre{
+  padding:1.25rem 1.5rem;overflow-x:auto;
+  font-family:var(--mono);font-size:.8rem;line-height:1.75;
+  color:#C8D4E8;
+}
+.cb pre .ln{display:block}
+.kw{color:#A78BFA}
+.fn{color:#60A5FA}
+.cls{color:#34D399}
+.st{color:#6EE7B7}
+.nm{color:#FCD34D}
+.cm{color:#4A5E7A;font-style:italic}
+.op{color:#93C5FD}
+
+p code,li code,.ic{
+  background:rgba(26,95,235,.08);color:var(--blue-dim);
+  padding:1px 5px;border-radius:4px;font-size:.85em;
+}
+
+.note{
+  border-left:3px solid var(--blue);background:rgba(26,95,235,.05);
+  padding:.9rem 1.1rem;border-radius:0 var(--r) var(--r) 0;margin:1.25rem 0;
+}
+.note.tip{border-color:var(--green);background:rgba(16,185,129,.05)}
+.note p{font-size:.875rem;color:var(--text2);max-width:none;margin:0}
+
+/* steps */
+.steps{list-style:none;margin-top:2rem;display:flex;flex-direction:column;gap:.75rem}
+.step{display:flex;gap:1rem;align-items:baseline}
+.step-n{
+  flex-shrink:0;width:22px;height:22px;border-radius:50%;
+  background:var(--blue);color:#fff;
+  font-size:.7rem;font-weight:700;font-family:var(--mono);
+  display:flex;align-items:center;justify-content:center;
+}
+.step-body{font-size:.875rem;color:var(--text2)}
+.step-body strong{color:var(--navy);font-family:var(--mono);font-size:.85em}
+
+/* concept cards */
+.cc{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--rl);padding:1.75rem;margin-bottom:1.25rem;
+  transition:transform .3s cubic-bezier(.2,.7,.3,1),box-shadow .3s,border-color .3s;
+}
+.cc:hover{transform:translateY(-3px);box-shadow:0 20px 44px -28px rgba(13,27,46,.55);border-color:#c3cee0}
+.cc h3{font-size:1.15rem;margin-bottom:.5rem}
+.cc p{margin-bottom:.75rem;font-size:.9rem}
+.cc p:last-child{margin-bottom:0}
+.cc-more{font-size:.8rem;font-weight:600;font-family:var(--mono)}
+.cc-more .arr{display:inline-block;transition:transform .2s}
+.cc:hover .cc-more .arr{transform:translateX(4px)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+
+/* CTA */
+.cta{
+  background:var(--hero);text-align:center;padding:5rem 2rem;
+  background-image:radial-gradient(circle,rgba(26,95,235,.10) 1px,transparent 1px);
+  background-size:26px 26px;
+}
+.cta h2{color:#E8EDF7}
+.cta p{color:#8B96B0;margin:0 auto 2rem;max-width:48ch}
+.cta .btn{margin:0 6px 10px}
+.btn.ghost{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);box-shadow:none}
+.btn.ghost:hover{background:rgba(255,255,255,.12);box-shadow:none}
+
+/* footer */
+footer{
+  background:var(--navy);color:#4A5E7A;
+  padding:2.5rem 2rem;text-align:center;font-size:.875rem;
+}
+footer a{color:#6B7FA0}
+
+/* scroll reveal */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+.reveal[data-d="1"]{transition-delay:.08s}
+.reveal[data-d="2"]{transition-delay:.16s}
+.reveal[data-d="3"]{transition-delay:.24s}
+.reveal[data-d="4"]{transition-delay:.32s}
+.reveal[data-d="5"]{transition-delay:.40s}
+
+@media(max-width:768px){
+  .feat-grid{grid-template-columns:1fr}
+  .grid2{grid-template-columns:1fr}
+  .n-links a:not(.n-ver){display:none}
+  .hero h1{font-size:2.1rem}
+  .hero{padding:4.5rem 1.5rem 4rem}
+}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+  #lattice{display:none}
+  .hero h1 .w{opacity:1;transform:none;filter:none}
+  .hero .lead,.hero-acts{opacity:1;transform:none}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="top" id="nav">
+  <a href="index.html" class="n-logo">
+    <span class="lm">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </span>
+    tachys
+  </a>
+  <div class="n-links">
+    <a href="concepts.html">Concepts</a>
+    <a href="api.html">API</a>
+    <a href="examples.html">Examples</a>
+    <a href="https://github.com/riccardo-rende/tachys">GitHub</a>
+    <span class="n-ver">v0.1.0</span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="top">
+  <canvas id="lattice"></canvas>
+  <div class="hero-in">
+    <div class="eyebrow">Variational Monte Carlo · JAX</div>
+    <h1 id="headline">Quantum many-body physics at <em>functional</em> scale.</h1>
+    <p class="lead">
+      Built on functional programming principles, fully compatible with the JAX ecosystem.
+      Write your physics once — compose, differentiate, and scale from your laptop to a GPU
+      cluster without changing a line. The VMC engine is fast, easy to use, and simple to
+      extend to your own problems.
+    </p>
+    <div class="hero-acts">
+      <a href="quickstart.html" class="btn">Get started <span class="arr">→</span></a>
+      <div class="install-pill" id="installPill" title="Click to copy">
+        <span class="pr">$</span>
+        <span class="cm">pip install tachys</span>
+        <span class="cp" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURE STRIP -->
+<div class="feat">
+  <div class="container">
+    <div class="feat-grid">
+      <div class="fc reveal" data-d="1">
+        <div class="fc-icon b">↑↓</div>
+        <h3>Spin systems</h3>
+        <p>Simulate spin-½ lattice models at scale — benchmarked up to <strong>~<span class="count" data-to="2000">0</span> spins</strong>.</p>
+      </div>
+      <div class="fc reveal" data-d="2">
+        <div class="fc-icon v">ψ</div>
+        <h3>Fermionic systems</h3>
+        <p>Simulate fermionic systems — benchmarked up to <strong><span class="count" data-to="500">0</span> electrons</strong>. Spin and fermionic degrees of freedom combine freely in a single Hamiltonian.</p>
+      </div>
+      <div class="fc reveal" data-d="3">
+        <div class="fc-icon g">∇</div>
+        <h3>Foundation models</h3>
+        <p>Train neural quantum states and foundation models for quantum many-body physics.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MINIMAL EXAMPLE -->
+<section class="sec" style="background:var(--surface)">
+  <div class="content">
+    <div class="sec-lbl reveal">Example</div>
+    <h2 class="reveal" data-d="1">A simulation in ten lines</h2>
+    <p class="lead-p reveal" data-d="2">Build a Hamiltonian, define an ansatz, and run a variational Monte Carlo optimisation loop.</p>
+    <div class="cb reveal" data-d="3">
+      <div class="cb-head">
+        <span class="cb-file"><span class="dots"><i></i><i></i><i></i></span>main.py</span>
+        <span class="cb-lang">python</span>
+      </div>
+      <pre><span class="kw">from</span> tachys.lattice.spins.hamiltonians.ising_transverse_field <span class="kw">import</span> ising_transverse_field_square_pbc
+<span class="kw">from</span> tachys.lattice.spins.spin_state <span class="kw">import</span> SpinState, init_config_fixed_magn
+<span class="kw">from</span> tachys.lattice.ansatz.rbm <span class="kw">import</span> SpinRBM
+<span class="kw">from</span> tachys.lattice.operator.local_estimator <span class="kw">import</span> compute_expectation
+<span class="kw">from</span> tachys.montecarlo <span class="kw">import</span> sample
+<span class="kw">from</span> tachys.wavefunction <span class="kw">import</span> WaveFunction
+<span class="kw">from</span> tachys.optimizer <span class="kw">import</span> SR
+
+H     = <span class="fn">ising_transverse_field_square_pbc</span>(L=<span class="nm">4</span>)
+model = <span class="cls">SpinRBM</span>(num_hidden=<span class="nm">1</span>, dtype=jnp.float64)
+state = <span class="cls">SpinState</span>(spins=<span class="fn">init_config_fixed_magn</span>(key, N, sz=<span class="nm">0</span>, N_mc=<span class="nm">16</span>), Ns=N)
+wf    = <span class="cls">WaveFunction</span>(params=model.<span class="fn">init</span>(key, state), apply_fn=model.apply)
+
+optimizer = <span class="cls">SR</span>(diag_shift=<span class="nm">1e-4</span>)
+opt_state = optimizer.<span class="fn">init</span>(wf.params)
+
+<span class="kw">for</span> step <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">100</span>):
+    state, log_amps, _ = <span class="fn">sample</span>(<span class="nm">1</span>, state, action, keys, wf)
+    E_L, e_mean, e2_mean = <span class="fn">compute_expectation</span>(H, wf, state, log_amps)
+    updates, opt_state = <span class="fn">optimizer</span>(E_L, opt_state, state, wf)
+    wf = wf.<span class="fn">apply_gradients</span>(updates, eta=<span class="nm">0.01</span>)</pre>
+    </div>
+
+    <ol class="steps">
+      <li class="step reveal"><span class="step-n">1</span><span class="step-body"><strong>ising_transverse_field_square_pbc</strong> — builds the Hamiltonian as a callable operator sum. Adding or scaling terms returns a new operator — no matrix is allocated yet.</span></li>
+      <li class="step reveal"><span class="step-n">2</span><span class="step-body"><strong>SpinRBM</strong> — a Flax module implementing a Restricted Boltzmann Machine ansatz for spin-½ systems. <code>num_hidden</code> sets the hidden layer width.</span></li>
+      <li class="step reveal"><span class="step-n">3</span><span class="step-body"><strong>init_config_fixed_magn</strong> — samples a batch of random spin configurations with fixed total magnetization <code>sz</code>, returning a <code>SpinState</code> pytree of shape <code>(N_mc, N)</code>.</span></li>
+      <li class="step reveal"><span class="step-n">4</span><span class="step-body"><strong>WaveFunction</strong> — wraps parameters and apply function into a single pytree, so the wavefunction flows through <code>jit</code>, <code>vmap</code>, and <code>grad</code>.</span></li>
+      <li class="step reveal"><span class="step-n">5</span><span class="step-body"><strong>SR</strong> — Stochastic Reconfiguration optimizer. Preconditions the energy gradient with the quantum geometric tensor (via NTK). <code>diag_shift</code> regularises the inversion.</span></li>
+      <li class="step reveal"><span class="step-n">6</span><span class="step-body"><strong>sample</strong> — runs Metropolis-Hastings sampling and returns the updated state, its log-amplitudes, and the acceptance rate.</span></li>
+      <li class="step reveal"><span class="step-n">7</span><span class="step-body"><strong>compute_expectation</strong> — evaluates the local energy estimator <code>E_L</code>, then reduces to <code>e_mean = ⟨E⟩</code> and <code>e2_mean = ⟨|E|²⟩</code> across all devices.</span></li>
+      <li class="step reveal"><span class="step-n">8</span><span class="step-body"><strong>optimizer</strong> — applies SR to <code>E_L</code> and returns the parameter updates and the new optimizer state.</span></li>
+      <li class="step reveal"><span class="step-n">9</span><span class="step-body"><strong>apply_gradients</strong> — performs the descent step <code>θ ← θ − η · updates</code>, returning a new <code>WaveFunction</code>.</span></li>
+    </ol>
+  </div>
+</section>
+
+<!-- CONCEPTS -->
+<section class="sec" id="concepts">
+  <div class="content">
+    <div class="sec-lbl reveal">Core Concepts</div>
+    <h2 class="reveal" data-d="1">How Tachys works</h2>
+    <p class="lead-p reveal" data-d="2">Three primitives — states, operators, and the diagonalization engine — cover the full workflow. Each is independently composable.</p>
+
+    <div class="grid2">
+      <div class="cc reveal" data-d="1">
+        <h3>States as pytrees</h3>
+        <p>A <code>State</code> holds a batch of configurations and extends <code>flax.struct.PyTreeNode</code>, so it passes through <code>jit</code>, <code>vmap</code>, and <code>grad</code> with no wrapping. Operators vmap over the batch axis for you.</p>
+        <a class="cc-more" href="concepts.html#states">Read more <span class="arr">→</span></a>
+      </div>
+      <div class="cc reveal" data-d="2">
+        <h3>Operators as callables</h3>
+        <p>An operator is an object with a <code>__call__</code> method. Call it on a batched state to get a <code>DiagonalResult</code> or an <code>OffdiagonalResult</code> — vmapping is handled by the base class.</p>
+        <a class="cc-more" href="concepts.html#operators">Read more <span class="arr">→</span></a>
+      </div>
+      <div class="cc reveal" data-d="3">
+        <h3>Operator algebra</h3>
+        <p>Operators support arithmetic: <code>+</code> builds an <code>_OperatorSum</code>, scalar <code>*</code> rescales the coupling, and operator <code>*</code> forms a sequential product. Every composite is itself a callable.</p>
+        <a class="cc-more" href="concepts.html#operator-algebra">Read more <span class="arr">→</span></a>
+      </div>
+      <div class="cc reveal" data-d="4">
+        <h3>Exact diagonalization</h3>
+        <p><code>exact_diag</code> applies the Hamiltonian to every basis state, assembles a sparse COO matrix, and calls <code>scipy.sparse.linalg.eigsh</code> for the lowest eigenvalues — all in one call.</p>
+        <a class="cc-more" href="concepts.html#exact-diagonalization">Read more <span class="arr">→</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <h2 class="reveal">Start simulating in minutes</h2>
+  <p class="reveal" data-d="1">From <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install</code> to a ground-state energy in under five minutes — the same three-step workflow scales to every model in the library.</p>
+  <div class="reveal" data-d="2">
+    <a href="quickstart.html" class="btn">Get started <span class="arr">→</span></a>
+    <a href="api.html" class="btn ghost">Browse the API</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>Tachys v0.1.0 — Built on <a href="https://jax.dev">JAX</a> and <a href="https://flax.readthedocs.io">Flax</a> · <a href="https://github.com/riccardo-rende/tachys">GitHub</a></p>
+  <p style="margin-top:.4rem;font-size:.75rem">MIT License</p>
+</footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  /* nav elevation on scroll */
+  var nav = document.getElementById('nav');
+  function onScroll(){ nav.classList.toggle('scrolled', window.scrollY > 8); }
+  onScroll(); window.addEventListener('scroll', onScroll, {passive:true});
+
+  /* headline word-by-word reveal */
+  var hl = document.getElementById('headline');
+  if(hl && !reduce){
+    var html = hl.innerHTML;
+    // wrap top-level text words in .w spans, preserving the <em>
+    var tmp = document.createElement('div'); tmp.innerHTML = html;
+    var out = [];
+    tmp.childNodes.forEach(function(node){
+      if(node.nodeType === 3){
+        node.textContent.split(/(\s+)/).forEach(function(tok){
+          if(tok.trim()) out.push('<span class="w">'+tok+'</span>');
+          else out.push(tok);
+        });
+      } else {
+        // keep element (the <em>) as a single animated unit
+        out.push('<span class="w">'+node.outerHTML+'</span>');
+      }
+    });
+    hl.innerHTML = out.join('');
+    var words = hl.querySelectorAll('.w');
+    words.forEach(function(w,i){ w.style.animationDelay = (0.12 + i*0.06)+'s'; w.classList.add('reveal-word'); });
+  }
+
+  /* copy install command */
+  var pill = document.getElementById('installPill');
+  if(pill){
+    pill.addEventListener('click', function(){
+      var text = 'pip install tachys';
+      var done = function(){ pill.classList.add('copied'); setTimeout(function(){ pill.classList.remove('copied'); }, 1400); };
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, done); }
+      else { done(); }
+    });
+  }
+
+  /* scroll reveal */
+  var revs = document.querySelectorAll('.reveal');
+  if(reduce || !('IntersectionObserver' in window)){
+    revs.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, {threshold:0.12, rootMargin:'0px 0px -8% 0px'});
+    revs.forEach(function(el){ io.observe(el); });
+  }
+
+  /* count-up */
+  function countUp(el){
+    var target = parseInt(el.getAttribute('data-to'),10) || 0;
+    if(reduce){ el.textContent = target.toLocaleString(); return; }
+    var dur = 1300, start = null;
+    function frame(ts){
+      if(start === null) start = ts;
+      var p = Math.min((ts - start)/dur, 1);
+      var eased = 1 - Math.pow(1-p, 3);
+      el.textContent = Math.round(target * eased).toLocaleString();
+      if(p < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+  var counts = document.querySelectorAll('.count');
+  if(!('IntersectionObserver' in window)){
+    counts.forEach(countUp);
+  } else {
+    var cio = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ countUp(e.target); cio.unobserve(e.target); } });
+    }, {threshold:0.6});
+    counts.forEach(function(el){ cio.observe(el); });
+  }
+
+  /* ── hero quantum-lattice canvas ── */
+  var canvas = document.getElementById('lattice');
+  if(canvas && !reduce){
+    var ctx = canvas.getContext('2d');
+    var W, H, DPR, cols, rows, gap, nodes, offX, offY, t = 0, raf;
+    var C_UP = [79,142,247], C_DN = [124,58,237], C_BASE = [40,64,104];
+
+    function build(){
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      var rect = canvas.getBoundingClientRect();
+      W = rect.width; H = rect.height;
+      canvas.width = W*DPR; canvas.height = H*DPR;
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+      gap = Math.max(38, Math.min(56, W/22));
+      cols = Math.ceil(W/gap)+2;
+      rows = Math.ceil(H/gap)+2;
+      offX = (W - (cols-1)*gap)/2;
+      offY = (H - (rows-1)*gap)/2;
+      nodes = [];
+      for(var i=0;i<cols;i++){
+        for(var j=0;j<rows;j++){
+          nodes.push({
+            x: offX + i*gap,
+            y: offY + j*gap,
+            // random static spin, with a slow flip phase
+            phase: Math.random()*Math.PI*2,
+            speed: 0.2 + Math.random()*0.5,
+            up: Math.random() > 0.5
+          });
+        }
+      }
+    }
+
+    function lerp(a,b,t){ return a+(b-a)*t; }
+    function rgba(c,a){ return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')'; }
+
+    function draw(){
+      t += 0.01;
+      ctx.clearRect(0,0,W,H);
+
+      // a couple of slow travelling excitation centres
+      var e1x = W*(0.5 + 0.42*Math.sin(t*0.35));
+      var e1y = H*(0.4 + 0.35*Math.cos(t*0.27));
+      var e2x = W*(0.5 + 0.40*Math.cos(t*0.22+2));
+      var e2y = H*(0.55 + 0.30*Math.sin(t*0.31+1));
+
+      // connection lines
+      ctx.lineWidth = 1;
+      for(var i=0;i<nodes.length;i++){
+        var n = nodes[i];
+        // right neighbour
+        if((i % rows) !== 0 || true){}
+      }
+
+      // draw links to right & down neighbours
+      for(var i=0;i<cols;i++){
+        for(var j=0;j<rows;j++){
+          var idx = i*rows + j;
+          var n = nodes[idx];
+          if(i < cols-1){ link(n, nodes[(i+1)*rows + j]); }
+          if(j < rows-1){ link(n, nodes[i*rows + (j+1)]); }
+        }
+      }
+
+      // draw nodes
+      for(var k=0;k<nodes.length;k++){
+        var p = nodes[k];
+        var d1 = Math.hypot(p.x-e1x, p.y-e1y);
+        var d2 = Math.hypot(p.x-e2x, p.y-e2y);
+        var glow = Math.max(0, 1 - d1/210) + Math.max(0, 1 - d2/210);
+        glow = Math.min(glow, 1);
+        var pulse = 0.5 + 0.5*Math.sin(t*p.speed + p.phase);
+        var col = p.up ? C_UP : C_DN;
+        var base = 0.18 + 0.12*pulse;
+        var a = base + glow*0.75;
+        var r = 1.6 + glow*2.4 + pulse*0.5;
+
+        if(glow > 0.02){
+          ctx.beginPath();
+          ctx.fillStyle = rgba(col, glow*0.12);
+          ctx.arc(p.x, p.y, r*3.4, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.fillStyle = rgba(glow>0.15 ? col : C_BASE, a);
+        ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      raf = requestAnimationFrame(draw);
+
+      function link(a,b){
+        var mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+        var d1=Math.hypot(mx-e1x,my-e1y), d2=Math.hypot(mx-e2x,my-e2y);
+        var g=Math.max(0,1-d1/200)+Math.max(0,1-d2/200);
+        if(g<0.04) { ctx.strokeStyle=rgba(C_BASE,0.05); }
+        else { ctx.strokeStyle=rgba(C_UP, Math.min(g,1)*0.28); }
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      }
+    }
+
+    var rt;
+    window.addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(build, 150); }, {passive:true});
+    build();
+    draw();
+
+    // pause when tab hidden
+    document.addEventListener('visibilitychange', function(){
+      if(document.hidden){ cancelAnimationFrame(raf); }
+      else { raf = requestAnimationFrame(draw); }
+    });
+  }
+})();
+</script>
+
+</body>
+</html>{% endraw %}
