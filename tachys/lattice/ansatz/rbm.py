@@ -14,19 +14,19 @@ def log_cosh(x):
 
 
 class SpinRBM(nn.Module):
-    num_hidden: int
+    hidden_units: int
     dtype: Any = jnp.float64
     complex: bool = False
 
     def setup(self):
         self.linear = nn.Dense(
-            features=self.num_hidden,
+            features=self.hidden_units,
             use_bias=True,
             param_dtype=self.dtype,
         )
         if self.complex:
             self.imag_linear = nn.Dense(
-                features=self.num_hidden,
+                features=self.hidden_units,
                 use_bias=True,
                 param_dtype=self.dtype,
             )

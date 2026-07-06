@@ -18,12 +18,12 @@ N_mc = 16
 
 
 def test_ntk_values():
-    """Regression test: ntk[:, :, 0, 0] for num_hidden=1, complex=True, keys matching main.py."""
+    """Regression test: ntk[:, :, 0, 0] for hidden_units=1, complex=True, keys matching main.py."""
     lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
     state = SpinState(spins=spins, lattice=lattice)
 
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     params = model.init(jax.random.key(0), state)
     wf = WaveFunction(params=params, apply_fn=model.apply)
 

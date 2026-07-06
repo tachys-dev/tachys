@@ -49,7 +49,7 @@ N_mc = 16
 def _run_loop(complex_mode: bool) -> dict:
     mode = "complex" if complex_mode else "real"
     H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=complex_mode)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=complex_mode)
 
     lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)

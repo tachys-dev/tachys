@@ -23,7 +23,7 @@ ETA = 0.01
 
 def _build_problem():
     H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=False)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=False)
     lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
     state = SpinState(spins=spins, lattice=lattice)

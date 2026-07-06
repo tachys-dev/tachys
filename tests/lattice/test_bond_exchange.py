@@ -130,7 +130,7 @@ def test_two_site_chain_deterministic_swap():
 def test_sample_spin_conserves_magnetization(spin_setup):
     state, action, mc_keys = spin_setup
 
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, Ns), dtype=jnp.float64), lattice=state.lattice)
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
@@ -222,7 +222,7 @@ def test_composite_bond_exchange_sample_runs(composite_setup):
     """The same combination, driven through the full sample() Metropolis loop."""
     state, action, mc_keys = composite_setup
 
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, Ns), dtype=jnp.float64), lattice=state.lattice)
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)

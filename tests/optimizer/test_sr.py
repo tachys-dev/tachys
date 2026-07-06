@@ -21,7 +21,7 @@ def test_sr_one_step_updates():
     """Regression test: SR optimizer updates after one step match main.py output."""
     H = heisenberg_square_pbc(L, J=1.0) #! ising should be used
 
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
     state = SpinState(spins=spins, lattice=lattice)
@@ -69,7 +69,7 @@ def test_sr_loop_5_steps():
     """Regression test: 5-step SR loop energies and final params match expected output for Ising model."""
     H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
 
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
     state = SpinState(spins=spins, lattice=lattice)
@@ -127,7 +127,7 @@ def test_sr_real_loop_5_steps():
     """Regression test: 5-step SR (real mode) loop energies and final params match expected output."""
     H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
 
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=False)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=False)
     lattice = square(shape=(L, L))
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
     state = SpinState(spins=spins, lattice=lattice)

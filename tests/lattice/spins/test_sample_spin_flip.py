@@ -22,7 +22,7 @@ def setup():
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
     state = SpinState(spins=spins, lattice=lattice)
 
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
@@ -66,7 +66,7 @@ def test_sample_1_sweep_regression():
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
     state = SpinState(spins=spins, lattice=lattice)
 
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
@@ -122,7 +122,7 @@ def test_sample_10_sweeps_regression():
     spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
     state = SpinState(spins=spins, lattice=lattice)
 
-    model = SpinRBM(num_hidden=1, dtype=jnp.float64, complex=True)
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
     params = model.init(jax.random.key(0), dummy)
     wf = WaveFunction(params=params, apply_fn=model.apply)
