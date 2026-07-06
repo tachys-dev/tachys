@@ -13,6 +13,8 @@ import jax.numpy as jnp
 from jax.scipy.linalg import solve_triangular
 
 from tachys.parallel import n_devices, rank
+from tachys.lattice.foundation.foundation_state import FoundationState
+from tachys.lattice.foundation.collectives import grouped_mean
 
 # ─── Linear solver ────────────────────────────────────────────────────────────
 
@@ -164,9 +166,27 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
     return ntk
 
 
-def center_ntk(ntk, weights):
-    """Subtract row, column, and global means from the NTK (centering step)."""
-    if weights is None:
+def center_ntk(ntk, weights, state):
+    """Subtract row, column, and global means from the NTK (centering step).
+
+    Uses per-system means when `state` is a FoundationState. `ntk` is already
+    fully gathered/replicated across devices by this point (see
+    ntk_parallel_fn), so reusing grouped_mean here (built for device-sharded
+    data, with an internal psum) is still correct: the spurious n_devices
+    factor from summing identical replicas cancels between grouped_mean's
+    numerator and denominator.
+    """
+    if isinstance(state, FoundationState):
+        if weights is not None:
+            raise NotImplementedError(
+                "center_ntk: weights + FoundationState is not supported yet."
+            )
+        system_ids  = jax.lax.all_gather(state.system_ids, 'i', tiled=True)
+        K           = state.n_systems
+        row_mean    = grouped_mean(ntk, system_ids, K, axis=0, broadcast=True)
+        col_mean    = grouped_mean(ntk, system_ids, K, axis=1, broadcast=True)
+        global_mean = grouped_mean(row_mean, system_ids, K, axis=1, broadcast=True)
+    elif weights is None:
         row_mean    = jnp.mean(ntk, axis=0, keepdims=True)
         col_mean    = jnp.mean(ntk, axis=1, keepdims=True)
         global_mean = jnp.mean(ntk, axis=(0, 1), keepdims=True)
@@ -185,7 +205,7 @@ def center_ntk(ntk, weights):
 def compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1):
     """Full NTK pipeline: parallel assembly → centering → optional weight scaling."""
     ntk = ntk_parallel_fn(state, wf, nbatches, mode, V=V)
-    ntk = center_ntk(ntk, weights)
+    ntk = center_ntk(ntk, weights, state)
 
     if weights is not None:
         sqrt_w = jax.lax.all_gather(jnp.sqrt(weights), 'i', tiled=True)
@@ -204,7 +224,15 @@ def center_sr_solution(sr_solution, state, mode, weights):
     if mode == "complex":
         sr_solution = sr_solution.reshape(2, -1).T  # (N_mc, 2)
 
-    if weights is not None:
+    if isinstance(state, FoundationState):
+        if weights is not None:
+            raise NotImplementedError(
+                "center_sr_solution: weights + FoundationState is not supported yet."
+            )
+        system_ids  = jax.lax.all_gather(state.system_ids, 'i', tiled=True)
+        mean_a      = grouped_mean(sr_solution, system_ids, state.n_systems, axis=0, broadcast=True)
+        sr_solution = (sr_solution - mean_a) / N_mc ** 0.5
+    elif weights is not None:
         w = jax.lax.all_gather(weights, 'i', tiled=True)
         if mode == "complex":
             w = w[:, None]

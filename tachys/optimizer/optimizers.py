@@ -13,6 +13,8 @@ from tachys.optimizer._kernels import (
     compute_ntk,
     center_sr_solution,
 )
+from tachys.lattice.foundation.foundation_state import FoundationState
+from tachys.lattice.foundation.collectives import grouped_mean
 
 
 # ─── Optimizer states ─────────────────────────────────────────────────────────
@@ -49,6 +51,12 @@ def _make_apply_fn(raw_fn: Callable, mode: str) -> Callable:
 def _eps(eloc: jax.Array, N_mc: int) -> jax.Array:
     """Force vector ε_i = 2 * conj(E_{Li} - Ē_L) / sqrt(M)."""
     return 2.0 * eloc.conj() / N_mc ** 0.5
+
+def _center_eloc(E_L: jax.Array, state: Any) -> jax.Array:
+    """Center local energies: per-system for foundation states, globally otherwise."""
+    if isinstance(state, FoundationState):
+        return E_L - grouped_mean(E_L, state.system_ids, state.n_systems, broadcast=True)
+    return E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
 
 def _jvp_correction(
     apply_fn: Callable,
@@ -173,7 +181,7 @@ class SR(_BaseOptimizer):
         N_mc_local = state.config.shape[0]
         N_mc       = N_mc_local * n_devices
 
-        eloc = E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
+        eloc = _center_eloc(E_L, state)
         eps = _eps(eloc, N_mc)
         if weights is not None:
             eps = jnp.sqrt(weights) * eps
@@ -203,7 +211,7 @@ class SPRING(_BaseOptimizer, kw_only=True):
         N_mc_local = state.config.shape[0]
         N_mc       = N_mc_local * n_devices
 
-        eloc = E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
+        eloc = _center_eloc(E_L, state)
         correction = _jvp_correction(
             apply_fn, self.mode, wf.params, opt_state.old_updates, weights, N_mc, state
         )
@@ -243,7 +251,7 @@ class MARCH(_BaseOptimizer, kw_only=True):
         N_mc_local = state.config.shape[0]
         N_mc       = N_mc_local * n_devices
 
-        eloc = E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
+        eloc = _center_eloc(E_L, state)
 
         # Bias-corrected V used for both NTK and update scaling.
         V_bc = jax.tree.map(

@@ -1,9 +1,14 @@
+import dataclasses
+
 import jax
 import jax.numpy as jnp
 import pytest
+from jax.sharding import PartitionSpec as P
 
 from tachys.lattice.ansatz.rbm import SpinRBM
-from tachys.lattice.operator.local_estimator import local_estimator
+from tachys.lattice.foundation.operators import combine_systems
+from tachys.lattice.operator.base import _OperatorSum, _OperatorMul
+from tachys.lattice.operator.local_estimator import local_estimator, _operator_in_spec
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
 from tachys.lattice.lattice_database import square
@@ -106,3 +111,40 @@ def test_local_estimator_hidden_units_1_complex_values():
         10.84961047-2.10761736j,
     ])
     assert jnp.allclose(O_L, expected, atol=1e-8)
+
+
+def _iter_leaf_operators(operator):
+    """Depth-first leaf operators of an _OperatorSum/_OperatorMul tree."""
+    if isinstance(operator, (_OperatorSum, _OperatorMul)):
+        for op in operator.operators:
+            yield from _iter_leaf_operators(op)
+    else:
+        yield operator
+
+
+def test_operator_in_spec_replicates_plain_operator():
+    """A plain (non-foundation) Hamiltonian has 1D couplings everywhere, so
+    every leaf -- coupling included -- must stay fully replicated (P())."""
+    H = heisenberg_square_pbc(L, J=1.0)
+    spec = _operator_in_spec(H)
+
+    for leaf_op in _iter_leaf_operators(spec):
+        for f in dataclasses.fields(leaf_op):
+            if not f.metadata.get('pytree_node', True):
+                continue
+            assert getattr(leaf_op, f.name) == P()
+
+
+def test_operator_in_spec_shards_coupling_for_foundation_operator():
+    """A combine_systems-combined Hamiltonian has 2D (n_terms, N_mc) couplings
+    -- those must be sharded (P(None, 'i')); every other field must stay P()."""
+    Hs = [heisenberg_square_pbc(L, J=J) for J in (1.0, 2.0)]
+    H_comb = combine_systems(Hs, 4)
+    spec = _operator_in_spec(H_comb)
+
+    for leaf_op in _iter_leaf_operators(spec):
+        for f in dataclasses.fields(leaf_op):
+            if not f.metadata.get('pytree_node', True):
+                continue
+            expected = P(None, 'i') if f.name == 'coupling' else P()
+            assert getattr(leaf_op, f.name) == expected

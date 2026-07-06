@@ -1,3 +1,4 @@
+import dataclasses
 from functools import partial
 
 import jax
@@ -5,7 +6,9 @@ import jax.numpy as jnp
 from jax.sharding import PartitionSpec as P
 from jax import shard_map
 
-from tachys.lattice.operator.base import DiagonalResult, OffdiagonalResult, DiagOffdiagResult
+from tachys.lattice.operator.base import (
+    DiagonalResult, OffdiagonalResult, DiagOffdiagResult, _OperatorSum, _OperatorMul,
+)
 from tachys.parallel import mesh, n_devices
 from tachys.utils import _cast_floating_to
 
@@ -154,6 +157,26 @@ def local_estimator(operator, state, wf, log_amps, optimize_mask=True, batch_exp
     raise TypeError(f"Unexpected operator result type: {type(result)}")
 
 
+def _operator_in_spec(operator):
+    """PartitionSpec pytree matching `operator`'s structure: replicated (P())
+    everywhere, except the `coupling` attribute, which is sharded along the
+    N_mc axis (P(None, 'i')) whenever it is 2D -- foundation-model Hamiltonians
+    (tachys.lattice.foundation.operators.combine_systems) broadcast `coupling`
+    to (n_terms, N_mc), one column per Monte Carlo chain, matching state's
+    sharded batch axis.
+    """
+    if isinstance(operator, (_OperatorSum, _OperatorMul)):
+        return operator.replace(
+            operators=tuple(_operator_in_spec(op) for op in operator.operators)
+        )
+    specs = {
+        f.name: P(None, 'i') if f.name == 'coupling' and jnp.ndim(getattr(operator, f.name)) == 2 else P()
+        for f in dataclasses.fields(operator)
+        if f.metadata.get('pytree_node', True)
+    }
+    return operator.replace(**specs)
+
+
 @partial(jax.jit, static_argnames=('optimize_mask', 'batch_expand'))
 def compute_expectation(operator, wf, state, log_amps, optimize_mask=True, batch_expand=1):
     """Sharded expectation value of an operator.
@@ -163,7 +186,9 @@ def compute_expectation(operator, wf, state, log_amps, optimize_mask=True, batch
 
     Parameters
     ----------
-    operator      : _Operator or _OperatorSum — replicated across devices
+    operator      : _Operator — replicated across devices, except
+                     a foundation-model operator's `coupling` (ndim==2, shape
+                     (n_terms, N_mc)), which is sharded along the N_mc axis.
     wf            : wave function — replicated across devices
     state         : State, batch axis 0 sharded across devices
     log_amps       : jax.Array, shape (N_mc_local,) sharded across devices
@@ -189,7 +214,7 @@ def compute_expectation(operator, wf, state, log_amps, optimize_mask=True, batch
     return shard_map(
         _body,
         mesh=mesh,
-        in_specs=(P(),     P(),     P('i'), P('i')),
+        in_specs=(_operator_in_spec(operator), P(), P('i'), P('i')),
         out_specs=(P('i'), P(), P()),
         check_vma=False,
     )(operator, wf, state, log_amps)
