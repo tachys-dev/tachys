@@ -138,7 +138,10 @@ def mc_step(state, key, action, wf, log_amps, optimize_mask=True, batch_expand=0
     rands = 1.0 - jax.vmap(jax.random.uniform)(subkey2)
     accepted = (jnp.log(rands) < log_prob) * allowed_move
 
-    state    = jax.tree.map(lambda x, y: jnp.where(accepted[:, None], x, y), new_state, state)
+    def _select(x, y):
+        mask = accepted.reshape(accepted.shape + (1,) * (x.ndim - 1))
+        return jnp.where(mask, x, y)
+    state    = jax.tree.map(_select, new_state, state)
     log_amps = jnp.where(accepted, log_amps_new, log_amps)
 
     return state, key, log_amps, accepted, action_id
