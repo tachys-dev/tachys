@@ -19,8 +19,34 @@ class DiagOffdiagResult(struct.PyTreeNode):
     diagonal: DiagonalResult
     offdiagonal: OffdiagonalResult
 
-class _Operator(struct.PyTreeNode):
+class _OperatorBase(struct.PyTreeNode):
+    """Common pytree base for operator-algebra nodes: leaf operators, sums,
+    and composite products. Lets the algebra below treat "any operator-like
+    node" uniformly via isinstance, without forcing composite (Sum/Mul)
+    nodes to carry the leaf-only `coupling` field.
+    """
+
+    def _coupling_size(self):
+        """Batched-term count for the coupling-size compatibility check in
+        __mul__. Composites are never themselves batched, so 1 is exact --
+        it matches what a composite's own `coupling` was always hard-coded
+        to back when Sum/Mul still inherited that field.
+        """
+        return 1
+
+    def apply(self, state):
+        raise NotImplementedError()
+
+    def __add__(self, other):
+        if isinstance(other, _OperatorBase):
+            return _OperatorSum(operators=(self, other))
+        return NotImplemented
+
+class _Operator(_OperatorBase):
     coupling: float = struct.field(default=1.0, kw_only=True)
+
+    def _coupling_size(self):
+        return jnp.atleast_1d(jnp.asarray(self.coupling)).shape[0]
 
     def __post_init__(self):
         import dataclasses
@@ -30,7 +56,7 @@ class _Operator(struct.PyTreeNode):
             val = getattr(self, f.name)
             if isinstance(val, jax.core.Tracer) or not isinstance(val, (int, float, jax.Array, np.ndarray, list, tuple)):
                 continue
-            if isinstance(val, tuple) and val and isinstance(val[0], _Operator):
+            if isinstance(val, tuple) and val and isinstance(val[0], _OperatorBase):
                 continue
             object.__setattr__(self, f.name, jnp.atleast_1d(jnp.asarray(val)))
 
@@ -50,9 +76,6 @@ class _Operator(struct.PyTreeNode):
         result = jax.vmap(type(self).apply, in_axes=(0, None))(self, state)
         return result
 
-    def apply(self, state):
-        raise NotImplementedError()
-
     # ---- algebra ----
     def __add__(self, other):
         if type(self) is type(other):
@@ -63,9 +86,7 @@ class _Operator(struct.PyTreeNode):
                 sd1, sd2,
             )
             return fs.from_state_dict(self, new_sd)
-        if isinstance(other, _Operator):
-            return _OperatorSum(operators=(self, other))
-        return NotImplemented
+        return super().__add__(other)
 
     def __sub__(self, other): raise NotImplementedError()
     def __neg__(self):        raise NotImplementedError()
@@ -77,9 +98,9 @@ class _Operator(struct.PyTreeNode):
             )
         if isinstance(other, (int, float, complex)):
             return self.replace(coupling=self.coupling * other)
-        if isinstance(other, _Operator):
-            n_self  = jnp.atleast_1d(jnp.asarray(self.coupling)).shape[0]
-            n_other = jnp.atleast_1d(jnp.asarray(other.coupling)).shape[0]
+        if isinstance(other, _OperatorBase):
+            n_self  = self._coupling_size()
+            n_other = other._coupling_size()
             if n_self != n_other:
                 raise ValueError(
                     f"Cannot multiply operators with different coupling sizes: "
@@ -90,7 +111,7 @@ class _Operator(struct.PyTreeNode):
         return NotImplemented
     __rmul__ = __mul__                          # scalar on the left
 
-class _OperatorSum(_Operator):
+class _OperatorSum(_OperatorBase):
     operators: tuple
 
     def __call__(self, state):
@@ -123,7 +144,7 @@ class _OperatorSum(_Operator):
             for op in other.operators:
                 result = result + op
             return result
-        if isinstance(other, _Operator):
+        if isinstance(other, _OperatorBase):
             for i, op in enumerate(self.operators):
                 if type(op) is type(other):
                     merged = op + other
@@ -134,30 +155,28 @@ class _OperatorSum(_Operator):
         return NotImplemented
 
     def __mul__(self, other):
-        if isinstance(other, _Operator):
+        if isinstance(other, _OperatorBase):
             raise ValueError(
                 "Cannot multiply a sum of operators; distribute the product manually "
                 "(e.g. (A + B) * C → A*C + B*C)."
             )
         if isinstance(other, (int, float, complex)):
-            # __call__ above never reads self.coupling, so storing the scalar
-            # there would be silently dropped; distribute onto every term
-            # instead (c * (A + B) == c*A + c*B, exact with no edge cases).
+            # _OperatorSum has no coupling field of its own to store the
+            # scalar in; distribute onto every term instead
+            # (c * (A + B) == c*A + c*B, exact with no edge cases).
             return self.replace(operators=tuple(op * other for op in self.operators))
         return NotImplemented
-    __rmul__ = __mul__                          # must be rebound here: _Operator.__rmul__
-                                                 # is an alias to _Operator.__mul__ captured at
-                                                 # class-definition time, so without this,
-                                                 # `scalar * this_instance` would silently fall
-                                                 # through to the base class's __mul__ instead
-                                                 # of the override above.
+    __rmul__ = __mul__                          # must be rebound here: _OperatorBase defines
+                                                 # neither __mul__ nor __rmul__, so without this,
+                                                 # `scalar * this_instance` would raise TypeError
+                                                 # instead of using the override above.
 
-class _OperatorMul(_Operator):
+class _OperatorMul(_OperatorBase):
     operators: tuple
 
     def __call__(self, state):
         combined_mask = None
-        combined_matrix_element = jnp.array([self.coupling])
+        combined_matrix_element = jnp.array([1.0]) # brodcasting will happen
         all_diagonal = True
 
         for op in reversed(self.operators):
@@ -185,9 +204,7 @@ class _OperatorMul(_Operator):
     def __add__(self, other):
         if isinstance(other, _OperatorMul) and same_treedef(self, other):
             return _OperatorMul(operators=tuple(x + y for x, y in zip(self.operators, other.operators)))
-        if isinstance(other, _Operator):
-            return _OperatorSum(operators=(self, other))
-        return NotImplemented
+        return super().__add__(other)
 
     def __mul__(self, other):
         if isinstance(other, _OperatorSum):
@@ -196,11 +213,11 @@ class _OperatorMul(_Operator):
                 "(e.g. A * (B + C) → A*B + A*C)."
             )
         if isinstance(other, (int, float, complex)):
-            # Push the scalar onto operators[0] rather than this wrapper's own
-            # `coupling`: __add__'s same-treedef merge above rebuilds a fresh
-            # _OperatorMul without preserving either side's outer coupling, so
-            # anything stored there is silently lost the moment two
-            # structurally-identical products are summed (the original bug).
+            # Push the scalar onto operators[0] rather than a `coupling` field
+            # of our own -- _OperatorMul has none (see _OperatorBase). This
+            # also sidesteps __add__'s same-treedef merge above, which
+            # rebuilds a fresh _OperatorMul without preserving anything from
+            # the outer wrapper.
             # operators[0] is always a genuine leaf-or-product factor, never
             # this same wrapper -- every code path that builds an _OperatorMul
             # appends new factors to the *end* of the tuple -- so this is exact
@@ -210,9 +227,9 @@ class _OperatorMul(_Operator):
             # multiplies every factor's matrix element together.
             new_first = self.operators[0] * other
             return self.replace(operators=(new_first,) + self.operators[1:])
-        if isinstance(other, _Operator):
-            n_self  = jnp.atleast_1d(jnp.asarray(self.operators[0].coupling)).shape[0]
-            n_other = jnp.atleast_1d(jnp.asarray(other.coupling)).shape[0]
+        if isinstance(other, _OperatorBase):
+            n_self  = self.operators[0]._coupling_size()
+            n_other = other._coupling_size()
             if n_self != n_other:
                 raise ValueError(
                     f"Cannot multiply operators with different coupling sizes: "
