@@ -16,6 +16,12 @@ coupling values, exactly as produced by e.g.
 ``[hubbard_square_pbc(L, U=U) for U in Us]`` -- by broadcasting every leaf
 operator's 1D coupling out to (n_terms, n_mc_per_system) and concatenating
 those along the sample axis.
+
+`extract_system_couplings` goes the other way: given a combined operator, it
+recovers the compact (N_mc, n_couplings) summary FoundationState.system_couplings
+expects, by collecting every leaf's per-term coupling rows, dropping exact
+duplicates (redundant leaves collapse together) and columns that don't vary
+across the batch (fixed, non-distinguishing parameters like a shared t).
 """
 import jax.numpy as jnp
 
@@ -81,3 +87,51 @@ def combine_systems(operators, n_mc_per_system):
     """
     broadcasted = [broadcast_coupling(op, n_mc_per_system) for op in operators]
     return concatenate_couplings(broadcasted)
+
+
+def _iter_leaves(operator):
+    """Yield every leaf `_Operator` in `operator`'s tree, depth-first.
+
+    Same traversal as `broadcast_coupling`/`_concatenate_couplings`: recurse
+    into `_OperatorSum`/`_OperatorMul.operators` regardless of nesting depth.
+    `operator` may itself already be a bare leaf.
+    """
+    if isinstance(operator, (_OperatorSum, _OperatorMul)):
+        for op in operator.operators:
+            yield from _iter_leaves(op)
+    else:
+        yield operator
+
+
+def extract_system_couplings(operator, atol=1e-8, rtol=1e-5):
+    """Distinct, sample-varying couplings of a combined operator.
+
+    `operator` must already be combined (see `combine_systems`): every leaf's
+    `coupling` is 2D, (n_terms, N_mc) -- one row per term, one column per
+    Monte Carlo sample. Every row of every leaf is a candidate per-sample
+    coupling; duplicate rows across leaves (e.g. several leaves sharing one
+    fixed hopping amplitude) collapse to a single column, rows that differ
+    within one leaf (e.g. J1/J2 shells concatenated into one leaf's coupling)
+    split apart, and columns constant across all N_mc samples (they don't
+    distinguish systems) are dropped. Rows are compared with `jnp.allclose`
+    rather than exact equality, kept in first-seen traversal order.
+
+    Returns an (N_mc, n_couplings) array, suitable for
+    `FoundationState.system_couplings`.
+    """
+    rows = []
+    for leaf in _iter_leaves(operator):
+        rows.extend(jnp.asarray(leaf.coupling))
+
+    distinct = []
+    for row in rows:
+        if not any(jnp.allclose(row, seen, atol=atol, rtol=rtol) for seen in distinct):
+            distinct.append(row)
+
+    varying = [row for row in distinct
+               if not jnp.allclose(row, row[0], atol=atol, rtol=rtol)]
+
+    if not varying:
+        n_mc = rows[0].shape[0] if rows else 0
+        return jnp.zeros((n_mc, 0))
+    return jnp.stack(varying, axis=1)
