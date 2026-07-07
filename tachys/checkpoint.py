@@ -89,12 +89,15 @@ def save_training_checkpoint(manager, step, key, state, params, opt_state, force
     """Checkpoint params, key, and the mutable parts of state/opt_state as one atomic
     composite checkpoint.
 
-    Only ``state.config`` is saved, not the whole ``state`` — other fields like
-    ``lattice`` are static (``pytree_node=False``) and aren't data to begin with, so
-    there's nothing to serialize there. ``state.config`` and ``opt_state`` are each
-    wrapped in a single-entry dict: orbax's PyTreeCheckpointHandler errors on a bare
-    top-level array (ambiguous truth-value check) and on an empty top-level pytree
-    (e.g. SR's zero-field ``SRState()``) — wrapping avoids both.
+    The whole ``state`` pytree is saved — foundation-model
+    states (``SpinFoundationState``/``FermionFoundationState``) carry additional data
+    fields alongside ``config`` (``system_couplings``, ``system_ids``) that must round-
+    trip too; saving only ``.config`` would silently drop them on restore. Static
+    fields (``pytree_node=False``, e.g. ``lattice``, ``N_mc``, ``n_systems``) aren't
+    data to begin with, so there's nothing to serialize there regardless. ``state`` and
+    ``opt_state`` are each wrapped in a single-entry dict: orbax's PyTreeCheckpointHandler
+    errors on a bare top-level array (ambiguous truth-value check) and on an empty
+    top-level pytree (e.g. SR's zero-field ``SRState()``) — wrapping avoids both.
 
     Must be called collectively by every process (no rank guard) so orbax can write
     each host's own shards of sharded arrays.
@@ -108,7 +111,7 @@ def save_training_checkpoint(manager, step, key, state, params, opt_state, force
       down blocking save times" warning) instead of using the outer handler's async
       directory creation like the other items.
     - The raw key is also unsharded onto the global mesh first: unlike ``params``/
-      ``state.config``/``opt_state`` (which pick up a proper multi-host
+      ``state``/``opt_state`` (which pick up a proper multi-host
       ``NamedSharding`` by passing through jit+shard_map calls every step), ``key``
       only ever goes through plain ``jax.random.split`` and so stays on whatever
       single local device it started on. Orbax refuses to serialize such a "host
@@ -120,7 +123,7 @@ def save_training_checkpoint(manager, step, key, state, params, opt_state, force
     args = ocp.args.Composite(
         params=ocp.args.PyTreeSave(params),
         opt_state=ocp.args.PyTreeSave({"opt_state": opt_state}),
-        config=ocp.args.PyTreeSave({"config": state.config}),
+        state=ocp.args.PyTreeSave({"state": state}),
         key=ocp.args.PyTreeSave({"key_data": key_data}),
     )
     return manager.save(step, args=args, force=force)
@@ -131,8 +134,12 @@ def load_checkpoint(checkpoint_dir, state_template, opt_state_template, params_t
     save_training_checkpoint.
 
     ``state_template`` and ``opt_state_template`` supply the pieces that aren't
-    serialized (``state.lattice`` and the opt_state NamedTuple type respectively) —
-    the restored state is built via ``state_template.replace_config(...)``.
+    serialized (static fields like ``state.lattice``/``state.N_mc`` and the opt_state
+    NamedTuple type respectively) — the restored state is built by using
+    ``state_template`` as the structural template for orbax's PyTree restore, so its
+    static fields are preserved while every data field (``config``, plus any
+    foundation-model extras like ``system_couplings``/``system_ids``) is overwritten
+    with the checkpointed values.
     ``params_template`` is optional: omit it to recover params as a plain dict
     inferred from the checkpoint's own metadata (fine here since wf.params is already
     a plain dict), at the cost of orbax falling back to the sharding recorded at save
@@ -145,12 +152,13 @@ def load_checkpoint(checkpoint_dir, state_template, opt_state_template, params_t
 
     ``params``/``opt_state``/``key`` are restored fully replicated (``P()``) — every
     device holds a full copy, matching how the training step's ``shard_map`` calls
-    expect them. ``state.config`` (the MC walker batch) is restored partitioned along
-    the mesh's ``'i'`` axis (``P('i')``) instead: unlike a fully-replicated target,
-    which ``shard_map`` can pick up from a single device automatically, it requires
-    an already-partitioned array for the batch axis and raises "Received incompatible
-    devices" if handed one sitting on a single device — restoring straight onto
-    ``P('i')`` avoids ever creating that intermediate, wrongly-sharded array.
+    expect them. ``state`` (every per-walker data field, all sharing the same leading
+    MC-batch axis) is restored partitioned along the mesh's ``'i'`` axis (``P('i')``)
+    instead: unlike a fully-replicated target, which ``shard_map`` can pick up from a
+    single device automatically, it requires an already-partitioned array for the
+    batch axis and raises "Received incompatible devices" if handed one sitting on a
+    single device — restoring straight onto ``P('i')`` avoids ever creating that
+    intermediate, wrongly-sharded array.
     """
     manager = build_checkpoint_manager(checkpoint_dir, save_interval_steps=1, max_to_keep=1)
     replicated = NamedSharding(mesh, P())
@@ -163,12 +171,12 @@ def load_checkpoint(checkpoint_dir, state_template, opt_state_template, params_t
         params_args = ocp.args.PyTreeRestore(item=params_template, restore_args=restore_args(params_template, replicated))
 
     opt_state_item = {"opt_state": opt_state_template}
-    config_item = {"config": state_template.config}
+    state_item = {"state": state_template}
     key_item = {"key_data": jnp.zeros((2,), dtype=jnp.uint32)}
     args = ocp.args.Composite(
         params=params_args,
         opt_state=ocp.args.PyTreeRestore(item=opt_state_item, restore_args=restore_args(opt_state_item, replicated)),
-        config=ocp.args.PyTreeRestore(item=config_item, restore_args=restore_args(config_item, partitioned)),
+        state=ocp.args.PyTreeRestore(item=state_item, restore_args=restore_args(state_item, partitioned)),
         key=ocp.args.PyTreeRestore(item=key_item, restore_args=restore_args(key_item, replicated)),
     )
     with warnings.catch_warnings():
@@ -179,6 +187,6 @@ def load_checkpoint(checkpoint_dir, state_template, opt_state_template, params_t
     manager.wait_until_finished()
     manager.close()
 
-    state = state_template.replace_config(restored.config["config"])
+    state = restored.state["state"]
     key = jax.random.wrap_key_data(restored.key["key_data"])
     return restored.params, restored.opt_state["opt_state"], state, key
