@@ -20,18 +20,34 @@ def get_n_mc(state):
 
 
 def get_array(state):
-    """The per-walker physical array a State subclass wraps (spins/occupations)."""
+    """The per-walker physical array a State subclass wraps (spins/occupations),
+    or a custom `.array` property for subclasses that are neither (e.g. a
+    composite state combining several physical fields)."""
     if isinstance(state, SpinState):
         return state.spins
     if isinstance(state, FermionState):
         return state.occupations
-    raise TypeError(f"get_array: unsupported State subclass {type(state).__name__}")
+    if hasattr(state, 'array'):
+        return state.array
+    raise TypeError(
+        f"get_array: unsupported State subclass {type(state).__name__}; "
+        "implement an `.array` property on it."
+    )
 
 
 def replace_array(state, new_array):
-    """Return a copy of state with its physical array replaced by new_array."""
+    """Return a copy of state with its physical array replaced by new_array.
+
+    Subclasses that fall back on `.array` in get_array above must also
+    implement a `replace_array(self, new_array)` method (mirroring `.array`'s
+    getter with the actual, possibly multi-field, update logic)."""
     if isinstance(state, SpinState):
         return state.replace(spins=new_array)
     if isinstance(state, FermionState):
         return state.replace(occupations=new_array)
-    raise TypeError(f"replace_array: unsupported State subclass {type(state).__name__}")
+    if hasattr(state, 'array'):
+        return state.replace_array(new_array)
+    raise TypeError(
+        f"replace_array: unsupported State subclass {type(state).__name__}; "
+        "implement an `.array` property and a `replace_array` method on it."
+    )
