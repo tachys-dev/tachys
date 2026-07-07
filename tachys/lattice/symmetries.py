@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from tachys.lattice.fermions.fermion_state import FermionState
+from tachys.lattice.state_array import get_array, replace_array
 
 
 def singlet_symm(wf_apply):
@@ -68,9 +69,9 @@ def invert_perm(perms):
 def expand_perm(perm, n_bands):
     """
     Widen an Ns-wide site permutation (or a batch, shape (..., Ns)) to act on
-    a State.config of width n_bands*Ns, by applying the SAME geometric
-    permutation independently inside each contiguous Ns-band slice
-    (config[..., b*Ns:(b+1)*Ns]). n_bands=1 is a no-op (covers SpinState).
+    a State's physical array of width n_bands*Ns, by applying the SAME
+    geometric permutation independently inside each contiguous Ns-band slice
+    (array[..., b*Ns:(b+1)*Ns]). n_bands=1 is a no-op (covers SpinState).
     """
     Ns = perm.shape[-1]
     return np.concatenate([perm + b * Ns for b in range(n_bands)], axis=-1)
@@ -138,8 +139,9 @@ def symmetrize_wf(wf_apply, perms, sector_chars=None):
     """Wrap a wavefunction to project onto a symmetric sector of a lattice
     permutation group (translations, point group, or any (M, W) perm array).
 
-    Species-agnostic: goes through state.config/.replace_config, so the same
-    wrapper works for SpinState and FermionState alike. If `state` is a
+    Species-agnostic: goes through tachys.lattice.state_array's get_array/
+    replace_array, so the same wrapper works for SpinState and FermionState
+    alike. If `state` is a
     FermionState, the fermionic-sign phase each group element picks up on
     the occupation-number representation is added automatically (via
     sign_permutation above), so the caller only ever supplies the single
@@ -163,7 +165,7 @@ def symmetrize_wf(wf_apply, perms, sector_chars=None):
 
     Args:
         wf_apply: Callable (params, state, *args, **kwargs) -> log-amplitude.
-        perms: (M, W) int array, W == state.config.shape[-1] exactly. For a
+        perms: (M, W) int array, W == get_array(state).shape[-1] exactly. For a
             multi-band FermionState, build this with
             expand_perm(base_perms, state.Nbands).
         sector_chars: optional real (M,) array, see _combine_symmetrized_terms.
@@ -182,7 +184,7 @@ def symmetrize_wf(wf_apply, perms, sector_chars=None):
 
     def symmetrized_wf_apply(params, state, *args, **kwargs):
         def _apply_perm(perm_row):
-            permuted = state.replace_config(state.config[..., perm_row])
+            permuted = replace_array(state, get_array(state)[..., perm_row])
             return wf_apply(params, permuted, *args, **kwargs)
 
         if isinstance(state, FermionState):
@@ -191,7 +193,7 @@ def symmetrize_wf(wf_apply, perms, sector_chars=None):
             def _term(row):
                 perm_row, perm_inv_row = row
                 log_amp = _apply_perm(perm_row)
-                sign = jax.vmap(sign_permutation, in_axes=(0, None))(state.config, perm_inv_row)
+                sign = jax.vmap(sign_permutation, in_axes=(0, None))(get_array(state), perm_inv_row)
                 return log_amp + 1j * jnp.pi * (sign < 0)
 
             outputs = jax.lax.map(jax.checkpoint(_term), (perms, perms_inv))

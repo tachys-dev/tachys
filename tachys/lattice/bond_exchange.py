@@ -5,6 +5,7 @@ from flax import struct
 
 from tachys.montecarlo import _BaseAction
 from tachys.lattice.spins.spin_action import exchange_spins
+from tachys.lattice.state_array import get_array, replace_array
 
 
 def _compute_valid_bonds_mask(bonds, config):
@@ -22,8 +23,8 @@ class BondExchange(_BaseAction):
     subset, and the count of valid bonds generally differs before/after the move,
     the proposal is asymmetric and needs a log-probability correction.
 
-    Works with any State subclass that implements `.config` / `.replace_config`
-    (e.g. SpinState.spins or FermionState.occupations).
+    Works with any State subclass supported by tachys.lattice.state_array's
+    get_array/replace_array (SpinState.spins or FermionState.occupations).
 
     Attributes:
         max_dist: Maximum bond distance (in lattice shells) between the two sites.
@@ -52,23 +53,24 @@ class BondExchange(_BaseAction):
         Ns = state.Ns
         bonds_arr = jnp.asarray(self.bonds)
         N_bonds = bonds_arr.shape[0]
-        N_mc = state.config.shape[0]
+        array = get_array(state)
+        N_mc_local = array.shape[0]
 
         rands = jax.vmap(jax.random.uniform)(subkey1)
         band_index = (rands * self.Nbands).astype(int)
         #* notice no inter-band mixing
-        bonds = band_index[:, None, None] * Ns + bonds_arr  # [N_mc, N_bonds, 2]
+        bonds = band_index[:, None, None] * Ns + bonds_arr  # [N_mc_local, N_bonds, 2]
 
-        valid_mask = jax.vmap(_compute_valid_bonds_mask)(bonds, state.config)
+        valid_mask = jax.vmap(_compute_valid_bonds_mask)(bonds, array)
         sampled_indices = jax.vmap(lambda p, k: jax.random.choice(k, N_bonds, p=p))(valid_mask, subkey2)
 
-        i = bonds[jnp.arange(N_mc), sampled_indices, 0]
-        j = bonds[jnp.arange(N_mc), sampled_indices, 1]
+        i = bonds[jnp.arange(N_mc_local), sampled_indices, 0]
+        j = bonds[jnp.arange(N_mc_local), sampled_indices, 1]
 
-        new_config = jax.vmap(exchange_spins)(state.config, i, j)
-        new_valid_mask = jax.vmap(_compute_valid_bonds_mask)(bonds, new_config)
+        new_array = jax.vmap(exchange_spins)(array, i, j)
+        new_valid_mask = jax.vmap(_compute_valid_bonds_mask)(bonds, new_array)
 
         log_prob_correction = jnp.log(valid_mask.sum(-1)) - jnp.log(new_valid_mask.sum(-1))
         allowed_move = i != j  # always true by construction
 
-        return state.replace_config(new_config), allowed_move, log_prob_correction
+        return replace_array(state, new_array), allowed_move, log_prob_correction

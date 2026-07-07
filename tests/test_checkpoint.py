@@ -102,5 +102,5 @@ def test_load_checkpoint_without_params_template(tmp_path, monkeypatch):
 
     jax.tree_util.tree_map(lambda a, b: np.testing.assert_array_equal(a, b), wf.params, params)
     jax.tree_util.tree_map(lambda a, b: np.testing.assert_array_equal(a, b), opt_state, restored_opt_state)
-    np.testing.assert_array_equal(state.config, restored_state.config)
+    np.testing.assert_array_equal(state.spins, restored_state.spins)
     np.testing.assert_array_equal(jax.random.key_data(key), jax.random.key_data(restored_key))

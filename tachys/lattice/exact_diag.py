@@ -18,7 +18,7 @@ def exact_diag(state_full_hilbert, H, pack, k=1):
     Parameters
     ----------
     state_full_hilbert : State
-        State whose .config rows enumerate every basis state.
+        State whose physical array rows enumerate every basis state.
     H : operator
         Callable that accepts a SpinState and returns a DiagOffdiagResult.
     pack : callable

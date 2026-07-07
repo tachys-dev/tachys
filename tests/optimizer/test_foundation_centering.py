@@ -131,7 +131,7 @@ def test_center_ntk_foundation_state_matches_reference():
 
 def test_center_ntk_weights_with_foundation_state_raises():
     _, state, wf = _make_foundation_state_and_wf()
-    weights = jnp.ones(state.config.shape[0])
+    weights = jnp.ones(state.occupations.shape[0])
 
     def _call(state, wf, weights):
         raw = ntk_parallel_fn(state, wf, 1, "real")
@@ -166,7 +166,7 @@ def test_center_sr_solution_foundation_state_matches_reference():
 def test_center_sr_solution_weights_with_foundation_state_raises():
     _, state, wf = _make_foundation_state_and_wf()
     sr_solution_raw = jax.random.normal(jax.random.key(4), (N_mc,))
-    weights = jnp.ones(state.config.shape[0])
+    weights = jnp.ones(state.occupations.shape[0])
 
     with pytest.raises(NotImplementedError):
         shard_map(

@@ -19,8 +19,8 @@ class FoundationState(struct.PyTreeNode):
     Attributes:
         system_couplings: Hamiltonian couplings (e.g. J, h) of each sample's
             system, shape (N_mc, n_couplings) — one row per sample, matching
-            the leading batch dimension of the paired State's config (e.g.
-            spins/occupations), not (n_systems, n_couplings).
+            the leading batch dimension of the paired State's physical array
+            (e.g. spins/occupations), not (n_systems, n_couplings).
         system_ids:       Per-sample integer label in [0, n_systems)
             identifying which system each sample belongs to, shape (N_mc,).
         n_systems:        Total number of distinct systems in the batch

@@ -6,8 +6,9 @@ from flax import struct
 from jax.sharding import PartitionSpec as P
 from jax import shard_map
 
-from tachys.parallel import mesh, n_devices
+from tachys.parallel import mesh
 from tachys.lattice.operator.local_estimator import _apply_masked
+from tachys.lattice.state_array import get_n_mc_local
 from tachys.utils import _cast_floating_to
 
 
@@ -175,7 +176,7 @@ def sample(nsweeps, state, action, key, wf):
 
     log_amps   = wf.apply_fn(wf.params, state).astype(jnp.complex128)
     Ns         = state.Ns
-    N_mc_local = state.N_mc // n_devices
+    N_mc_local = get_n_mc_local(state)
     n_actions  = action.n_actions
 
     acc_sum = jnp.zeros((n_actions, N_mc_local))

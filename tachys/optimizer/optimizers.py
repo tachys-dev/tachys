@@ -15,6 +15,7 @@ from tachys.optimizer._kernels import (
 )
 from tachys.lattice.foundation.foundation_state import FoundationState
 from tachys.lattice.foundation.collectives import grouped_mean
+from tachys.lattice.state_array import get_n_mc, get_n_mc_local
 
 
 # ─── Optimizer states ─────────────────────────────────────────────────────────
@@ -178,8 +179,8 @@ class SR(_BaseOptimizer):
 
     def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
-        N_mc       = state.N_mc
-        N_mc_local = N_mc // n_devices
+        N_mc_local = get_n_mc_local(state)
+        N_mc       = get_n_mc(state)
 
         eloc = _center_eloc(E_L, state)
         eps = _eps(eloc, N_mc)
@@ -208,8 +209,8 @@ class SPRING(_BaseOptimizer, kw_only=True):
 
     def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
-        N_mc       = state.N_mc
-        N_mc_local = N_mc // n_devices
+        N_mc_local = get_n_mc_local(state)
+        N_mc       = get_n_mc(state)
 
         eloc = _center_eloc(E_L, state)
         correction = _jvp_correction(
@@ -248,8 +249,8 @@ class MARCH(_BaseOptimizer, kw_only=True):
 
     def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
-        N_mc       = state.N_mc
-        N_mc_local = N_mc // n_devices
+        N_mc_local = get_n_mc_local(state)
+        N_mc       = get_n_mc(state)
 
         eloc = _center_eloc(E_L, state)
 

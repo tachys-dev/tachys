@@ -2,8 +2,8 @@
 parents (SpinState/FermionState and FoundationState) correctly: the MRO
 prefers the physical State subclass, the merged dataclass has no field-
 ordering conflicts and carries every field from both parents, State behavior
-(config, Ns, replace) still resolves correctly, and the result is a proper
-JAX pytree with the right static/dynamic split.
+(Ns, replace, get_array/replace_array dispatch) still resolves correctly, and
+the result is a proper JAX pytree with the right static/dynamic split.
 """
 import dataclasses
 
@@ -17,6 +17,7 @@ from tachys.lattice.foundation.foundation_state import (
 from tachys.lattice.spins.spin_state import SpinState
 from tachys.lattice.fermions.fermion_state import FermionState
 from tachys.lattice.state import State
+from tachys.lattice.state_array import get_array, replace_array
 from tachys.lattice.lattice_database import square
 
 N_mc = 3
@@ -80,13 +81,13 @@ def test_fermion_foundation_state_mro_prefers_fermion_state():
 
 def test_spin_foundation_state_has_fields_from_both_parents():
     names = {f.name for f in dataclasses.fields(SpinFoundationState)}
-    assert names == {"spins", "lattice", "N_mc", "system_couplings", "system_ids", "n_systems"}
+    assert names == {"spins", "lattice", "system_couplings", "system_ids", "n_systems"}
 
 
 def test_fermion_foundation_state_has_fields_from_both_parents():
     names = {f.name for f in dataclasses.fields(FermionFoundationState)}
     assert names == {
-        "occupations", "Ne", "Nbands", "lattice", "N_mc",
+        "occupations", "Ne", "Nbands", "lattice",
         "system_couplings", "system_ids", "n_systems",
     }
 
@@ -96,7 +97,7 @@ def test_static_vs_pytree_fields_preserved_through_inheritance():
     a broken diamond could silently drop the pytree_node=False annotation."""
     static = {f.name for f in dataclasses.fields(SpinFoundationState)
               if not f.metadata.get("pytree_node", True)}
-    assert static == {"lattice", "N_mc", "n_systems"}
+    assert static == {"lattice", "n_systems"}
 
 
 def test_fermion_default_field_survives_the_merge():
@@ -117,24 +118,24 @@ def test_fermion_default_field_survives_the_merge():
 # Instantiation + State behavior delegated to the physical subclass
 # ---------------------------------------------------------------------------
 
-def test_spin_foundation_state_config_and_lattice_props():
+def test_spin_foundation_state_get_array_and_lattice_props():
     s = _make_spin_state()
-    assert s.config.shape == (N_mc, N)
-    assert jnp.array_equal(s.config, s.spins)
+    assert get_array(s).shape == (N_mc, N)
+    assert jnp.array_equal(get_array(s), s.spins)
     assert s.Ns == N
 
 
-def test_fermion_foundation_state_config_and_lattice_props():
+def test_fermion_foundation_state_get_array_and_lattice_props():
     f = _make_fermion_state()
-    assert f.config.shape == (N_mc, 2 * N)
-    assert jnp.array_equal(f.config, f.occupations)
+    assert get_array(f).shape == (N_mc, 2 * N)
+    assert jnp.array_equal(get_array(f), f.occupations)
     assert f.Ns == N
 
 
-def test_replace_config_updates_only_the_physical_field():
+def test_replace_array_updates_only_the_physical_field():
     s = _make_spin_state()
     new_spins = -s.spins
-    s2 = s.replace_config(new_spins)
+    s2 = replace_array(s, new_spins)
     assert jnp.array_equal(s2.spins, new_spins)
     assert jnp.array_equal(s2.system_ids, s.system_ids)
     assert s2.n_systems == s.n_systems

@@ -91,9 +91,10 @@ def save_training_checkpoint(manager, step, key, state, params, opt_state, force
 
     The whole ``state`` pytree is saved — foundation-model
     states (``SpinFoundationState``/``FermionFoundationState``) carry additional data
-    fields alongside ``config`` (``system_couplings``, ``system_ids``) that must round-
-    trip too; saving only ``.config`` would silently drop them on restore. Static
-    fields (``pytree_node=False``, e.g. ``lattice``, ``N_mc``, ``n_systems``) aren't
+    fields alongside the physical array (``system_couplings``, ``system_ids``) that
+    must round-trip too; saving only the physical array would silently drop them on
+    restore. Static
+    fields (``pytree_node=False``, e.g. ``lattice``, ``n_systems``) aren't
     data to begin with, so there's nothing to serialize there regardless. ``state`` and
     ``opt_state`` are each wrapped in a single-entry dict: orbax's PyTreeCheckpointHandler
     errors on a bare top-level array (ambiguous truth-value check) and on an empty
@@ -134,10 +135,10 @@ def load_checkpoint(checkpoint_dir, state_template, opt_state_template, params_t
     save_training_checkpoint.
 
     ``state_template`` and ``opt_state_template`` supply the pieces that aren't
-    serialized (static fields like ``state.lattice``/``state.N_mc`` and the opt_state
+    serialized (static fields like ``state.lattice`` and the opt_state
     NamedTuple type respectively) — the restored state is built by using
     ``state_template`` as the structural template for orbax's PyTree restore, so its
-    static fields are preserved while every data field (``config``, plus any
+    static fields are preserved while every data field (the physical array, plus any
     foundation-model extras like ``system_couplings``/``system_ids``) is overwritten
     with the checkpointed values.
     ``params_template`` is optional: omit it to recover params as a plain dict

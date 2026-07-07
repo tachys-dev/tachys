@@ -9,6 +9,7 @@ from tachys.lattice.fermions.fermion_state import FermionState, init_config_spin
 from tachys.lattice.lattice_database import chain, square
 from tachys.lattice.spins.spin_action import SpinFlip
 from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.state_array import get_array
 from tachys.montecarlo import CompositeAction, sample
 from tachys.utils import same_treedef_and_avals
 from tachys.wavefunction import WaveFunction
@@ -62,7 +63,7 @@ def test_create_more_bonds_with_larger_max_dist(lat):
 def test_call_output_shapes(setup_name, Nbands, request):
     state, action, mc_keys = request.getfixturevalue(setup_name)
     new_state, allowed_move, log_prob_correction, _ = action(mc_keys, state)
-    assert new_state.config.shape == state.config.shape
+    assert get_array(new_state).shape == get_array(state).shape
     assert allowed_move.shape == (N_mc,)
     assert log_prob_correction.shape == (N_mc,)
 
@@ -78,7 +79,7 @@ def test_allowed_move_always_true(setup_name, request):
 def test_exactly_two_sites_change(setup_name, request):
     state, action, mc_keys = request.getfixturevalue(setup_name)
     new_state, _, _, _ = action(mc_keys, state)
-    n_changed = (state.config != new_state.config).sum(axis=-1)
+    n_changed = (get_array(state) != get_array(new_state)).sum(axis=-1)
     assert jnp.all(n_changed == 2)
 
 
@@ -96,8 +97,8 @@ def test_fermion_swap_stays_within_band(fermion_setup):
 def test_per_band_counts_conserved(setup_name, Nbands, request):
     state, action, mc_keys = request.getfixturevalue(setup_name)
     new_state, _, _, _ = action(mc_keys, state)
-    before = state.config.reshape(N_mc, Nbands, Ns).sum(axis=-1)
-    after = new_state.config.reshape(N_mc, Nbands, Ns).sum(axis=-1)
+    before = get_array(state).reshape(N_mc, Nbands, Ns).sum(axis=-1)
+    after = get_array(new_state).reshape(N_mc, Nbands, Ns).sum(axis=-1)
     assert jnp.array_equal(before, after)
 
 
@@ -146,7 +147,7 @@ def test_sample_fermion_conserves_occupations(fermion_setup):
     state, action, mc_keys = fermion_setup
 
     def apply_fn(params, state):
-        return jnp.zeros(state.config.shape[0])
+        return jnp.zeros(state.occupations.shape[0])
 
     wf = WaveFunction(params={}, apply_fn=apply_fn)
 

@@ -7,13 +7,6 @@ from tachys.lattice.state import State
 class SpinState(State):
     spins: jnp.array
 
-    @property
-    def config(self):
-        return self.spins
-
-    def replace_config(self, new_config):
-        return self.replace(spins=new_config)
-
 def init_config_fixed_magn(key, N, sz=0, N_mc=1):
     N_m = N // 2 - sz
     config = jnp.ones((N_mc, N), dtype=jnp.int8)

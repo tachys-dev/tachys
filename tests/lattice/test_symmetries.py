@@ -9,6 +9,7 @@ from tachys.lattice.fermions.fermion_state import FermionState
 from tachys.lattice.lattice_database import chain, square
 from tachys.lattice.lattice_symmetries import point_group, translation_group
 from tachys.lattice.spins.spin_state import SpinState
+from tachys.lattice.state_array import get_array, replace_array
 from tachys.lattice.symmetries import (
     expand_perm,
     fermionic_sign,
@@ -41,11 +42,11 @@ def _cycle_sign(perm):
 def _toy_apply(params, state):
     """Deliberately position-dependent (not already symmetric), so wrapping
     it is a non-trivial check: sum_i w_i * config_i."""
-    return jnp.sum(params["w"] * state.config, axis=-1).astype(jnp.complex128)
+    return jnp.sum(params["w"] * get_array(state), axis=-1).astype(jnp.complex128)
 
 
 def _zero_apply(params, state):
-    return jnp.zeros(state.config.shape[0], dtype=jnp.complex128)
+    return jnp.zeros(get_array(state).shape[0], dtype=jnp.complex128)
 
 
 @pytest.fixture(scope="module")
@@ -244,7 +245,7 @@ def test_symmetrize_wf_invariant_under_translation():
     f0 = wrapped(params, state)
 
     for t in range(perms.shape[0]):
-        state_t = state.replace_config(state.config[..., perms[t]])
+        state_t = replace_array(state, get_array(state)[..., perms[t]])
         f_t = wrapped(params, state_t)
         assert jnp.allclose(f0, f_t)
 
@@ -262,7 +263,7 @@ def test_symmetrize_wf_invariant_under_point_group():
     f0 = wrapped(params, state)
 
     for t in range(perms.shape[0]):
-        state_t = state.replace_config(state.config[..., perms[t]])
+        state_t = replace_array(state, get_array(state)[..., perms[t]])
         f_t = wrapped(params, state_t)
         assert jnp.allclose(f0, f_t), ops[t].name
 
@@ -277,7 +278,7 @@ def test_symmetrize_wf_matches_brute_force_combination():
     actual = wrapped(params, state)
 
     raw = jnp.stack([
-        _toy_apply(params, state.replace_config(state.config[..., perms[t]]))
+        _toy_apply(params, replace_array(state, get_array(state)[..., perms[t]]))
         for t in range(perms.shape[0])
     ], axis=0)
     zeroth = raw[0]
@@ -296,7 +297,7 @@ def test_symmetrize_wf_sector_chars_matches_hand_formula():
     actual = wrapped(params, state)
 
     f0 = _toy_apply(params, state)
-    f1 = _toy_apply(params, state.replace_config(state.config[..., perms[1]]))
+    f1 = _toy_apply(params, replace_array(state, get_array(state)[..., perms[1]]))
     expected = f0 + jnp.log(1. + jnp.exp(1j * jnp.pi * sector_chars[1] + f1 - f0))
     assert jnp.allclose(actual, expected)
 
@@ -329,9 +330,9 @@ def test_symmetrize_wf_fermions_signed_invariance_under_translation():
     f0 = wrapped(params, state)
 
     for t in range(perms.shape[0]):
-        state_t = state.replace_config(state.config[..., perms[t]])
+        state_t = replace_array(state, get_array(state)[..., perms[t]])
         f_t = wrapped(params, state_t)
-        sign_t = sign_permutation(state.config[0], perms_inv[t])
+        sign_t = sign_permutation(get_array(state)[0], perms_inv[t])
         predicted = f0 + 1j * jnp.pi * (sign_t < 0)
         assert jnp.allclose(f_t, predicted)
 
@@ -353,9 +354,9 @@ def test_symmetrize_wf_fermions_matches_brute_force_combination():
 
     raw = []
     for t in range(perms.shape[0]):
-        permuted = state.replace_config(state.config[..., perms[t]])
+        permuted = replace_array(state, get_array(state)[..., perms[t]])
         log_amp = _toy_apply(params, permuted)
-        sign_t = sign_permutation(state.config[0], perms_inv[t])
+        sign_t = sign_permutation(get_array(state)[0], perms_inv[t])
         raw.append(log_amp + 1j * jnp.pi * (sign_t < 0))
     raw = jnp.stack(raw, axis=0)
     zeroth = raw[0]
