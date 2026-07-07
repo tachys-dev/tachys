@@ -80,13 +80,13 @@ def test_fermion_foundation_state_mro_prefers_fermion_state():
 
 def test_spin_foundation_state_has_fields_from_both_parents():
     names = {f.name for f in dataclasses.fields(SpinFoundationState)}
-    assert names == {"spins", "lattice", "system_couplings", "system_ids", "n_systems"}
+    assert names == {"spins", "lattice", "N_mc", "system_couplings", "system_ids", "n_systems"}
 
 
 def test_fermion_foundation_state_has_fields_from_both_parents():
     names = {f.name for f in dataclasses.fields(FermionFoundationState)}
     assert names == {
-        "occupations", "Ne", "Nbands", "lattice",
+        "occupations", "Ne", "Nbands", "lattice", "N_mc",
         "system_couplings", "system_ids", "n_systems",
     }
 
@@ -96,7 +96,7 @@ def test_static_vs_pytree_fields_preserved_through_inheritance():
     a broken diamond could silently drop the pytree_node=False annotation."""
     static = {f.name for f in dataclasses.fields(SpinFoundationState)
               if not f.metadata.get("pytree_node", True)}
-    assert static == {"lattice", "n_systems"}
+    assert static == {"lattice", "N_mc", "n_systems"}
 
 
 def test_fermion_default_field_survives_the_merge():

@@ -219,7 +219,7 @@ def compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1):
 
 def center_sr_solution(sr_solution, state, mode, weights):
     """Center the linear-solve output before the VJP step."""
-    N_mc = state.config.shape[0] * n_devices
+    N_mc = state.N_mc
 
     if mode == "complex":
         sr_solution = sr_solution.reshape(2, -1).T  # (N_mc, 2)

@@ -178,8 +178,8 @@ class SR(_BaseOptimizer):
 
     def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
-        N_mc_local = state.config.shape[0]
-        N_mc       = N_mc_local * n_devices
+        N_mc       = state.N_mc
+        N_mc_local = N_mc // n_devices
 
         eloc = _center_eloc(E_L, state)
         eps = _eps(eloc, N_mc)
@@ -208,8 +208,8 @@ class SPRING(_BaseOptimizer, kw_only=True):
 
     def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
-        N_mc_local = state.config.shape[0]
-        N_mc       = N_mc_local * n_devices
+        N_mc       = state.N_mc
+        N_mc_local = N_mc // n_devices
 
         eloc = _center_eloc(E_L, state)
         correction = _jvp_correction(
@@ -248,8 +248,8 @@ class MARCH(_BaseOptimizer, kw_only=True):
 
     def update(self, E_L, opt_state, state, wf, weights=None):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
-        N_mc_local = state.config.shape[0]
-        N_mc       = N_mc_local * n_devices
+        N_mc       = state.N_mc
+        N_mc_local = N_mc // n_devices
 
         eloc = _center_eloc(E_L, state)
 
