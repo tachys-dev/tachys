@@ -20,19 +20,19 @@ Since the repo is private, plain `pip install git+https://...` will fail with an
 **Via SSH** (requires your SSH key to be added to your GitHub account and access to the repo):
 
 ```bash
-pip install "git+ssh://git@github.com/riccardo-rende/tachys.git"
+pip install "git+ssh://git@github.com/tachys-dev/tachys.git"
 ```
 
 **Via HTTPS with a personal access token** (create one under GitHub Settings → Developer settings → Personal access tokens, with at least `repo` scope):
 
 ```bash
-pip install "git+https://<YOUR_TOKEN>@github.com/riccardo-rende/tachys.git"
+pip install "git+https://<YOUR_TOKEN>@github.com/tachys-dev/tachys.git"
 ```
 
 To install with the CUDA extra, append `#egg=tachys[cuda]` to either URL, e.g.:
 
 ```bash
-pip install "git+ssh://git@github.com/riccardo-rende/tachys.git#egg=tachys[cuda]"
+pip install "git+ssh://git@github.com/tachys-dev/tachys.git#egg=tachys[cuda]"
 ```
 
 ### Clone and install
@@ -40,7 +40,7 @@ pip install "git+ssh://git@github.com/riccardo-rende/tachys.git#egg=tachys[cuda]
 Clone the repository and install with `pip`:
 
 ```bash
-git clone git@github.com:riccardo-rende/tachys.git
+git clone git@github.com:tachys-dev/tachys.git
 cd tachys
 ```
 

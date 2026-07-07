@@ -39,7 +39,7 @@ html_show_sourcelink = False
 
 html_theme_options = {
     "logo": {"text": "tachys"},
-    "github_url": "https://github.com/riccardo-rende/tachys",
+    "github_url": "https://github.com/tachys-dev/tachys",
     "navbar_align": "left",
     "show_nav_level": 2,
     "show_toc_level": 2,
