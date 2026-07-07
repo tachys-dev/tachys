@@ -71,7 +71,7 @@ class FermionicTransformer(nn.Module):
 
     def __call__(self, state):
         state = jax.tree.map(jnp.atleast_2d, state)
-        n = state.config
+        n = state.occupations
 
         # Embedding
         n_up = n[..., :state.Ns, None]
@@ -87,7 +87,7 @@ class FermionicTransformer(nn.Module):
         y = self.out_layer_norm(x)  # [Ns, d_model]
 
         f_non_zero = lambda x : x.nonzero(size=state.Ne)[0]
-        R = jax.vmap(f_non_zero)(state.config) #* shape = [batch, Ne]
+        R = jax.vmap(f_non_zero)(state.occupations) #* shape = [batch, Ne]
         log_amps = self.output_layer(y, R) #* notice the skip connection
 
         return log_amps
