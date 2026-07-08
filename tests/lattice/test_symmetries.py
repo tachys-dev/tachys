@@ -11,6 +11,7 @@ from tachys.lattice.lattice_symmetries import point_group, translation_group
 from tachys.lattice.spins.spin_state import SpinState
 from tachys.lattice.state_array import get_array, replace_array
 from tachys.lattice.symmetries import (
+    combine_perm_groups,
     expand_perm,
     fermionic_sign,
     invert_perm,
@@ -300,6 +301,63 @@ def test_symmetrize_wf_sector_chars_matches_hand_formula():
     f1 = _toy_apply(params, replace_array(state, get_array(state)[..., perms[1]]))
     expected = f0 + jnp.log(1. + jnp.exp(1j * jnp.pi * sector_chars[1] + f1 - f0))
     assert jnp.allclose(actual, expected)
+
+
+# ─── combine_perm_groups ──────────────────────────────────────────────────────
+
+def test_combine_perm_groups_matches_nested_symmetrize_wf():
+    lat = square(shape=(4, 4))
+    coset_perms, _ = translation_group(lat)
+    point_perms = np.stack([op.perm for op in point_group(lat)])
+
+    rng = np.random.default_rng(0)
+    state = SpinState(spins=jnp.array(rng.normal(size=(1, 16))), lattice=lat)
+    params = {"w": jnp.array(rng.normal(size=16))}
+
+    nested = symmetrize_wf(symmetrize_wf(_toy_apply, coset_perms), point_perms)
+    expected = nested(params, state)
+
+    combined_perms, combined_chars = combine_perm_groups(coset_perms, point_perms)
+    assert combined_chars is None
+    actual = symmetrize_wf(_toy_apply, combined_perms)(params, state)
+
+    assert jnp.allclose(actual, expected)
+
+
+def test_combine_perm_groups_matches_nested_symmetrize_wf_with_sector_chars():
+    lat = square(shape=(4, 4))
+    coset_perms, _ = translation_group(lat)
+    point_perms = np.stack([op.perm for op in point_group(lat)])
+
+    rng = np.random.default_rng(1)
+    state = SpinState(spins=jnp.array(rng.normal(size=(1, 16))), lattice=lat)
+    params = {"w": jnp.array(rng.normal(size=16))}
+    chars_a = rng.integers(0, 2, size=coset_perms.shape[0]).astype(float)
+    chars_b = rng.integers(0, 2, size=point_perms.shape[0]).astype(float)
+
+    nested = symmetrize_wf(
+        symmetrize_wf(_toy_apply, coset_perms, sector_chars=chars_a),
+        point_perms, sector_chars=chars_b,
+    )
+    expected = nested(params, state)
+
+    combined_perms, combined_chars = combine_perm_groups(
+        coset_perms, point_perms, chars_a=chars_a, chars_b=chars_b)
+    actual = symmetrize_wf(_toy_apply, combined_perms, sector_chars=combined_chars)(params, state)
+
+    assert jnp.allclose(actual, expected)
+
+
+def test_combine_perm_groups_rows_are_bijections():
+    lat = square(shape=(4, 4))
+    coset_perms, _ = translation_group(lat)
+    point_perms = np.stack([op.perm for op in point_group(lat)])
+    Ns = coset_perms.shape[-1]
+
+    combined_perms, _ = combine_perm_groups(coset_perms, point_perms)
+    assert combined_perms.shape == (coset_perms.shape[0] * point_perms.shape[0], Ns)
+    for row in combined_perms:
+        assert np.array_equal(np.sort(row), np.arange(Ns))
 
 
 # ─── symmetrize_wf (fermions) ────────────────────────────────────────────────

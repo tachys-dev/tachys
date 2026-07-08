@@ -77,6 +77,43 @@ def expand_perm(perm, n_bands):
     return np.concatenate([perm + b * Ns for b in range(n_bands)], axis=-1)
 
 
+def combine_perm_groups(perms_a, perms_b, chars_a=None, chars_b=None):
+    """
+    Outer-product combine of two site-permutation groups (and, optionally,
+    their sector characters) into the single (M1*M2, W) perms / (M1*M2,)
+    chars that ONE symmetrize_wf call needs to reproduce nesting
+    symmetrize_wf(symmetrize_wf(f, perms_a, chars_a), perms_b, chars_b)
+    exactly - a flat jax.lax.map instead of M2 sequential calls of an
+    M1-step map each.
+
+    perms_a/chars_a is the group applied by the INNER symmetrize_wf call
+    (e.g. translation coset reps), perms_b/chars_b the OUTER one (e.g.
+    point group). Row (a, b) of the combined perms is perms_b[b][perms_a[a]]
+    (numpy fancy indexing), matching array'[i] = array[perms_b[b][perms_a[a][i]]]
+    from replace_array's [..., perm] indexing convention. Entry (a, b) of
+    the combined chars is chars_a[a] + chars_b[b] (pi-multiples add under
+    the exp(i*pi*chi) convention _combine_symmetrized_terms uses). A missing
+    chars_a/chars_b is treated as all-zero (trivial character), matching
+    symmetrize_wf's own sector_chars=None convention.
+
+    Returns (combined_perms, combined_chars); combined_chars is None iff
+    both chars_a and chars_b are None.
+    """
+    perms_a = np.asarray(perms_a)
+    perms_b = np.asarray(perms_b)
+    M1, W = perms_a.shape
+    M2, _ = perms_b.shape
+    combined_perms = perms_b[:, perms_a].transpose(1, 0, 2).reshape(M1 * M2, W)
+
+    combined_chars = None
+    if chars_a is not None or chars_b is not None:
+        chars_a = np.zeros(M1) if chars_a is None else np.asarray(chars_a)
+        chars_b = np.zeros(M2) if chars_b is None else np.asarray(chars_b)
+        combined_chars = (chars_a[:, None] + chars_b[None, :]).reshape(M1 * M2)
+
+    return combined_perms, combined_chars
+
+
 def fermionic_sign(perm):
     """
     Sign of `perm` via inversion counting: (-1)^{#{i<j : perm[i]>perm[j]}}.
