@@ -14,6 +14,7 @@ dependencies = [
     "einops",
     "pytest",
     "numba",
+    "optax",
 ]
 
 [project.optional-dependencies]
