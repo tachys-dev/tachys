@@ -48,6 +48,22 @@ def _format_fields(obj):
     return ", ".join(parts)
 
 
+def _check_energy(e_per_site, wandb_run, e_min=-10.0, e_max=10.0):
+    """Abort the run if the energy per site has diverged or gone NaN.
+
+    Every rank sees the same ``e_per_site`` (already psum-reduced in
+    ``compute_expectation``), so each independently reaches the same verdict
+    and exits without needing a broadcast. Only MASTER's ``wandb_run`` is
+    tagged/finished, since ``wandb_run`` is None on other ranks.
+    """
+    if jnp.isnan(e_per_site) or e_per_site > e_max or e_per_site < e_min:
+        print(f"{C.RED}{C.BOLD}Energy diverged (E/N = {e_per_site}); aborting.{C.RESET}", flush=True)
+        if wandb_run is not None:
+            wandb_run.tags += ("divergence",)
+            wandb_run.finish()
+        sys.exit(1)
+
+
 def _compute_metrics(mean_e, mean_E2, Ns):
     """Derive scalar metrics from energy moments."""
     e = jnp.real(mean_e).item()
@@ -205,6 +221,8 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
                 **callback_metrics,
             }
             wandb_run.log(metrics, step=step)
+
+        _check_energy(e_per_site, wandb_run)
 
         if manager is not None:
             save_training_checkpoint(manager, step + 1, key, state, wf.params, opt_state,
