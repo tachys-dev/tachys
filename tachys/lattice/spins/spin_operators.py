@@ -59,6 +59,23 @@ class Sx(_OnSiteOperator):
                                  matrix_element=matrix_element)
 
 
+class Sy(_OnSiteOperator):
+    def apply(self, state):
+        spins = state.spins
+        assert spins.ndim == 2
+
+        mask = jnp.ones(spins.shape[0], dtype=bool)
+        connected_spins = spins.at[:, self.site].set(-spins[:, self.site])
+        connected_states = state.replace(spins=connected_spins)
+        # <up|Sy|down> = -i/2, <down|Sy|up> = +i/2 (S+ = Sx+iSy, S- = Sx-iSy
+        # => Sy = -i/2 (S+ - S-)); both cases collapse to 1j * 0.5 * spins[site].
+        matrix_element = 1j * 0.5 * spins[:, self.site] * self.coupling
+
+        return OffdiagonalResult(connected_states=connected_states,
+                                 mask=mask,
+                                 matrix_element=matrix_element)
+
+
 class XYExchange(_Operator):
     '''S+(i)S-(j) + S-(i)S+(j): flips both spins, non-zero only when i and j differ.'''
     i: int
