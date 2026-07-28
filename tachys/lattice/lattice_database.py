@@ -36,6 +36,27 @@ def triangular(shape, pbc_x=True, pbc_y=True) -> Lattice:
     )
 
 
+def honeycomb(shape, pbc_x=True, pbc_y=True) -> Lattice:
+    """Honeycomb lattice: the same triangular Bravais lattice as `triangular`,
+    with a 2-site basis (A at the cell origin, B at the centroid (a1+a2)/3).
+    Each A site has 3 NN B sites, reached by cell displacements (0,0), (-1,0),
+    (0,-1) -- a Kitaev-model Hamiltonian assigns each of these its own
+    bond-dependent operator (see e.g. tachys_projects/kitaev_honeycomb).
+    """
+    alpha = np.pi / 3
+    a1 = np.array([1.0, 0.0])
+    a2 = np.array([np.cos(alpha), np.sin(alpha)])
+    t = (a1 + a2) / 3.0
+    return Lattice.create(
+        a1=a1,
+        a2=a2,
+        basis=[[0.0, 0.0], list(t)],
+        shape=shape,
+        pbc_x=pbc_x,
+        pbc_y=pbc_y,
+    )
+
+
 def kagome(shape, pbc_x=True, pbc_y=True) -> Lattice:
     alpha = np.pi / 3
     return Lattice.create(
