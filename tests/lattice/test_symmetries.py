@@ -472,3 +472,30 @@ def test_symmetrize_wf_fermions_matches_under_jit():
     eager = wrapped(params, state)
     jitted = jax.jit(wrapped)(params, state)
     assert jnp.allclose(eager, jitted)
+
+
+def test_symmetrize_wf_fermions_vmap_over_unbatched_samples_matches_batched_call():
+    # Regression: tachys.optimizer._kernels.ntk_parallel_fn computes the NTK's
+    # per-sample Jacobian via jax.vmap(jax.jacobian(_f), in_axes=(None, 0)),
+    # which strips the leading MC-batch axis before calling wf.apply_fn - so
+    # symmetrize_wf's wrapped fn is invoked on a bare, unbatched FermionState
+    # (occupations.shape == (Nbands*Ns,), no batch axis at all). The sign
+    # term's `jax.vmap(sign_permutation, in_axes=(0, None))(get_array(state),
+    # ...)` used to assume a batch axis was always present, so it iterated
+    # over individual sites as if they were batch elements and crashed with
+    # "IndexError: tuple index out of range" inside sign_permutation.
+    lat = chain(4)
+    base_perms, _ = translation_group(lat)
+    perms = jnp.array(expand_perm(np.asarray(base_perms), n_bands=2))
+    params = {"w": jnp.array([0.1, 0.2, 0.05, 0.3, 0.15, 0.25, 0.02, 0.4])}
+
+    band0 = jnp.array([[1., 0., 1., 0.], [0., 1., 1., 0.]])
+    band1 = jnp.array([[0., 1., 0., 1.], [1., 0., 0., 1.]])
+    config = jnp.concatenate([band0, band1], axis=-1)  # (N_mc=2, Nbands*Ns=8)
+    state = FermionState(occupations=config, lattice=lat, Ne=2, Nbands=2)
+
+    wrapped = symmetrize_wf(_toy_apply, perms)
+    batched = wrapped(params, state)
+
+    per_sample = jax.vmap(wrapped, in_axes=(None, 0))(params, state)
+    assert jnp.allclose(batched, per_sample)

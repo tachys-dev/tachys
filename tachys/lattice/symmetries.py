@@ -230,7 +230,14 @@ def symmetrize_wf(wf_apply, perms, sector_chars=None):
             def _term(row):
                 perm_row, perm_inv_row = row
                 log_amp = _apply_perm(perm_row)
-                sign = jax.vmap(sign_permutation, in_axes=(0, None))(get_array(state), perm_inv_row)
+                config = get_array(state)
+                if config.ndim == 1:
+                    # No leading MC-batch axis (e.g. a single sample threaded
+                    # through by an outer jax.vmap, as in the NTK Jacobian
+                    # path) - sign_permutation already handles ONE config.
+                    sign = sign_permutation(config, perm_inv_row)
+                else:
+                    sign = jax.vmap(sign_permutation, in_axes=(0, None))(config, perm_inv_row)
                 return log_amp + 1j * jnp.pi * (sign < 0)
 
             outputs = jax.lax.map(jax.checkpoint(_term), (perms, perms_inv))
