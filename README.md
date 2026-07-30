@@ -4,11 +4,6 @@
 
 # tachys
 
-TO CHECK:
-
- - NTK
- - BondExchange
-
 ## Installation
 
 This is a **private repository**, so `pip` needs to authenticate to GitHub before it can fetch the code. The two supported ways to do that are SSH (recommended if you already have an SSH key registered with GitHub) or an HTTPS personal access token.
