@@ -9,7 +9,7 @@ import numpy as np
 from tachys.checkpoint import build_checkpoint_manager, resolve_checkpoint_settings, save_training_checkpoint
 from tachys.lattice.operator.local_estimator import compute_expectation
 from tachys.montecarlo import sample
-from tachys.parallel import rank, MASTER
+from tachys.parallel import rank, MASTER, n_devices
 
 
 class Timer:
@@ -148,6 +148,13 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
 
     if callable(log_callback_fn):
         log_callback_fn = [log_callback_fn]
+
+    if wandb_run is not None:
+        devices = jax.devices()
+        wandb_run.config.update(
+            {"num_gpus": n_devices, "gpu_kind": devices[0].device_kind if devices else None},
+            allow_val_change=True,
+        )
 
     if opt_state is None:
         opt_state = optimizer.init(wf.params)
