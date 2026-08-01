@@ -32,6 +32,55 @@ def singlet_symm(wf_apply):
         return f_sigma + jnp.log(1. + jnp.exp(dF))
     return singlet_wf_apply
 
+def spin_flip_symm_f(wf_apply, p=1):
+    """Project a spinful FermionState wavefunction onto the p = ±1 sector of
+    U = exp(-i π S^y), the total-spin flip — the FermionState (occupation-
+    number) counterpart of singlet_symm above, generalized to select either
+    parity sector via p.
+
+    p = +1 → even total spin (contains S=0); p = -1 → odd (contains S=1).
+
+    Assumes the doubled occupation-number layout (n_up_1..n_up_Ns,
+    n_dn_1..n_dn_Ns) used throughout tachys for single-band spinful fermions
+    (FermionState with Nbands=2, see fermion_state.init_config_spinful), so
+    the up<->down flip is a half-roll of the occupations array. Requires
+    N_up == N_dn (Sz=0), since only then does flipping up<->down stay within
+    the same (Ne, Sz) sector.
+
+    U|n> = (-1)^{N_dn (1 + N_up)} |flip(n)>, so the fermionic reordering phase
+    is odd exactly when N_dn is odd and N_up is even; folded into the flipped
+    branch before combining:
+
+        log[ψ(n) + p * U-phase(n) * ψ(flip(n))]
+
+    Args:
+        wf_apply: Callable (params, state) → log-amplitude f(n), state a
+            FermionState with Nbands=2.
+        p: Sector to project onto, +1 or -1.
+
+    Returns:
+        Wrapped callable with the same signature returning the symmetrized
+        log-amplitude.
+    """
+    def flip_wf_apply(params, state):
+        occ = state.occupations
+        Ns = occ.shape[-1] // 2
+        flipped = jnp.roll(occ, Ns, axis=-1)
+
+        n_up = jnp.sum(occ[..., :Ns], axis=-1)
+        n_dn = jnp.sum(occ[..., Ns:], axis=-1)
+        # U|x> = (-1)^{n_dn (1 + n_up)} |xbar>; odd iff n_dn odd and n_up even.
+        parity = (n_dn % 2) * ((n_up + 1) % 2)
+        phase = 1j * jnp.pi * (parity + (0 if p == 1 else 1))
+
+        f_n = wf_apply(params, state)
+        f_flip = wf_apply(params, state.replace(occupations=flipped)) + phase
+
+        shift = jax.lax.stop_gradient(jnp.maximum(f_n.real, f_flip.real))
+        return shift + jnp.log(jnp.exp(f_n - shift) + jnp.exp(f_flip - shift))
+    return flip_wf_apply
+
+
 def time_reversal(apply_fn):
     """Wrap a wavefunction to enforce time-reversal symmetry.
 
