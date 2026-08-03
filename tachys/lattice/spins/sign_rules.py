@@ -11,16 +11,26 @@ def triangular_classical_log_phase(spins, L):
     """
     120-degree / three-sublattice classical sign rule as a log-phase.
 
-    spins: array, shape (batch, Lx*Ly), S^z +1 (up) / -1 (down),
-           row-major flattened (site index = x*Ly + y).
+    spins: array, shape (batch, Lx*Ly), S^z +1 (up) / -1 (down), flattened to
+           match tachys's Lattice site-index convention: site index = i*Lx + j,
+           with i in [0, Ly) the cell coordinate along a2 and j in [0, Lx) along
+           a1 (see Lattice._build_sites). NOT x*Ly + y -- that's the transpose
+           and only coincides with this for square (Lx == Ly) clusters.
+
+           Sublattice is (i - j) mod 3, NOT (i + j) mod 3: this lattice's three
+           NN bond directions are a1 (1,0), a2 (0,1), and a1-a2 (1,-1) (60-degree
+           a1/a2, see lattice_database.triangular). (i+j)%3 is invariant along
+           a1-a2 (0% of those bonds change sublattice -- an invalid tripartition
+           for this bond convention); (i-j)%3 changes sublattice on all three
+           directions, as required for the 120-degree order's bias.
     L:     int (square) or (Lx, Ly) tuple.
     Returns: complex array, shape (batch,).
     """
     Lx, Ly = _as_LxLy(L)
-    sublattice_idx_x = jnp.arange(Lx) % 3
-    sublattice_idx_y = jnp.arange(Ly) % 3  #! add a - sign if column-major ordering
-    sublattice_idx = sublattice_idx_x[:, None] + sublattice_idx_y[None, :]
-    sublattice_idx = sublattice_idx.flatten() % 3          # (Lx*Ly,)
+    sublattice_idx_i = jnp.arange(Ly) % 3  # along a2 (row)
+    sublattice_idx_j = jnp.arange(Lx) % 3  # along a1 (column)
+    sublattice_idx = sublattice_idx_i[:, None] - sublattice_idx_j[None, :]  # (Ly, Lx)
+    sublattice_idx = sublattice_idx.flatten() % 3          # site index = i*Lx + j
 
     # only down spins contribute; up spins give factor 1 -> log 0
     contrib = jnp.where(spins > 0, 0, sublattice_idx)      # broadcasts to (batch, Lx*Ly)
