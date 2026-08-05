@@ -14,6 +14,8 @@ extensions = [
 myst_enable_extensions = [
     "colon_fence",
     "deflist",
+    "dollarmath",
+    "amsmath",
 ]
 
 source_suffix = {
@@ -38,7 +40,11 @@ html_css_files = ["custom.css"]
 html_show_sourcelink = False
 
 html_theme_options = {
-    "logo": {"text": "tachys"},
+    "logo": {
+        "text": "tachys",
+        "image_light": "_static/logo-mark.svg",
+        "image_dark": "_static/logo-mark.svg",
+    },
     "github_url": "https://github.com/tachys-dev/tachys",
     "navbar_align": "left",
     "show_nav_level": 2,
@@ -49,3 +55,11 @@ html_theme_options = {
     "pygments_light_style": "friendly",
     "pygments_dark_style": "monokai",
 }
+
+# pydata-sphinx-theme's default primary sidebar ("Section Navigation") only ever
+# lists pages *nested below* the current top-level toctree entry. Our toctree
+# (see contents.md) is flat -- quickstart/concepts/foundation_models/api are
+# all siblings -- so that panel is structurally always empty; top-level navigation
+# already lives in the navbar (navbar_align/navbar_end above). Drop the sidebar
+# entirely rather than ship an empty "Section Navigation" box on every page.
+html_sidebars = {"**": []}

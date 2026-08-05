@@ -1,179 +1,129 @@
 # Core Concepts
 
-Tachys is built around three composable primitives: **states** that live in JAX's
-pytree ecosystem, **operators** that are callable and composable via ordinary
-arithmetic, and an **exact diagonalization engine** that ties them together.
+Tachys is written in a **purely functional** style. There are no objects that
+quietly hold mutable state, and nothing you call ever changes what you pass
+into it. Everything you touch is one of two things:
+
+- **Data** — an immutable value, almost always a JAX pytree.
+- **A pure function** — something that takes data in and returns new data
+  out, without side effects.
+
+This isn't an implementation detail you can ignore: JAX's own transformations
+(`jit`, `vmap`, `grad`) already require this discipline, so tachys leans into
+it instead of working around it. Once it clicks, the whole library reads the
+same way: a handful of data types, and a small set of functions that turn one
+piece of data into another.
+
+This page introduces both halves — the data (`State`, and the `Lattice` it
+carries) and the functions that manipulate it, in particular the three you'll
+use in almost every script: `sample`, `compute_expectation`, and an optimizer.
 
 ---
 
-## States
+## The data: `State`
 
-A `State` holds a *batch* of configurations. The first axis is the batch dimension;
-the second indexes sites or modes. Extending `flax.struct.PyTreeNode` means every
-state is a valid JAX pytree — it passes through `jit`, `vmap`, and `grad` without
-any wrapping.
+A `State` is the physical configuration of your system — spins, or fermionic
+occupation numbers — batched over however many independent Monte Carlo chains
+you're running at once. It bundles two very different kinds of information:
 
-Tachys provides two concrete state types:
+- **Dynamic data**: the actual configurations (`state.spins` or
+  `state.occupations`), shape `(batch, ...)`. This is what JAX traces,
+  batches, and differentiates through.
+- **Static geometry**: `state.lattice`, a `Lattice` describing where the sites
+  are and how they're connected. It's attached to every state but marked as
+  non-pytree metadata — shared by the whole batch, not itself something you
+  differentiate through.
 
-**`SpinState`** — for spin-½ systems. Spin values are integers in {−1, +1}.
+Because `State` extends `flax.struct.PyTreeNode`, every state is automatically
+a valid JAX pytree: it passes through `jit`, `vmap`, and `grad` with no
+wrapping or special-casing.
 
 ```python
-from tachys.lattice.spins.spin_state import SpinState
 import jax.numpy as jnp
-
-spins = jnp.array([[-1, 1, -1, 1]], dtype=jnp.int8)  # (batch=1, N=4)
-s = SpinState(spins=spins, Ns=4)
-```
-
-**`FermionState`** — for spinful fermionic systems. Occupation numbers are binary
-integers in {0, 1}. Modes are ordered as (site 0 ↑, site 0 ↓, site 1 ↑, …).
-
-```python
+from tachys.lattice.lattice_database import chain
+from tachys.lattice.spins.spin_state import SpinState
 from tachys.lattice.fermions.fermion_state import FermionState
 
-occ = jnp.array([[1, 0, 0, 1]], dtype=jnp.int8)  # (batch=1, 2*Ns)
-f = FermionState(occupations=occ, Ns=2, Ne=2)
+lattice = chain(4)                                    # a 4-site lattice
+spins = jnp.array([[-1, 1, -1, 1]], dtype=jnp.int8)   # (batch=1, N=4)
+s = SpinState(spins=spins, lattice=lattice)
+s.Ns                                                   # 4 -- read from s.lattice, not a field
+
+occ = jnp.array([[1, 0, 0, 1]], dtype=jnp.int8)        # (batch=1, 2*Ns)
+f = FermionState(occupations=occ, Ne=2, lattice=chain(2))
 ```
 
-:::{note}
-Operators use `jax.vmap` internally. Pass a batch of 65 536 configurations and the
-operator applies to all of them simultaneously — no Python loop required.
+Note that `Ns` is not something you pass in: it's a read-only property
+computed as `state.lattice.Ns`. A `State`'s only real constructor arguments
+are its physical data (`spins`/`occupations`, plus `Ne`/`Nbands` for fermions)
+and the `lattice` it lives on.
+
+:::{important}
+**States are never mutated in place.** Anything that "changes" a state —
+inside tachys or in your own code — does so by calling `.replace(...)`, which
+returns a brand-new `State` and leaves the original completely untouched. You
+will see this pattern everywhere, starting with the functions below.
 :::
 
 ---
 
-## Operators as callables
+## The functions: `sample`, `compute_expectation`, and the optimizer
 
-An operator is an object with a `__call__` method. Call it on a batched state and
-it returns one of two result types:
+A VMC run is nothing more than three pure functions, called in a loop, each
+one handing its output to the next:
 
-- **`DiagonalResult`** — for operators that do not connect different basis states
-  (e.g. S^z, number operators). Carries only matrix elements.
-- **`OffdiagonalResult`** — for operators that reach a new basis state
-  (e.g. S^+, hopping terms). Carries the connected state, a validity mask, and
-  matrix elements.
+1. **`sample`** advances the Markov chain. Given the current `state`, a
+   wavefunction, a Monte Carlo move, and a PRNG key, it returns a **new**
+   state — the input `state` is left untouched.
 
-```python
-from tachys.lattice.spins.spin_operators import Sz, Splus
+   ```python
+   state, log_amps, acceptance = sample(nsweeps, state, action, mc_keys, wf)
+   ```
 
-sz0 = Sz(site=0)    # diagonal
-sp1 = Splus(site=1) # off-diagonal
+2. **`compute_expectation`** turns a state into a number. Given an operator, a
+   wavefunction, and a state, it evaluates the operator's local estimator and
+   reduces it to global statistics. It only *reads* `state` — there's no new
+   state coming out the other end, only energies.
 
-diag    = sz0(state)   # DiagonalResult
-offdiag = sp1(state)   # OffdiagonalResult
+   ```python
+   E_L, e_mean, e2_mean = compute_expectation(H, wf, state, log_amps)
+   ```
 
-# DiagonalResult fields
-diag.matrix_element          # shape (batch,)
+3. **The optimizer** turns those energies into a parameter update. Optimizers
+   like `SR`, `SPRING`, and `MARCH` are themselves just data — plain
+   `flax.struct.PyTreeNode`s — called as functions:
 
-# OffdiagonalResult fields
-offdiag.connected_states     # shape (batch, N)  — the reached configuration
-offdiag.mask                 # shape (batch,)    — False when operator annihilates
-offdiag.matrix_element       # shape (batch,)
-```
+   ```python
+   updates, opt_state = optimizer(E_L, opt_state, state, wf)
+   wf = wf.apply_gradients(updates, lr)
+   ```
 
-The base class `_Operator` handles the `vmap` call. Subclasses only implement
-`apply(state)`, which operates on a single configuration (no batch dimension).
+   `optimizer(...)` doesn't touch `wf` or `opt_state` — it returns new values
+   for both. `wf.apply_gradients` is the same story: it returns a new
+   `WaveFunction` with updated parameters, rather than editing the one you
+   already have.
 
----
-
-## Operator algebra
-
-Operators support arithmetic. The resulting composite is itself a callable —
-there is no distinction between a primitive operator and a Hamiltonian built from
-hundreds of terms.
-
-| Expression | Result type | Meaning |
-|------------|-------------|---------|
-| `A + B` | `_OperatorSum` | Sum of two operators |
-| `s * A` or `A * s` | `_Operator` | Rescale coupling by scalar `s` |
-| `A * B` | `_OperatorMul` | Sequential product |
+Put the three together and you have the entire training loop — nothing else
+is hidden underneath:
 
 ```python
-from tachys.lattice.spins.spin_operators import Sz, Splus, Sminus
-from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
+for step in range(N_steps):
+    key, subkey = jax.random.split(key)
+    mc_keys = jax.random.split(subkey, N_mc)
 
-# Scalar multiplication
-half_sz = 0.5 * Sz(site=0)
+    state, log_amps, acceptance = sample(1, state, action, mc_keys, wf)
+    E_L, e_mean, e2_mean = compute_expectation(H, wf, state, log_amps)
 
-# Operator sum — build any Hamiltonian term by term
-ising = Sz(site=0) * Sz(site=1) + Sz(site=1) * Sz(site=2)
-
-# Operator product — sequential application with correct fermionic signs
-hopping = Splus(site=0) * Sminus(site=1)
-
-# Compose with any existing Hamiltonian
-H = heisenberg_square_pbc(L=4)
-H_field = H + 0.1 * Sz(site=0)  # add a staggered field on site 0
-result  = H_field(state)         # DiagOffdiagResult — same interface as always
+    updates, opt_state = optimizer(E_L, opt_state, state, wf)
+    wf = wf.apply_gradients(updates, lr)
 ```
 
-:::{tip}
-Because operators are `PyTreeNode`s, their coupling constants are leaves in the
-pytree. You can differentiate through them with `jax.grad`, which enables
-variational optimization over Hamiltonian parameters.
-:::
+Every variable on the left-hand side is a *new* value each iteration —
+`state`, `wf`, and `opt_state` are simply reassigned, exactly like the carry
+of a JAX `scan`, just written out as an ordinary Python loop. There's no
+`Trainer` object accumulating hidden state behind the scenes; if you want to
+know what a tachys training run does, this loop *is* the answer. See
+{doc}`quickstart` for a complete, runnable version of it.
 
----
-
-## Built-in Hamiltonians
-
-Tachys ships two Hamiltonians on the square lattice with periodic boundary
-conditions. Each returns an operator that can be composed, scaled, or perturbed.
-
-**Heisenberg model**
-
-$$
-H = J \sum_{\langle i,j \rangle} \left[ S^z_i S^z_j + \tfrac{1}{2}(S^+_i S^-_j + S^-_i S^+_j) \right]
-$$
-
-```python
-from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
-
-H = heisenberg_square_pbc(L=4, J=1.0)
-```
-
-**Hubbard model**
-
-$$
-H = -t \sum_{\langle i,j \rangle, \sigma} (c^\dagger_{i\sigma} c_{j\sigma} + \text{h.c.})
-    + U \sum_i n_{i\uparrow} n_{i\downarrow}
-$$
-
-```python
-from tachys.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
-
-H = hubbard_square_pbc(L=4, t=1.0, U=8.0)
-```
-
-Sites are indexed row-major in both cases: site at (x, y) maps to `x·L + y`.
-
----
-
-## Exact diagonalization
-
-`exact_diag` constructs the sparse Hamiltonian matrix from all diagonal and
-off-diagonal contributions and computes the `k` lowest eigenvalues via
-`scipy.sparse.linalg.eigsh`.
-
-The only thing you provide beyond the operator and the basis is a **pack** function:
-a map from a batch of states to unique integer indices. This is the sole coupling
-between your state representation and the sparse matrix structure.
-
-```python
-from tachys.lattice.exact_diag import exact_diag, spins_hilbert_space
-import numpy as np
-
-all_configs = spins_hilbert_space(N=16)          # shape (65536, 16)
-state_full  = SpinState(spins=jnp.array(all_configs), Ns=16)
-
-def pack(state):
-    bits = (np.asarray(state.spins) + 1) // 2   # {-1,+1} → {0,1}
-    return (bits * 2 ** np.arange(bits.shape[-1])).sum(axis=-1)
-
-eigenvalues, eigenvectors = exact_diag(state_full, H, pack, k=1)
-# eigenvalues : shape (1,) — ascending
-# eigenvectors: shape (65536, 1)
-```
-
-The `pack` function must be injective over the Hilbert space — each configuration
-must map to a distinct non-negative integer. Beyond that, the choice is yours.
+Training a single network across *many* Hamiltonians at once builds on
+exactly this — see {doc}`foundation_models`.

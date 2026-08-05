@@ -39,8 +39,8 @@ quickstart
 :caption: Documentation
 
 concepts
+foundation_models
 api
-examples
 ```
 </content>
 </invoke>
