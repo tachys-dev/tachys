@@ -62,11 +62,6 @@ if _conda_env:
 _py_ver   = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 _env_str  = f"python {_py_ver}  {sys.executable}" + (f"  ({_conda_env})" if _conda_env else "")
 
-_USE_COLOR = sys.stdout.isatty()
-_C = "\033[36m" if _USE_COLOR else ""
-_B = "\033[1m"  if _USE_COLOR else ""
-_R = "\033[0m"  if _USE_COLOR else ""
-
 _cw  = max(len(_title), len(_dev_str), len(_node_str), len(_jax_str), len(_env_str))
 _w   = _cw + 24
 
@@ -77,13 +72,13 @@ def _center(s):
 _tlp = (_w - len(_title)) // 2
 _trp = _w - len(_title) - _tlp
 
-print(f"{_C}╔{'═' * _w}╗{_R}")
-print(f"{_C}║{_R}{' ' * _tlp}{_B}{_title}{_R}{' ' * _trp}{_C}║{_R}")
-print(f"{_C}╟{'─' * _w}╢{_R}")
-print(f"{_C}║{_R}{_center(_dev_str)}{_C}║{_R}")
-print(f"{_C}║{_R}{_center(_node_str)}{_C}║{_R}")
-print(f"{_C}╟{'─' * _w}╢{_R}")
-print(f"{_C}║{_R}{_center(_env_str)}{_C}║{_R}")
-print(f"{_C}║{_R}{_center(_jax_str)}{_C}║{_R}")
-print(f"{_C}╚{'═' * _w}╝{_R}", flush=True)
+print(f"╔{'═' * _w}╗")
+print(f"║{' ' * _tlp}{_title}{' ' * _trp}║")
+print(f"╟{'─' * _w}╢")
+print(f"║{_center(_dev_str)}║")
+print(f"║{_center(_node_str)}║")
+print(f"╟{'─' * _w}╢")
+print(f"║{_center(_env_str)}║")
+print(f"║{_center(_jax_str)}║")
+print(f"╚{'═' * _w}╝", flush=True)
 

@@ -20,17 +20,7 @@ class Timer:
         self.elapsed = time.perf_counter() - self._t0
 
 
-_USE_COLOR = sys.stdout.isatty()
-
-
-class C:
-    RESET  = "\033[0m"  if _USE_COLOR else ""
-    BOLD   = "\033[1m"  if _USE_COLOR else ""
-    DIM    = "\033[2m"  if _USE_COLOR else ""
-    GREEN  = "\033[32m" if _USE_COLOR else ""
-    YELLOW = "\033[33m" if _USE_COLOR else ""
-    RED    = "\033[31m" if _USE_COLOR else ""
-    CYAN   = "\033[36m" if _USE_COLOR else ""
+_IS_TTY = sys.stdout.isatty()
 
 
 def _format_fields(obj):
@@ -57,7 +47,7 @@ def _check_energy(e_per_site, wandb_run, e_min=-10.0, e_max=10.0):
     tagged/finished, since ``wandb_run`` is None on other ranks.
     """
     if jnp.isnan(e_per_site) or e_per_site > e_max or e_per_site < e_min:
-        print(f"{C.RED}{C.BOLD}Energy diverged (E/N = {e_per_site}); aborting.{C.RESET}", flush=True)
+        print(f"Energy diverged (E/N = {e_per_site}); aborting.", flush=True)
         if wandb_run is not None:
             wandb_run.tags += ("divergence",)
             wandb_run.finish()
@@ -78,7 +68,7 @@ def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, 
     lattice = state.lattice
     model = getattr(wf.apply_fn, "__self__", None)
 
-    print(f"\n{C.BOLD}--- Simulation setup ---{C.RESET}")
+    print("\n--- Simulation setup ---")
     if lattice is not None:
         print(f"Lattice      : {type(lattice).__name__}  Ns={lattice.Ns}  L={lattice.L}  "
               f"nb={lattice.nb}  pbc={lattice.pbc}")
@@ -91,7 +81,7 @@ def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, 
     print(f"MC action    : {type(action).__name__}({_format_fields(action)})")
     print(f"N_mc         : {N_mc}    N_steps: {N_steps}" + (f"    start_step: {start_step}" if start_step else ""))
     print(f"lr schedule  : {lr_schedule(start_step):.2e} -> {lr_schedule(start_step + N_steps - 1):.2e}")
-    print(C.DIM + "-" * 60 + C.RESET)
+    print("-" * 60)
 
 
 def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
@@ -165,10 +155,10 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
     manager = build_checkpoint_manager(ckpt_dir, checkpoint_every, checkpoint_keep) if ckpt_dir else None
 
     header = (
-        f"{C.BOLD}{'step':>5} │ {'E/N':>20} │ {'var/N':>10} │ {'vscore':>8} │ {'accept':>7} │ {'lr':>9} │ "
-        f"{'t_mc':>6} │ {'t_exp':>6} │ {'t_opt':>6} │ {'t_tot':>10} │ {'ETA (h)':>11}{C.RESET}"
+        f"{'step':>5} │ {'E/N':>20} │ {'var/N':>10} │ {'vscore':>8} │ {'accept':>7} │ {'lr':>9} │ "
+        f"{'t_mc':>6} │ {'t_exp':>6} │ {'t_opt':>6} │ {'t_tot':>10} │ {'ETA (h)':>11}"
     )
-    rule = C.DIM + "─" * (len(header) - len(C.BOLD) - len(C.RESET)) + C.RESET
+    rule = "─" * len(header)
 
     print("\n--- START TRAINING ---", flush=True)
     print(header, flush=True)
@@ -243,15 +233,12 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
         remaining_steps = N_steps - (local_step + 1)
         eta_hours = t_step * remaining_steps / 3600.0
 
-        acc_color = C.GREEN if acc > 0.4 else (C.YELLOW if acc > 0.2 else C.RED)
-        e_color   = C.GREEN if improved else C.RESET
-
         print(
             f"{step:5d} │ "
-            f"{e_color}{e_per_site:20.12f}{C.RESET} │ {variance_per_site:10.2e} │ {vscore:8.4f} │ "
-            f"{acc_color}{acc:7.3f}{C.RESET} │ {lr:9.2e} │ "
+            f"{e_per_site:20.12f} │ {variance_per_site:10.2e} │ {vscore:8.4f} │ "
+            f"{acc:7.3f} │ {lr:9.2e} │ "
             f"{t_sample.elapsed:6.2f} │ {t_expect.elapsed:6.2f} │ {t_opt.elapsed:6.2f} │ {t_step:6.2f} (s) │ "
-            f"{C.CYAN}{eta_hours:7.2f}{C.RESET} (h)",
+            f"{eta_hours:7.2f} (h)",
             flush=True,
         )
 
@@ -263,7 +250,7 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
 
     print(rule, flush=True)
     print(
-        f"{C.BOLD}Done.{C.RESET} {N_steps} steps in {total_time:.1f}s "
+        f"Done. {N_steps} steps in {total_time:.1f}s "
         f"({total_time / N_steps:.3f}s/step avg)"
     )
     print(f"E/N over last {window} steps = {mean_energy_tail:.6f} ± {var_energy_tail ** 0.5:.2e}  (var = {var_energy_tail:.2e})")
@@ -315,9 +302,9 @@ def compute_observables(key, N_steps, state, action, wf, N_mc, op_groups, nsweep
         op_groups = {"obs": op_groups}
 
     n_ops = sum(len(ops) for ops in op_groups.values())
-    print(f"\n{C.BOLD}--- Observable measurement ---{C.RESET}")
+    print("\n--- Observable measurement ---")
     print(f"N_mc: {N_mc}    N_steps: {N_steps}    nsweeps: {nsweeps}    n_observables: {n_ops}")
-    print(C.DIM + "-" * 60 + C.RESET)
+    print("-" * 60)
 
     metrics = {name: [] for name in op_groups}
 
@@ -336,14 +323,14 @@ def compute_observables(key, N_steps, state, action, wf, N_mc, op_groups, nsweep
             for name, ops in op_groups.items():
                 means = []
                 for op in ops:
-                    if _USE_COLOR and rank == MASTER:
-                        print(f"\r{C.DIM}  step {step:4d} - observable {op_i+1:>4d}/{n_ops} ({name}){C.RESET}",
+                    if _IS_TTY and rank == MASTER:
+                        print(f"\r  step {step:4d} - observable {op_i+1:>4d}/{n_ops} ({name})",
                               end="", flush=True)
                     means.append(compute_expectation(op, wf, state, log_amps)[1])
                     op_i += 1
                 step_means[name] = jnp.stack(means)
             jax.block_until_ready(step_means)
-            if _USE_COLOR and rank == MASTER:
+            if _IS_TTY and rank == MASTER:
                 print("\r" + " " * 60 + "\r", end="", flush=True)
 
         for name, means in step_means.items():
