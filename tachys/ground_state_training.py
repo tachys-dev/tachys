@@ -266,7 +266,8 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
     return key, state, wf, opt_state, history
 
 
-def compute_observables(key, N_steps, state, action, wf, N_mc, op_groups, nsweeps=1, log_every=1):
+def compute_observables(key, N_steps, state, action, wf, N_mc, op_groups, nsweeps=1, log_every=1,
+                        complex=False):
     """Measure a fixed set of observables along a Markov chain.
 
     Unlike ``train``, ``wf`` is held fixed here — this only samples and
@@ -290,13 +291,16 @@ def compute_observables(key, N_steps, state, action, wf, N_mc, op_groups, nsweep
                 treated as a single group named ``"obs"``.
     nsweeps   : int — number of MC sweeps per step passed to ``sample`` (default 1).
     log_every : print a status line every this many steps (0 disables).
+    complex   : keep the full complex ``<O>`` instead of just its real part
+                (default False).
 
     Returns
     -------
     key, state, metrics
         metrics : dict[str, np.ndarray] — ``metrics[name]`` has shape
-                  ``(N_steps, len(op_groups[name]))``, the real part of ``<O>``
-                  at every step.
+                  ``(N_steps, len(op_groups[name]))``, holding ``<O>`` at every
+                  step: its real part by default, the full complex value when
+                  ``complex=True``.
     """
     if not isinstance(op_groups, dict):
         op_groups = {"obs": op_groups}
@@ -334,7 +338,7 @@ def compute_observables(key, N_steps, state, action, wf, N_mc, op_groups, nsweep
                 print("\r" + " " * 60 + "\r", end="", flush=True)
 
         for name, means in step_means.items():
-            metrics[name].append(np.asarray(means.real))
+            metrics[name].append(np.asarray(means if complex else means.real))
 
         t_step = time.perf_counter() - t_step0
         eta_hours = t_step * (N_steps - step - 1) / 3600.0
