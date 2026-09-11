@@ -284,7 +284,7 @@ Calling an instance automatically wraps `apply` in `jax.vmap` over the batch axi
 | `coupling` | `float` | Scalar prefactor applied to all matrix elements. |
 | `__call__(state)` | `State → result` | Vectorized application over the batch axis. |
 | `apply(state)` | `State → result` | Per-sample application. Override in subclasses. |
-| `__add__(other)` | `_Operator` | Returns `_OperatorSum`. |
+| `__add__(other)` | `_Operator` | Merges into one batched operator when the type *and* all static (`pytree_node=False`) fields match; otherwise returns `_OperatorSum`. |
 | `__mul__(other)` | scalar or `_Operator` | Scalar: rescales coupling. Operator: returns `_OperatorMul`. |
 
 ---
@@ -356,7 +356,7 @@ are antiparallel. Returns `OffdiagonalResult`.
 *`tachys.lattice.fermions.fermion_operators`*
 
 ```python
-class C(site, band=1, coupling=1.0)
+class C(site, band, coupling=1.0)
 ```
 
 Fermionic annihilation operator c_{i,σ}. Removes an electron at `site` in `band`

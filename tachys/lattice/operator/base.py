@@ -78,7 +78,13 @@ class _Operator(_OperatorBase):
 
     # ---- algebra ----
     def __add__(self, other):
-        if type(self) is type(other):
+        # same_treedef, not just type equality: the state-dict round-trip below
+        # carries only pytree_node=True fields, so merging two instances that
+        # differ in a static field (e.g. Hopping band=0 vs band=2) would keep
+        # only self's value and silently produce a wrong operator. Mismatched
+        # statics fall through to _OperatorSum, which __add__ there already
+        # buckets by matching term. Mirrors _OperatorMul.__add__'s guard.
+        if type(self) is type(other) and same_treedef(self, other):
             sd1 = fs.to_state_dict(self)
             sd2 = fs.to_state_dict(other)
             new_sd = jax.tree.map(
