@@ -17,10 +17,11 @@ correct estimator is scale-free -- but every reduction on this path is
 `jnp.mean(w * X)` rather than `sum(wX)/sum(w)`, which is only the weighted mean
 when `sum_i w_i == M`. `_call_reweighted` therefore divides by the psum'd mean
 weight before anything downstream sees the weights, which is what makes the
-scale-invariance below hold. It also makes `_center_eloc`'s unweighted centring
-of E_L exactly equivalent to the weighted centring jaxvmcf uses: centring the
-Jacobian with the weighted mean puts sqrt(w) in the null space of the centred
-O^T, so any constant subtracted from E_L gives the same update.
+scale-invariance below hold -- and it is also what lets `_center_eloc` write the
+weighted mean as `mean(w * E_L)`. Which constant `_center_eloc` subtracts does
+not actually matter: centring the Jacobian with the weighted mean puts sqrt(w)
+in the null space of the centred O^T, so any constant subtracted from E_L gives
+the same update (pinned by test_update_invariant_to_energy_shift).
 """
 
 from functools import partial
