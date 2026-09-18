@@ -12,6 +12,11 @@ def log_cosh(x):
     x = x * sgn_x
     return x + jnp.log1p(jnp.exp(-2.0 * x)) - jnp.log(2.0)
 
+def uniform_init(scale=1e-3):
+    """Uniform initializer on [-scale, scale]."""
+    def init(key, shape, dtype=jnp.float64):
+        return jax.random.uniform(key, shape, dtype, minval=-scale, maxval=scale)
+    return init
 
 class SpinRBM(nn.Module):
     hidden_units: int
@@ -23,12 +28,16 @@ class SpinRBM(nn.Module):
             features=self.hidden_units,
             use_bias=True,
             param_dtype=self.dtype,
+            kernel_init=uniform_init(1e-3),
+            bias_init=uniform_init(1e-3),
         )
         if self.complex:
             self.imag_linear = nn.Dense(
                 features=self.hidden_units,
                 use_bias=True,
                 param_dtype=self.dtype,
+                kernel_init=uniform_init(1e-3),
+                bias_init=uniform_init(1e-3),
             )
 
     def __call__(self, lattice):

@@ -2362,6 +2362,267 @@ share Monte Carlo statistics rather than being measured from independent runs.
 
 ---
 
+## Real-time dynamics
+
+Real-time evolution (t-VMC) mirrors ground-state optimization: the same sampler,
+the same local estimator, the same neural tangent kernel, the same VJP back to
+parameter space. Three things change.
+
+**The equation.** Minimizing the residual of the linearized evolution,
+$\lVert \sum_k \dot\theta_k \lvert\partial_k\psi\rangle + i(H - \langle H\rangle)\lvert\psi\rangle\rVert^2$,
+over *real* $\dot\theta$ gives
+
+$$
+S\,\dot\theta = \mathrm{Im}\,F, \qquad
+S_{kl} = \mathrm{Re}\langle \Delta O_k^{*}\,\Delta O_l\rangle, \qquad
+F_k = \langle \Delta O_k^{*}\,\Delta E_L\rangle,
+$$
+
+whereas imaginary time (`SR`) gives $S\dot\theta = -\mathrm{Re}\,F$, i.e. the
+natural gradient $S^{-1}\nabla E$ with $\nabla E = 2\,\mathrm{Re}\,F$. So real
+time is imaginary time with the generator multiplied by $i$ — in the NTK
+formulation, one line: the force vector becomes
+$\varepsilon_i = i\,(E_{L,i} - \bar E_L)^{*}/\sqrt{N_{mc}}$ (note both the `1j`
+*and* the dropped factor of 2 relative to `SR`, which the ground-state learning
+rate absorbs but a physical time step cannot).
+
+**The regularization.** The kernel is genuinely rank deficient here — centering
+alone puts exact zero modes in the spectrum, and $2N_{mc} > n_{params}$ makes it
+singular by construction. `TDVP` inverts it by diagonalization and discards
+eigenvalues below a threshold (`linear_solver_eigh`) rather than damping every
+direction with a Tikhonov shift.
+
+**The step.** A step is a Runge–Kutta step: `n_stages` sample+solve evaluations,
+not one gradient step.
+
+The ansatz must be **complex-valued**: real-time evolution generates a phase, and
+a real log-amplitude has no parameter that can carry it.
+
+---
+
+### `TDVP`
+
+*`tachys.dynamics.tdvp`* (also exported from `tachys.dynamics`)
+
+```python
+class TDVP(*, diag_shift=0.0, mode, nbatches=1, rcond=1e-8, atol=0.0)
+```
+
+Real-time TDVP velocity. Extends `_BaseOptimizer` and is called exactly like an
+optimizer — `dtheta_dt, opt_state = tdvp(E_L, opt_state, state, wf)` — but what
+it returns is the physical time derivative $d\theta/dt$, not a descent direction.
+Advance with $\theta + \Delta t\,\dot\theta$ (which the integrators do), never
+with `apply_gradients`, whose `p - eta * g` convention would reverse the
+direction of time.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `diag_shift` | `float` | Tikhonov shift applied to the **kept** eigenvalues, `1 / (lambda + diag_shift)`. Default `0.0`: with the spectral truncation the solve is already well posed, and a shift biases the directions that survive. |
+| `mode` | `str` | Must be `"complex"`; `"real"` raises. Static field. |
+| `nbatches` | `int` | NTK sub-batching, as for the SR-family optimizers. Static field. |
+| `rcond` | `float` | Relative eigenvalue cutoff — eigenvalues at or below `rcond * lambda_max` are discarded, capping the condition number of the retained subspace at `1 / rcond`. The single most important knob of a t-VMC run. |
+| `atol` | `float` | Absolute floor on that cutoff. Default `0.0` (purely relative). |
+
+`init(params)` returns `TDVPState()` (stateless; kept so the driver mirrors
+`train`'s return tuple and round-trips through `tachys.checkpoint`).
+
+---
+
+### `evolve`
+
+*`tachys.dynamics.real_time_evolution`* (also exported from `tachys.dynamics`)
+
+```python
+evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
+       integrator="rk4", t0=0.0, wandb_run=None, log_callback_fn=None,
+       nsweeps=1, opt_state=None, start_step=0, tdvp_error_every=0,
+       tdvp_error_rule="rect")
+```
+
+Run the t-VMC real-time evolution loop — the real-time counterpart of
+`ground_state_training.train`, with the same live diagnostics table and the same
+wandb / checkpoint / callback discipline. At every step the integrator performs
+`n_stages` evaluations of the TDVP right-hand side (sample, local energies of
+`H(t_stage)`, TDVP solve) and combines them into the parameter increment.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `key` | `jax.random.key` | PRNG key. |
+| `H` | `_Operator` or `callable(t) -> _Operator` | Hamiltonian. For the time-dependent form only the numerical **values** of the operators' `coupling` may vary with `t`; the pytree structure, static fields and leaf shapes/dtypes must not, or every step would recompile. Checked once, up front, with an explicit error. |
+| `state` | `State` | Initial Monte Carlo configuration batch. `state.lattice.Ns` sets the per-site normalizations. |
+| `wf` | `WaveFunction` | Must be complex-valued. Typically the output of a ground-state `train` run. |
+| `tdvp` | `TDVP` | Called as `tdvp(E_L, opt_state, state, wf)`. Passing an `SR`/`SPRING`/`MARCH` optimizer raises — they solve the imaginary-time equation. |
+| `action` | `_BaseAction` | MCMC move proposal used for sampling. |
+| `N_steps` | `int` | Number of time steps taken by *this* call. |
+| `dt` | `float` | Time step. Cost per step is `n_stages` sample+solve evaluations. |
+| `N_mc` | `int` | Number of Markov chains. |
+| `integrator` | `str` or `ExplicitRK` | `"rk4"` (default), `"heun"`, or an `ExplicitRK` instance. |
+| `t0` | `float` | Physical time at `start_step`. Default `0.0`. |
+| `wandb_run` | optional wandb run | Logs energy, variance, acceptance, TDVP-error metrics and callback metrics every step, and checkpoints exactly as `train` does. Expected non-`None` only on `MASTER`; every rank still participates in the collective checkpoint calls. |
+| `log_callback_fn` | optional callable, or list | Invoked once per step with either `(state, wf, step)` (`train`'s protocol) or `(state, wf, step, ctx)` with a `DynamicsContext`. The arity is detected per callable. Non-`None` results are merged into the wandb log. Called on *every* rank. |
+| `nsweeps` | `int` | MC sweeps per stage, passed to `sample`. Default `1`. The main lever against the warm-start lag bias, which shows up as a slow energy drift. |
+| `opt_state` | optional | Pre-initialized `TDVPState` (matters only for checkpoint symmetry with `train`). |
+| `start_step` | `int` | Absolute step number to resume at; offsets the printed step column, the wandb log step and the checkpoint numbering. Combine with `t0` to resume the physical time. |
+| `tdvp_error_every` | `int` | If `> 0`, measure the TDVP error every this many steps with `TDVPError` and show the accumulated `R²` in the live table. `0` (default) disables it. |
+| `tdvp_error_rule` | `str` | `"rect"` (default) or `"trapezoid"` — how a measurement taken every `n` steps is extended over the steps between measurements. |
+
+**Returns** `(key, state, wf, opt_state, history)`. `history` is a
+`dict[str, list]` with keys `"t"`, `"energy"` (per site), `"energy_real"`,
+`"variance_per_site"`, `"acceptance"`, and — when `tdvp_error_every` is set —
+`"R2"`, `"tdvp_rate"` and `"tdvp_error"` (the callback's own per-measurement
+history).
+
+---
+
+### `DynamicsContext`
+
+*`tachys.dynamics.real_time_evolution`*
+
+The object passed as the 4th argument to a dynamics callback. Every field
+describes the step just taken, evaluated at its **start**: `wf`, `state`, `E_L`
+and `dtheta_dt` are the stage-1 quantities at `(t, theta_n)` — the only mutually
+consistent set (same parameters, same batch, same Hamiltonian), and the only
+stage that lies on the trajectory.
+
+| Field | Description |
+|-------|-------------|
+| `step`, `t`, `dt` | Absolute step number, physical time at the start of the step, step size. |
+| `H` | The Hamiltonian at `t`. |
+| `wf` | The `WaveFunction` **before** the step. |
+| `state`, `log_amps`, `E_L` | The stage-1 Monte Carlo batch and its local energies. |
+| `e_mean`, `e2_mean` | `⟨E_L⟩` and `⟨|E_L|²⟩` on that batch. |
+| `dtheta_dt` | The stage-1 velocity `k₁`. |
+| `acceptance` | Per-action acceptance rate of the stage-1 sampling. |
+| `mode`, `Ns` | The TDVP mode and the site count. |
+| `stages` | `tuple[StageAux]`, one per RK stage, each carrying that stage's `t`, batch, local energies, moments, acceptance and timings. |
+
+---
+
+### Integrators
+
+*`tachys.dynamics.integrators`* (also exported from `tachys.dynamics`)
+
+```python
+class ExplicitRK(name, c, A, b, order)
+Heun()      # explicit trapezoidal, order 2, 2 stages
+RK4()       # classical Runge-Kutta, order 4, 4 stages
+get_integrator(integrator)   # "heun" / "rk4" / an ExplicitRK instance
+```
+
+An explicit Runge–Kutta scheme defined by its Butcher tableau (`c` stage times,
+`A` strictly lower-triangular coefficient rows, `b` quadrature weights). The
+tableau is validated on construction: shape, row-sum condition and `sum(b) == 1`.
+
+`step(rhs, key, t, wf, state, dt)` advances one step and returns
+`(key, wf, state, ks, auxes)`, where `rhs` is
+`(key, t, wf, state) -> (key, state, thetadot, aux)` and `ks`/`auxes` are the
+per-stage velocity and diagnostics lists.
+
+Two properties of the t-VMC right-hand side shape the design:
+
+- **The chain is warm-started across stages**, never reset. Successive stage
+  densities differ by `O(dt)`, so the incoming configurations are already
+  `O(dt)` from equilibrium, whereas re-thermalizing at every stage would cost
+  10–100× more for a *larger* bias. What remains is a lag bias of order
+  `exp(-nsweeps/tau_int)`, which shows up as a slow energy drift; the cure is
+  more `nsweeps`, never a chain reset.
+- **Every stage draws fresh samples.** Reusing one batch for all stages of a step
+  makes each `k_i` wrong by `O(dt)` — stage `i` would estimate the metric and
+  force under `|psi_theta_n|²` instead of `|psi_theta_i|²` — reducing both Heun
+  and RK4 to *first*-order global accuracy.
+
+---
+
+### `tdvp_error_rate`
+
+*`tachys.dynamics.error`* (also exported from `tachys.dynamics`)
+
+```python
+tdvp_error_rate(wf, state, E_L, dtheta_dt, mode="complex")
+```
+
+The per-step TDVP residual rate `δs²/δt²` and its decomposition, from a single
+JVP. `wf` must hold the parameters `E_L` was measured at — i.e. **before** the
+integrator step; taking the JVP at the advanced parameters would put an `O(dt)`
+inconsistency straight into the small residual being measured.
+
+Writing `t_i = sum_k ΔO_ik θ̇_k` (one JVP of the ansatz with tangent `θ̇`) and
+`ΔE_Li = E_Li - ⟨E_L⟩`, the three terms of
+
+$$
+\frac{\delta s^2}{\delta t^2} = \mathrm{Var}(H) + \dot\theta^T S \dot\theta - 2\,\mathrm{Re}(F)^T\dot\theta
+$$
+
+are `mean|ΔE_L|²`, `mean|t|²` and `2 Im mean[conj(t) ΔE_L]` — no `P×P` matrix
+`S`, no `P`-dimensional `F`. And because
+`|t + iΔE|² = |t|² + |ΔE|² - 2 Im[conj(t) ΔE]` identically, the whole rate
+collapses to `mean|t + 1j ΔE|²`, which is what is evaluated: manifestly
+non-negative for any `θ̇` at any sample size, and free of the catastrophic
+cancellation of a difference of three `O(Var(H))` numbers.
+
+**Returns** a `TDVPErrorEstimate` with fields `rate`, `var_H`, `quad`, `force`,
+`ratio` (`force / (2 quad)`, exactly 1 when `θ̇` solves the TDVP equation — a
+direct check on the velocity's normalization and sign) and `decomposed`
+(`var_H + quad - force`, algebraically identical to `rate`; their difference is a
+free cancellation/consistency check).
+
+---
+
+### `TDVPError`
+
+*`tachys.dynamics.error`* (also exported from `tachys.dynamics`)
+
+```python
+class TDVPError(every=1, rule="rect", prefix="tdvp")
+```
+
+Callback that measures the TDVP residual every `every` steps and accumulates the
+integrated error
+
+$$
+\mathcal{R}^2(t) = \frac{1}{\sqrt{N}}\int_0^t \sqrt{\delta s^2}, \qquad
+\delta s^2 = \delta t^2\left[\mathrm{Var}(\hat H) + \dot\theta^T S \dot\theta - 2\,\mathrm{Re}(F)^T\dot\theta\right]
+$$
+
+with `N = state.Ns`. Since `δs²` already carries `δt²`,
+`sqrt(δs²) = dt * sqrt(rate)` and summing over steps *is* the Riemann sum of the
+integral; measuring every `n` steps is the rectangle rule of width `n*dt`
+(`rule="trapezoid"` averages consecutive measurements over the same interval
+instead — the same cost and strictly more accurate, but not what the definition
+says). Intervals are keyed on elapsed time, so a changed stride, a skipped
+measurement or a short final block are all handled.
+
+Register it with `evolve(..., log_callback_fn=TDVPError(every=10))`, or let
+`evolve(..., tdvp_error_every=10)` build one (which also gets it an `R²` column
+in the live table and `history["R2"]` entries).
+
+The measurement uses the **first stage** of the step — the velocity `k₁`, the
+batch and the local energies all at `(t_n, theta_n)`.
+
+| Attribute / method | Description |
+|--------------------|-------------|
+| `R2` | The accumulated error at the last measured step. |
+| `history` | `dict[str, list]` — per-measurement `step`, `t`, `rate`, `R2`, `var_H`, `quad`, `force`, `ratio`. |
+| `reset()` | Clear the accumulator and history (call before reusing the object for a second run). |
+| `accumulate(step, t, Ns, est)` | Fold one `TDVPErrorEstimate` in by hand, for use outside `evolve`. |
+
+Interpretation: `δs²` is the squared Fubini–Study distance between
+`exp(-iH δt)|psi(theta)>` and `|psi(theta + δt θ̇)>` to `O(δt²)` — the per-step
+infidelity — so `R² √N` is the accumulated Fubini–Study angle, which upper-bounds
+the angle between the exact and the variational state at time `t`. The `1/√N`
+makes it intensive, since `Var(H) ~ N` for a local Hamiltonian.
+
+Two caveats worth stating plainly. `δs²` is the residual of the *linearized*
+evolution: it measures how much of `-i(H - ⟨H⟩)|psi>` lies outside the tangent
+space, plus Monte Carlo and regularization error — it says nothing about the
+integrator's time-discretization error, so switching Heun → RK4 will not reduce
+it. And `R²` is a sum of non-negative increments, hence monotone: at long times
+it is an upper bound that can be loose, so read the instantaneous `rate` (or
+`rate / var_H`, the fraction of the evolution direction the manifold fails to
+capture) to judge whether the state is drifting *now*.
+
+---
+
 ## Checkpointing
 
 ### `resolve_checkpoint_settings`
@@ -2794,6 +3055,49 @@ with NaN instead of raising.
 
 ---
 
+#### `linear_solver_eigh`
+
+```python
+linear_solver_eigh(ntk, eps, diag_shift, mode="complex", rcond=1e-8, atol=0.0)
+```
+
+Spectrally-truncated (pseudo-inverse) solver for the same system — a drop-in
+replacement for `linear_solver_cholesky` with the same arguments and the same
+return layout. Diagonalizes the kernel and inverts it only on the eigenvectors
+whose eigenvalue clears `cutoff = max(rcond * lambda_max, atol)`, projecting the
+rest away. Used by `tachys.dynamics.TDVP`: in real-time evolution the kernel is
+genuinely rank deficient (centering alone puts exact zero modes in the spectrum,
+and `2M > n_params` makes it singular by construction), and Tikhonov damping
+distorts the well-resolved directions instead of removing the unresolved ones.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `ntk` | `jax.Array` | `mode="real"`: `(..., M, M)`. `mode="complex"`: `(..., M, M, 2, 2)`. |
+| `eps` | `jax.Array` | Force vector, shape `(..., M)`; complex in `mode="complex"`. |
+| `diag_shift` | `float` | Tikhonov shift applied to the **kept** eigenvalues, `1 / (lambda + diag_shift)`. Because `diag_shift * I` is isotropic it commutes with the eigendecomposition, so the matrix is never modified. |
+| `mode` | `str` | `"real"` or `"complex"`. Default `"complex"`. |
+| `rcond` | `float` | Relative eigenvalue cutoff. Relative rather than absolute because the kernel's scale varies by orders of magnitude with ansatz, system size and step, whereas `1 / rcond` is exactly the condition number the retained subspace is capped at. |
+| `atol` | `float` | Absolute floor on the cutoff. Default `0.0`. |
+
+**Returns** `(..., M)` real, or `(..., 2*M)` real `[u, v]` in `mode="complex"` —
+matching `linear_solver_cholesky`.
+
+The keep mask reads the **raw** spectrum, before `diag_shift` is applied, so the
+two regularizers stay orthogonal: `rcond` chooses the retained subspace,
+`diag_shift` softens the amplification inside it. (Masking `lambda + diag_shift`
+instead would let a large enough shift silently switch the truncation off.) The
+mask is `lambda > cutoff`, not `|lambda| > cutoff`: the kernel is a Gram matrix,
+so a negative eigenvalue is roundoff on a signal-free direction, and inverting it
+would flip the update along that direction and amplify it by `1 / |lambda|`.
+Non-finite input degrades to a zero update, as in the Cholesky path.
+
+Note that a hard truncation makes the solution discontinuous in the parameters
+whenever an eigenvalue crosses the threshold — harmless for a fixed-step
+integrator, but it would corrupt an embedded error estimate used for step-size
+control.
+
+---
+
 #### `ntk_parallel_fn`
 
 ```python
@@ -2996,6 +3300,34 @@ unchanged.
 ---
 
 ## Exact diagonalization
+
+### `build_sparse_hamiltonian`
+
+*`tachys.lattice.exact_diag`*
+
+```python
+build_sparse_hamiltonian(state_full_hilbert, H, pack)
+```
+
+Assemble the sparse matrix of `H` in the basis enumerated by
+`state_full_hilbert`. Split out of `exact_diag` so the matrix itself is
+reachable — needed by anything that wants more than the extremal eigenpairs,
+e.g. exact real-time propagation `expm(-1j * H * t) @ psi` for validating
+`tachys.dynamics`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `state_full_hilbert` | `State` | Batch containing every basis state in the Hilbert space. |
+| `H` | `callable` | Hamiltonian operator. Must return `DiagOffdiagResult`. |
+| `pack` | `callable` | Maps a state batch to a 1-D integer index array. Must be injective. |
+
+**Returns** `(mat, sorted_active)` — a `scipy.sparse.csr_array` of shape
+`(n_active_states, n_active_states)`, and the sorted `pack` indices in the order
+the matrix rows/columns use, so
+`np.searchsorted(sorted_active, pack(some_state))` maps any state back to its
+matrix index.
+
+---
 
 ### `exact_diag`
 

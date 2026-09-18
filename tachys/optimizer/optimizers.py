@@ -114,13 +114,20 @@ def _parameter_updates(
     eps: jax.Array,
     ntk: jax.Array,
     weights: Optional[jax.Array],
+    solver: Callable = linear_solver_cholesky,
 ) -> Any:
     """Solve the linear system and map the solution back to parameter space.
 
-    Runs: cholesky solve → center → hard-shard → VJP → psum.
+    Runs: linear solve → center → hard-shard → VJP → psum.
     Returns a pytree with the same structure as wf.params.
+
+    ``solver`` is called as ``solver(ntk, eps, diag_shift, mode)`` and must return
+    the layout ``center_sr_solution`` expects: ``(M,)`` in mode="real", ``(2M,)``
+    holding ``[u, v]`` in mode="complex". Defaults to the Cholesky solver; the
+    real-time dynamics driver passes ``linear_solver_eigh`` instead (see
+    tachys.dynamics.tdvp), which regularizes by discarding small eigenvalues.
     """
-    sr_solution = linear_solver_cholesky(ntk, eps, diag_shift, mode)
+    sr_solution = solver(ntk, eps, diag_shift, mode)
     sr_solution = center_sr_solution(sr_solution, state, mode, weights)
     sr_solution = hard_shard(sr_solution)
 
