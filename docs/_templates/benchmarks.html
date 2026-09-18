@@ -1,0 +1,804 @@
+{% raw %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchmarks — Tachys</title>
+<meta name="description" content="Reference ground-state energies for lattice quantum models: select a model and a system to compare published variational wave functions.">
+<link rel="icon" href="_static/logo.svg" type="image/svg+xml">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#F7F9FD;
+  --surface:#FFFFFF;
+  --hero:#081525;
+  --navy:#0D1B2E;
+  --blue:#1A5FEB;
+  --blue-dim:#1550C8;
+  --blue-lt:#4F8EF7;
+  --violet:#7C3AED;
+  --green:#10B981;
+  --orange:#D97706;
+  --muted:#5B6E8A;
+  --border:#D4DCEB;
+  --code:#0D1B2E;
+  --text:#111827;
+  --text2:#374151;
+  --font:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,monospace;
+  --r:6px;--rl:10px;
+}
+
+html{scroll-behavior:smooth}
+body{font-family:var(--font);font-size:1rem;line-height:1.7;color:var(--text);background:var(--bg);overflow-x:hidden}
+
+h1,h2,h3,h4{color:var(--navy);line-height:1.2;text-wrap:balance;font-weight:700}
+h2{font-size:1.875rem;letter-spacing:-.02em;margin-bottom:.75rem}
+h3{font-size:1.25rem;letter-spacing:-.01em;margin-bottom:.5rem}
+p{max-width:65ch;color:var(--text2)}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+strong{font-weight:600;color:var(--navy)}
+code{font-family:var(--mono);font-size:.875em}
+
+.container{max-width:1240px;margin:0 auto;padding:0 2rem}
+
+/* ── nav ── */
+nav.top{
+  position:sticky;top:0;z-index:100;
+  background:rgba(247,249,253,.85);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid transparent;
+  height:56px;display:flex;align-items:center;
+  justify-content:space-between;padding:0 2rem;
+  transition:border-color .25s,box-shadow .25s,background .25s;
+}
+nav.top.scrolled{border-bottom-color:var(--border);box-shadow:0 4px 24px -12px rgba(13,27,46,.25)}
+.n-logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:1.05rem;color:var(--navy);letter-spacing:-.03em}
+.n-logo:hover{text-decoration:none}
+.n-logo .lm{
+  width:26px;height:26px;background:var(--blue);border-radius:5px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:5px;
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+.n-logo:hover .lm{transform:rotate(90deg)}
+.n-logo .dot{background:#fff;border-radius:50%}
+.n-links{display:flex;align-items:center;gap:1.5rem}
+.n-links a{font-size:.875rem;color:var(--muted);font-weight:500;position:relative}
+.n-links a.active{color:var(--blue)}
+.n-links a:not(.n-ver)::after{content:'';position:absolute;left:0;bottom:-4px;height:2px;width:0;background:var(--blue);transition:width .22s ease}
+.n-links a.active::after{width:100%}
+.n-links a:not(.n-ver):hover{color:var(--blue);text-decoration:none}
+.n-links a:not(.n-ver):hover::after{width:100%}
+.n-ver{font-family:var(--mono);font-size:.7rem;background:var(--border);color:var(--muted);padding:2px 8px;border-radius:100px}
+
+/* ── hero ── */
+.hero{background:var(--hero);padding:4.25rem 2rem 3.5rem;position:relative;overflow:hidden}
+#lattice{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.9}
+.hero::after{
+  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 75% 70% at 50% -10%,rgba(26,95,235,.22) 0%,transparent 62%);
+}
+.hero-in{max-width:1240px;margin:0 auto;position:relative;z-index:2;padding:0 .5rem}
+.eyebrow{
+  font-size:.75rem;font-family:var(--mono);color:var(--blue-lt);
+  letter-spacing:.1em;text-transform:uppercase;
+  margin-bottom:1rem;display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:'';width:0;height:1px;background:var(--blue-lt);animation:lineGrow .8s .1s ease forwards}
+@keyframes lineGrow{to{width:18px}}
+.hero h1{font-size:clamp(2rem,4.6vw,3rem);color:#E8EDF7;letter-spacing:-.04em;margin-bottom:.9rem;line-height:1.08}
+.hero h1 em{
+  font-style:normal;
+  background:linear-gradient(100deg,var(--blue-lt) 0%,#9Fc4ff 30%,#E8EDF7 50%,#9Fc4ff 70%,var(--blue-lt) 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:shimmer 5s linear infinite;
+}
+@keyframes shimmer{to{background-position:-220% 0}}
+.hero .lead{
+  font-size:1.05rem;color:#8B96B0;max-width:62ch;line-height:1.65;
+  opacity:0;transform:translateY(14px);animation:fadeUp .7s .35s ease forwards;
+}
+@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+
+/* ── panel ── */
+.panel-wrap{background:var(--surface);border-bottom:1px solid var(--border);padding:0 0 2.25rem}
+
+/* ── model tabs (primary) ── */
+.tabbar{border-bottom:1px solid var(--border);margin-bottom:1.5rem}
+.tabs{display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none;position:relative}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  position:relative;background:none;border:0;cursor:pointer;
+  font-family:var(--font);font-size:.95rem;font-weight:600;
+  color:var(--muted);padding:1.05rem 1.15rem;white-space:nowrap;
+  transition:color .18s;
+}
+.tab:hover{color:var(--navy)}
+.tab.on{color:var(--blue)}
+.tab .cnt{
+  font-family:var(--mono);font-size:.66rem;font-weight:700;
+  background:var(--border);color:var(--muted);
+  padding:1px 7px;border-radius:100px;margin-left:8px;
+  transition:background .18s,color .18s;
+}
+.tab.on .cnt{background:rgba(26,95,235,.12);color:var(--blue)}
+.tab-ink{
+  position:absolute;bottom:-1px;height:2px;background:var(--blue);
+  border-radius:2px 2px 0 0;left:0;width:0;
+  transition:transform .28s cubic-bezier(.2,.7,.3,1),width .28s cubic-bezier(.2,.7,.3,1);
+}
+
+/* ── system tabs (secondary) ── */
+.subtabs{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center}
+.subtabs .sub-lbl{
+  font-size:.68rem;font-family:var(--mono);color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;margin-right:.35rem;
+}
+.sub{
+  font-family:var(--mono);font-size:.78rem;font-weight:500;
+  padding:7px 13px;border-radius:100px;cursor:pointer;
+  background:var(--bg);border:1px solid var(--border);color:var(--text2);
+  transition:background .18s,border-color .18s,color .18s,transform .18s,box-shadow .2s;
+  white-space:nowrap;display:inline-flex;align-items:center;gap:8px;
+}
+.sub .dim{color:#9AA8BE;transition:color .18s}
+.sub:hover{border-color:var(--blue-lt);color:var(--blue);transform:translateY(-1px)}
+.sub.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 6px 18px -8px rgba(26,95,235,.9)}
+.sub.on .dim{color:rgba(255,255,255,.72)}
+.sub.on:hover{color:#fff;background:var(--blue-dim)}
+
+/* ── system card ── */
+.sysbar{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:2rem;
+  flex-wrap:wrap;margin-top:1.5rem;padding:1.15rem 1.35rem;
+  border:1px solid var(--border);border-radius:var(--rl);
+  background:linear-gradient(180deg,rgba(26,95,235,.045),rgba(26,95,235,0));
+}
+.sysbar h2{font-size:1.3rem;margin-bottom:.3rem}
+.ham{font-family:var(--mono);font-size:.82rem;color:var(--muted)}
+.chips{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.7rem}
+.chip{
+  font-family:var(--mono);font-size:.7rem;color:var(--muted);
+  background:var(--surface);border:1px solid var(--border);
+  padding:2px 9px;border-radius:100px;
+}
+.chip b{color:var(--navy);font-weight:600}
+
+/* ── stat tiles ── */
+.stats{display:grid;grid-template-columns:1fr 1fr 1.7fr;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-top:1.5rem}
+.st{background:var(--surface);padding:1.1rem 1.25rem;transition:background .25s}
+.st:hover{background:#FBFCFE}
+.st-k{font-size:.68rem;font-family:var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.35rem}
+.st-v{font-family:var(--mono);font-size:1.35rem;font-weight:700;color:var(--navy);letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.25}
+.st-v.hl{color:var(--blue)}
+/* the citation tile carries prose, not a figure: prose font, prose size */
+.st-v.cite{font-family:var(--font);font-size:.95rem;font-weight:600;letter-spacing:0;line-height:1.4}
+.st-v.cite a{color:var(--navy);border-bottom:1px solid var(--border);transition:color .18s,border-color .18s}
+.st-v.cite a:hover{color:var(--blue);border-bottom-color:var(--blue);text-decoration:none}
+.st-s{font-size:.75rem;color:var(--muted);margin-top:.15rem}
+
+/* ── table ── */
+.tbl-sec{padding:2.5rem 0 3.5rem}
+.tbl-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.sec-lbl{font-size:.7rem;font-family:var(--mono);color:var(--blue);letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-bottom:.35rem}
+.tools{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.search{
+  display:flex;align-items:center;gap:8px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);padding:7px 12px;
+  transition:border-color .2s,box-shadow .2s;
+}
+.search:focus-within{border-color:var(--blue-lt);box-shadow:0 0 0 3px rgba(26,95,235,.1)}
+.search svg{color:var(--muted);flex-shrink:0}
+.search input{border:0;outline:0;background:none;font-family:var(--font);font-size:.82rem;color:var(--text);width:170px}
+.tbtn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:7px 13px;
+  font-size:.8rem;font-weight:600;color:var(--text2);cursor:pointer;
+  transition:border-color .18s,color .18s,background .18s,transform .18s;
+}
+.tbtn:hover{border-color:var(--blue-lt);color:var(--blue);transform:translateY(-1px)}
+.tbtn.ok{border-color:var(--green);color:var(--green)}
+
+.tbl-box{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--rl);
+  /* clip, not hidden: `overflow:hidden` would establish a scroll container and
+     the sticky <thead> would pin itself inside the box instead of below the nav */
+  overflow:clip;
+  box-shadow:0 24px 60px -44px rgba(13,27,46,.65);
+}
+/* No overflow on .tbl-scroll here: an overflow-x:auto ancestor becomes the scroll
+   container for the sticky <thead>, which would then pin 56px *inside* the box and
+   cover the first row. It is enabled below 1180px, where the header is static. */
+table{width:100%;min-width:940px;border-collapse:collapse;font-size:.86rem;table-layout:fixed}
+/* fixed widths for the narrow columns so the reference column keeps the slack */
+th:nth-child(1){width:46px}
+th:nth-child(2){width:152px}
+th:nth-child(3){width:132px}
+th:nth-child(4){width:200px}
+th:nth-child(5){width:150px}
+th:nth-child(7){width:74px}
+thead th{
+  position:sticky;top:56px;z-index:5;
+  background:#F2F6FD;border-bottom:1px solid var(--border);
+  text-align:left;padding:.7rem .9rem;white-space:nowrap;
+  font-size:.68rem;font-family:var(--mono);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);font-weight:700;
+  cursor:pointer;user-select:none;transition:color .18s,background .18s;
+}
+thead th:hover{color:var(--blue);background:#EAF1FD}
+thead th.nosort{cursor:default}
+thead th.nosort:hover{color:var(--muted);background:#F2F6FD}
+thead th .car{opacity:0;margin-left:5px;font-size:.85em;transition:opacity .18s}
+thead th.sorted{color:var(--blue)}
+thead th.sorted .car{opacity:1}
+tbody td{padding:.62rem .9rem;border-bottom:1px solid #EDF1F8;vertical-align:middle}
+tbody tr{transition:background .16s}
+tbody tr:hover{background:#F7FAFF}
+tbody tr:last-child td{border-bottom:0}
+tbody tr.best{background:linear-gradient(90deg,rgba(16,185,129,.09),rgba(16,185,129,.02))}
+tbody tr.best:hover{background:linear-gradient(90deg,rgba(16,185,129,.14),rgba(16,185,129,.04))}
+tbody tr.tagged td:first-child{box-shadow:inset 3px 0 0 var(--blue)}
+
+.rank{font-family:var(--mono);font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.rank.top{color:var(--green);font-weight:700}
+.e{font-family:var(--mono);font-size:.9rem;font-weight:600;color:var(--navy);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.best .e{color:#047857}
+.wf{font-weight:600;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:3px}
+.kd{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.kd.NQS{background:var(--blue)}
+.kd.Hybrid{background:var(--violet)}
+.kd.Tensor{background:var(--orange)}
+.kd.Variational{background:var(--green)}
+/* no nowrap: grouped digits never break, but free-text entries such as
+   "8192 SU(2) states" must wrap instead of bleeding into the next column */
+.num{font-family:var(--mono);font-size:.8rem;color:var(--text2);font-variant-numeric:tabular-nums}
+.na{color:#9AA8BE}
+.ref{font-size:.8rem;line-height:1.45;color:var(--text2);display:block}
+.ref a{color:var(--text2);border-bottom:1px solid transparent;transition:color .18s,border-color .18s}
+.ref a:hover{color:var(--blue);border-bottom-color:var(--blue);text-decoration:none}
+.badge{
+  font-family:var(--mono);font-size:.62rem;font-weight:700;letter-spacing:.05em;
+  background:rgba(26,95,235,.1);color:var(--blue);
+  padding:1px 7px;border-radius:100px;white-space:nowrap;
+}
+.legend{display:flex;gap:1.2rem;flex-wrap:wrap;margin-top:1rem;font-size:.78rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.cap{font-size:.82rem;color:var(--muted);margin-top:1rem;max-width:none}
+.cap a{font-weight:600}
+.empty{padding:3rem 1rem;text-align:center;color:var(--muted);font-size:.9rem}
+
+/* ── contribute ── */
+.cta{
+  background:var(--hero);text-align:center;padding:4rem 2rem;
+  background-image:radial-gradient(circle,rgba(26,95,235,.10) 1px,transparent 1px);
+  background-size:26px 26px;
+}
+.cta h2{color:#E8EDF7}
+.cta p{color:#8B96B0;margin:0 auto 1.75rem;max-width:52ch}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--blue);color:#fff;padding:11px 24px;border-radius:var(--r);
+  font-size:.875rem;font-weight:600;
+  transition:background .15s,transform .15s,box-shadow .2s;
+  box-shadow:0 6px 20px -8px rgba(26,95,235,.8);margin:0 6px 10px;
+}
+.btn:hover{background:var(--blue-dim);text-decoration:none;transform:translateY(-2px)}
+.btn .arr{transition:transform .2s}
+.btn:hover .arr{transform:translateX(4px)}
+.btn.ghost{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);box-shadow:none}
+.btn.ghost:hover{background:rgba(255,255,255,.12)}
+
+footer{background:var(--navy);color:#4A5E7A;padding:2.5rem 2rem;text-align:center;font-size:.875rem}
+footer a{color:#6B7FA0}
+
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+.reveal[data-d="1"]{transition-delay:.08s}
+.reveal[data-d="2"]{transition-delay:.16s}
+.reveal[data-d="3"]{transition-delay:.24s}
+
+@media(max-width:1180px){
+  .tbl-scroll{overflow-x:auto}
+  thead th{position:static}
+}
+@media(max-width:980px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .st:last-child{grid-column:1/-1}
+}
+@media(max-width:768px){
+  .tab{font-size:.875rem;padding:.9rem .8rem}
+  .subtabs .sub-lbl{width:100%;margin-bottom:.1rem}
+  .n-links a:not(.n-ver){display:none}
+  .hero{padding:3rem 1.5rem 2.5rem}
+  .container{padding:0 1.25rem}
+}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+  #lattice{display:none}
+  .hero .lead{opacity:1;transform:none}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="top" id="nav">
+  <a href="index.html" class="n-logo">
+    <span class="lm">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </span>
+    tachys
+  </a>
+  <div class="n-links">
+    <a href="quickstart.html">Quickstart</a>
+    <a href="concepts.html">Concepts</a>
+    <a href="foundation_models.html">Foundation Models</a>
+    <a href="benchmarks.html" class="active">Benchmarks</a>
+    <a href="api.html">API</a>
+    <a href="https://github.com/tachys-dev/tachys">GitHub</a>
+    <span class="n-ver">v0.1.0</span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas id="lattice"></canvas>
+  <div class="hero-in">
+    <div class="eyebrow">Variational Benchmarks</div>
+    <h1>Reference energies for <em>quantum lattice models.</em></h1>
+    <p class="lead">
+      Ground-state energies collected from the literature. Select a model and a system to
+      compare every published variational wave function side by side. Energies are reproduced
+      as printed in the cited work; parenthesised digits are statistical errors on the last digit.
+    </p>
+  </div>
+</section>
+
+<!-- TABS -->
+<div class="panel-wrap">
+  <div class="container">
+    <div class="tabbar">
+      <div class="tabs" id="tabs" role="tablist"><span class="tab-ink" id="ink"></span></div>
+    </div>
+    <div class="subtabs" id="subtabs" role="tablist"></div>
+
+    <div class="sysbar" id="sysbar"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+</div>
+
+<!-- TABLE -->
+<section class="tbl-sec">
+  <div class="container">
+    <div class="tbl-head">
+      <div>
+        <div class="sec-lbl">Leaderboard</div>
+        <h2 id="tbl-title">Ground-state energy</h2>
+      </div>
+      <div class="tools">
+        <label class="search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="q" type="search" placeholder="Filter wave function…" autocomplete="off">
+        </label>
+        <button class="tbtn" id="btn-csv">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
+          CSV
+        </button>
+        <button class="tbtn" id="btn-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+          <span id="btn-link-t">Copy link</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="tbl-box">
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="nosort">#</th>
+              <th data-sort="energy" class="sorted">Energy per site <span class="car">▲</span></th>
+              <th data-sort="variance">Variance <span class="car">▲</span></th>
+              <th data-sort="wf">Wave function <span class="car">▲</span></th>
+              <th data-sort="params"># parameters <span class="car">▲</span></th>
+              <th class="nosort">Reference</th>
+              <th data-sort="year">Year <span class="car">▲</span></th>
+            </tr>
+          </thead>
+          <tbody id="tb"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i class="kd NQS" style="display:inline-block"></i> Neural quantum state</span>
+      <span><i class="kd Hybrid" style="display:inline-block"></i> Hybrid</span>
+      <span><i class="kd Tensor" style="display:inline-block"></i> Tensor network</span>
+      <span><i class="kd Variational" style="display:inline-block"></i> Variational (Gutzwiller)</span>
+    </div>
+    <p class="cap" id="cap"></p>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <h2>Missing a result?</h2>
+  <p>The benchmark database is a single data file. Add a table for a new model, geometry or size and it appears here automatically.</p>
+  <div>
+    <a href="https://github.com/tachys-dev/tachys" class="btn">Contribute a benchmark <span class="arr">→</span></a>
+    <a href="quickstart.html" class="btn ghost">Run it with tachys</a>
+  </div>
+</section>
+
+<footer>
+  <p>Tachys v0.1.0 — Built on <a href="https://jax.dev">JAX</a> and <a href="https://flax.readthedocs.io">Flax</a> · <a href="https://github.com/tachys-dev/tachys">GitHub</a></p>
+  <p style="margin-top:.4rem;font-size:.75rem">Energies are reproduced from the cited publications; follow the reference for the original numbers.</p>
+</footer>
+
+<script src="_static/benchmarks-data.js"></script>
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var DATA = (typeof BENCHMARKS !== 'undefined') ? BENCHMARKS : [];
+
+  /* ── nav elevation ── */
+  var nav = document.getElementById('nav');
+  function onScroll(){ nav.classList.toggle('scrolled', window.scrollY > 8); }
+  onScroll(); window.addEventListener('scroll', onScroll, {passive:true});
+
+  /* ── selection state ── */
+  var sel = {model:null, lattice:null, size:null, point:null};
+  var sort = {key:'energy', dir:1};   // dir: 1 = ascending
+  var query = '';
+
+  var LEVELS = ['model','lattice','size','point'];
+
+  function models(){
+    var out = [], seen = {};
+    DATA.forEach(function(t){ if(!seen[t.model]){ seen[t.model] = 1; out.push(t.model); } });
+    return out;
+  }
+  /* every (lattice, size, point) table published for the active model */
+  function systems(){
+    return DATA.filter(function(t){ return t.model === sel.model; });
+  }
+  function current(){
+    var p = DATA.filter(function(t){
+      return LEVELS.every(function(k){ return sel[k] === null || t[k] === sel[k]; });
+    });
+    return p[0] || null;
+  }
+  /* repair the selection so it always points at an existing table */
+  function normalize(){
+    if(models().indexOf(sel.model) === -1) sel.model = models()[0] || null;
+    var sys = systems();
+    var hit = sys.filter(function(t){
+      return ['lattice','size','point'].every(function(k){ return sel[k] === null || t[k] === sel[k]; });
+    })[0] || sys[0];
+    ['lattice','size','point'].forEach(function(k){ sel[k] = hit ? hit[k] : null; });
+  }
+
+  /* ── tabs ── */
+  function renderTabs(){
+    var bar = document.getElementById('tabs');
+    var ink = document.getElementById('ink');
+    bar.querySelectorAll('.tab').forEach(function(el){ el.remove(); });
+
+    models().forEach(function(m){
+      var n = DATA.filter(function(t){ return t.model === m; }).length;
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'tab' + (m === sel.model ? ' on' : '');
+      b.setAttribute('role','tab');
+      b.setAttribute('aria-selected', m === sel.model ? 'true' : 'false');
+      b.innerHTML = m + '<span class="cnt">' + n + '</span>';
+      b.addEventListener('click', function(){
+        if(sel.model === m) return;
+        sel.model = m;
+        ['lattice','size','point'].forEach(function(k){ sel[k] = null; });
+        normalize(); writeHash(); render();
+      });
+      bar.appendChild(b);
+    });
+
+    /* slide the underline to the active tab */
+    var on = bar.querySelector('.tab.on');
+    if(on){
+      ink.style.width = on.offsetWidth + 'px';
+      ink.style.transform = 'translateX(' + on.offsetLeft + 'px)';
+    } else {
+      ink.style.width = '0';
+    }
+
+    var sub = document.getElementById('subtabs');
+    var sys = systems();
+    sub.innerHTML = sys.length > 1 ? '<span class="sub-lbl">System</span>' : '';
+    sys.forEach(function(t){
+      var isOn = t.lattice === sel.lattice && t.size === sel.size && t.point === sel.point;
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'sub' + (isOn ? ' on' : '');
+      b.setAttribute('role','tab');
+      b.setAttribute('aria-selected', isOn ? 'true' : 'false');
+      b.innerHTML = t.lattice + ' ' + t.size + '<span class="dim">' + t.point + '</span>';
+      b.addEventListener('click', function(){
+        sel.lattice = t.lattice; sel.size = t.size; sel.point = t.point;
+        writeHash(); render();
+      });
+      sub.appendChild(b);
+    });
+  }
+
+  /* ── helpers ── */
+  function nParams(v){
+    var n = parseInt(String(v).replace(/[^0-9]/g,''), 10);
+    return isNaN(n) ? -1 : n;
+  }
+  function fmtParams(v){
+    if(!v) return '<span class="na">not available</span>';
+    var n = parseInt(v, 10);
+    if(String(n) === String(v).trim()) return n.toLocaleString('en-US');
+    return v;
+  }
+  /* variance is optional: rows without one show an em dash and sort last */
+  function fmtVar(v){
+    return (v === undefined || v === null || v === '') ? '<span class="na">—</span>' : v;
+  }
+  function vNum(r){
+    var v = parseFloat(String(r.variance == null ? '' : r.variance).replace(/[^0-9.eE+-]/g,''));
+    return isNaN(v) ? Infinity : v;
+  }
+  function kindClass(k){ return k === 'Tensor network' ? 'Tensor' : (k || 'NQS').replace(/\s+/g,''); }
+
+  /* ── main render ── */
+  function render(){
+    var t = current();
+    renderTabs();
+
+    var sysbar = document.getElementById('sysbar');
+    var stats  = document.getElementById('stats');
+    var tb     = document.getElementById('tb');
+
+    if(!t){
+      sysbar.innerHTML = '<div><h2>No data</h2><p class="ham">No benchmark table matches this selection.</p></div>';
+      stats.innerHTML = ''; tb.innerHTML = '<tr><td colspan="7" class="empty">Nothing to show.</td></tr>';
+      return;
+    }
+
+    /* system card */
+    sysbar.innerHTML =
+      '<div>' +
+        '<h2>' + t.model + ' · ' + t.lattice + ' · ' + t.size + '</h2>' +
+        '<div class="ham">' + (t.hamiltonian || '') + '</div>' +
+        '<div class="chips">' +
+          '<span class="chip"><b>N</b> = ' + t.sites + ' sites</span>' +
+          '<span class="chip"><b>' + t.point + '</b></span>' +
+          '<span class="chip">' + (t.boundary || '—') + ' boundaries</span>' +
+          '<span class="chip">' + t.rows.length + ' entries</span>' +
+        '</div>' +
+      '</div>' +
+      (t.source ? '<div style="text-align:right;font-size:.78rem;color:var(--muted);max-width:30ch">' +
+        'Table compiled from<br><a href="' + t.source.url + '" target="_blank" rel="noopener">' + t.source.cite + '</a></div>' : '');
+
+    /* ranking is always by energy, independent of the display sort */
+    var byE = t.rows.slice().sort(function(a,b){ return a.energy - b.energy; });
+    var best = byE[0];
+    byE.forEach(function(r,i){ r._rank = i + 1; });
+
+    document.getElementById('tbl-title').textContent = t.quantity + ' — ' + t.lattice + ' ' + t.size;
+
+    stats.innerHTML =
+      tile('Best energy / site', '<span class="hl">' + best.display + '</span>', best.wf) +
+      tile('Best · N·E', (best.energy * t.sites).toFixed(4).replace('-','−'), 'total energy, ' + t.sites + ' sites') +
+      tile('Reference',
+           (best.url ? '<a href="' + best.url + '" target="_blank" rel="noopener">' + best.ref + '</a>' : best.ref),
+           best.wf + ' · ' + best.year, 'cite');
+
+    /* rows */
+    var rows = t.rows.filter(function(r){
+      if(!query) return true;
+      var hay = (r.wf + ' ' + r.ref + ' ' + r.kind + ' ' + r.year).toLowerCase();
+      return hay.indexOf(query) !== -1;
+    });
+
+    var key = sort.key, dir = sort.dir;
+    rows.sort(function(a,b){
+      var x, y;
+      if(key === 'energy'){ x = a.energy; y = b.energy; }
+      else if(key === 'variance'){ x = vNum(a); y = vNum(b); }
+      else if(key === 'params'){ x = nParams(a.params); y = nParams(b.params); }
+      else if(key === 'year'){ x = a.year; y = b.year; }
+      else { x = String(a[key] || '').toLowerCase(); y = String(b[key] || '').toLowerCase(); }
+      if(x < y) return -dir;
+      if(x > y) return dir;
+      return a.energy - b.energy;
+    });
+
+    tb.innerHTML = rows.length ? rows.map(function(r){
+      var isBest = r._rank === 1;
+      return '<tr class="' + (isBest ? 'best ' : '') + (r.tag ? 'tagged' : '') + '">' +
+        '<td class="rank' + (isBest ? ' top' : '') + '">' + r._rank + '</td>' +
+        '<td class="e">' + r.display + '</td>' +
+        '<td class="num">' + fmtVar(r.variance) + '</td>' +
+        '<td><span class="wf">' + '<i class="kd ' + kindClass(r.kind) + '" title="' + r.kind + '"></i>' + r.wf +
+            (r.tag ? '<span class="badge">' + r.tag + '</span>' : '') + '</span></td>' +
+        '<td class="num">' + fmtParams(r.params) + '</td>' +
+        '<td><span class="ref">' + (r.url ? '<a href="' + r.url + '" target="_blank" rel="noopener">' + r.ref + '</a>' : r.ref) + '</span></td>' +
+        '<td class="num">' + r.year + '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="7" class="empty">No wave function matches “' + query + '”.</td></tr>';
+
+    document.getElementById('cap').innerHTML = (t.note || '') +
+      (t.source ? ' <a href="' + t.source.url + '" target="_blank" rel="noopener">Open the source paper →</a>' : '');
+
+    /* header state */
+    document.querySelectorAll('thead th[data-sort]').forEach(function(th){
+      var on = th.getAttribute('data-sort') === sort.key;
+      th.classList.toggle('sorted', on);
+      var car = th.querySelector('.car');
+      if(car) car.textContent = sort.dir === 1 ? '▲' : '▼';
+    });
+  }
+
+  function tile(k, v, s, cls){
+    return '<div class="st"><div class="st-k">' + k + '</div>' +
+           '<div class="st-v' + (cls ? ' ' + cls : '') + '">' + v + '</div>' +
+           '<div class="st-s">' + s + '</div></div>';
+  }
+
+  /* ── sorting ── */
+  document.querySelectorAll('thead th[data-sort]').forEach(function(th){
+    th.addEventListener('click', function(){
+      var k = th.getAttribute('data-sort');
+      if(sort.key === k) sort.dir = -sort.dir;
+      else { sort.key = k; sort.dir = 1; }
+      render();
+    });
+  });
+
+  /* ── search ── */
+  document.getElementById('q').addEventListener('input', function(e){
+    query = e.target.value.trim().toLowerCase();
+    render();
+  });
+
+  /* ── CSV export ── */
+  document.getElementById('btn-csv').addEventListener('click', function(){
+    var t = current(); if(!t) return;
+    var esc = function(v){ return '"' + String(v).replace(/"/g,'""') + '"'; };
+    var head = ['rank','energy_per_site','variance','wave_function','class','n_parameters','reference','url','year'];
+    var body = t.rows.slice().sort(function(a,b){ return a.energy - b.energy; }).map(function(r,i){
+      return [i+1, r.display.replace('−','-'), r.variance || '', r.wf, r.kind, r.params || 'n/a', r.ref, r.url || '', r.year].map(esc).join(',');
+    });
+    var csv = head.map(esc).join(',') + '\n' + body.join('\n');
+    var name = [t.model, t.lattice, t.size, t.point].join('_').replace(/[^A-Za-z0-9._-]+/g,'-') + '.csv';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+    a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  });
+
+  /* ── deep links ── */
+  function writeHash(){
+    var h = LEVELS.map(function(k){ return encodeURIComponent(sel[k] || ''); }).join('/');
+    if(('#' + h) !== location.hash) history.replaceState(null, '', '#' + h);
+  }
+  function readHash(){
+    /* split first, decode after: values such as "J2/J1 = 0.5" carry an escaped
+       slash, and decoding up front would turn it into a segment separator */
+    var parts = location.hash.replace(/^#/,'').split('/');
+    LEVELS.forEach(function(k,i){ sel[k] = parts[i] ? decodeURIComponent(parts[i]) : null; });
+  }
+  document.getElementById('btn-link').addEventListener('click', function(){
+    var btn = this, lbl = document.getElementById('btn-link-t');
+    var done = function(){ btn.classList.add('ok'); lbl.textContent = 'Copied'; setTimeout(function(){ btn.classList.remove('ok'); lbl.textContent = 'Copy link'; }, 1400); };
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(location.href).then(done, done);
+    else done();
+  });
+  window.addEventListener('hashchange', function(){ readHash(); normalize(); render(); });
+
+  /* ── boot ── */
+  readHash(); normalize(); writeHash(); render();
+
+  /* the tab underline is positioned in pixels, so re-measure when the bar reflows */
+  var inkT;
+  window.addEventListener('resize', function(){ clearTimeout(inkT); inkT = setTimeout(renderTabs, 120); }, {passive:true});
+
+  /* ── scroll reveal ── */
+  var revs = document.querySelectorAll('.reveal');
+  if(reduce || !('IntersectionObserver' in window)){
+    revs.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, {threshold:0.12, rootMargin:'0px 0px -8% 0px'});
+    revs.forEach(function(el){ io.observe(el); });
+  }
+
+  /* ── hero quantum-lattice canvas (shared with the landing page) ── */
+  var canvas = document.getElementById('lattice');
+  if(canvas && !reduce){
+    var ctx = canvas.getContext('2d');
+    var W, H, DPR, cols, rows, gap, nodes, offX, offY, t = 0, raf;
+    var C_UP = [79,142,247], C_DN = [124,58,237], C_BASE = [40,64,104];
+
+    function build(){
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      var rect = canvas.getBoundingClientRect();
+      W = rect.width; H = rect.height;
+      canvas.width = W*DPR; canvas.height = H*DPR;
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+      gap = Math.max(38, Math.min(56, W/22));
+      cols = Math.ceil(W/gap)+2;
+      rows = Math.ceil(H/gap)+2;
+      offX = (W - (cols-1)*gap)/2;
+      offY = (H - (rows-1)*gap)/2;
+      nodes = [];
+      for(var i=0;i<cols;i++){
+        for(var j=0;j<rows;j++){
+          nodes.push({x: offX + i*gap, y: offY + j*gap, phase: Math.random()*Math.PI*2,
+                      speed: 0.2 + Math.random()*0.5, up: Math.random() > 0.5});
+        }
+      }
+    }
+    function rgba(c,a){ return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')'; }
+
+    function draw(){
+      t += 0.01;
+      ctx.clearRect(0,0,W,H);
+      var e1x = W*(0.5 + 0.42*Math.sin(t*0.35)), e1y = H*(0.4 + 0.35*Math.cos(t*0.27));
+      var e2x = W*(0.5 + 0.40*Math.cos(t*0.22+2)), e2y = H*(0.55 + 0.30*Math.sin(t*0.31+1));
+
+      ctx.lineWidth = 1;
+      for(var i=0;i<cols;i++){
+        for(var j=0;j<rows;j++){
+          var n = nodes[i*rows + j];
+          if(i < cols-1) link(n, nodes[(i+1)*rows + j]);
+          if(j < rows-1) link(n, nodes[i*rows + (j+1)]);
+        }
+      }
+      for(var k=0;k<nodes.length;k++){
+        var p = nodes[k];
+        var d1 = Math.hypot(p.x-e1x, p.y-e1y), d2 = Math.hypot(p.x-e2x, p.y-e2y);
+        var glow = Math.min(Math.max(0, 1 - d1/210) + Math.max(0, 1 - d2/210), 1);
+        var pulse = 0.5 + 0.5*Math.sin(t*p.speed + p.phase);
+        var col = p.up ? C_UP : C_DN;
+        var a = 0.18 + 0.12*pulse + glow*0.75;
+        var r = 1.6 + glow*2.4 + pulse*0.5;
+        if(glow > 0.02){
+          ctx.beginPath(); ctx.fillStyle = rgba(col, glow*0.12);
+          ctx.arc(p.x, p.y, r*3.4, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.beginPath(); ctx.fillStyle = rgba(glow>0.15 ? col : C_BASE, a);
+        ctx.arc(p.x, p.y, r, 0, Math.PI*2); ctx.fill();
+      }
+      raf = requestAnimationFrame(draw);
+
+      function link(a,b){
+        var mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+        var d1=Math.hypot(mx-e1x,my-e1y), d2=Math.hypot(mx-e2x,my-e2y);
+        var g=Math.max(0,1-d1/200)+Math.max(0,1-d2/200);
+        ctx.strokeStyle = g<0.04 ? rgba(C_BASE,0.05) : rgba(C_UP, Math.min(g,1)*0.28);
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      }
+    }
+    var rt;
+    window.addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(build, 150); }, {passive:true});
+    build(); draw();
+    document.addEventListener('visibilitychange', function(){
+      if(document.hidden){ cancelAnimationFrame(raf); } else { raf = requestAnimationFrame(draw); }
+    });
+  }
+})();
+</script>
+
+</body>
+</html>{% endraw %}

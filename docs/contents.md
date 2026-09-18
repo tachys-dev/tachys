@@ -9,6 +9,12 @@ html_theme.sidebar_secondary.remove: true
 Looking for the project overview? Head back to the <a href="index.html">Tachys homepage</a>.
 ```
 
+```{admonition} Benchmarks
+:class: tip
+Reference variational energies for frustrated lattice models — pick a model, a
+lattice geometry and a size on the <a href="benchmarks.html">benchmarks page</a>.
+```
+
 **Tachys** is a JAX library for quantum many-body physics on lattices.
 It treats operators as first-class callables — compose them algebraically,
 apply them to batched states, and run exact diagonalization on any Hamiltonian
@@ -42,5 +48,3 @@ concepts
 foundation_models
 api
 ```
-</content>
-</invoke>
