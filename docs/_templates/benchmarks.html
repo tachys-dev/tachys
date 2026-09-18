@@ -6,6 +6,10 @@
 <title>Benchmarks — Tachys</title>
 <meta name="description" content="Reference ground-state energies for lattice quantum models: select a model and a system to compare published variational wave functions.">
 <link rel="icon" href="_static/logo.svg" type="image/svg+xml">
+<!-- MathJax typesets the Hamiltonian in the system card. Same CDN and major
+     version Sphinx loads on the rest of the site. It is optional: if the CDN is
+     unreachable (offline), the plain-text formula stays in place. -->
+<script id="mjx" defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -103,6 +107,9 @@ nav.top.scrolled{border-bottom-color:var(--border);box-shadow:0 4px 24px -12px r
   opacity:0;transform:translateY(14px);animation:fadeUp .7s .35s ease forwards;
 }
 @keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+/* links on the dark hero need the light blue: --blue is unreadable on --hero */
+.hero .lead a{color:var(--blue-lt);border-bottom:1px solid rgba(79,142,247,.35);transition:border-color .18s}
+.hero .lead a:hover{text-decoration:none;border-bottom-color:var(--blue-lt)}
 
 /* ── panel ── */
 .panel-wrap{background:var(--surface);border-bottom:1px solid var(--border);padding:0 0 2.25rem}
@@ -133,11 +140,15 @@ nav.top.scrolled{border-bottom-color:var(--border);box-shadow:0 4px 24px -12px r
 }
 
 /* ── system tabs (secondary) ── */
-.subtabs{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center}
-.subtabs .sub-lbl{
-  font-size:.68rem;font-family:var(--mono);color:var(--muted);
-  letter-spacing:.1em;text-transform:uppercase;margin-right:.35rem;
+.subtabs{display:flex;flex-direction:column;gap:.5rem}
+.sysrow{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center}
+/* fixed label column so the pills of every lattice start on the same edge */
+.sys-lbl{
+  flex:0 0 auto;min-width:14rem;display:inline-flex;align-items:baseline;gap:.5rem;
+  font-size:.7rem;font-family:var(--mono);color:var(--muted);letter-spacing:.08em;
 }
+.sys-lbl b{color:var(--navy);font-weight:700;text-transform:uppercase}
+.sys-lbl .pt{color:#9AA8BE;letter-spacing:0}
 .sub{
   font-family:var(--mono);font-size:.78rem;font-weight:500;
   padding:7px 13px;border-radius:100px;cursor:pointer;
@@ -145,65 +156,50 @@ nav.top.scrolled{border-bottom-color:var(--border);box-shadow:0 4px 24px -12px r
   transition:background .18s,border-color .18s,color .18s,transform .18s,box-shadow .2s;
   white-space:nowrap;display:inline-flex;align-items:center;gap:8px;
 }
-.sub .dim{color:#9AA8BE;transition:color .18s}
+.sub{min-width:5.5rem;justify-content:center}
 .sub:hover{border-color:var(--blue-lt);color:var(--blue);transform:translateY(-1px)}
 .sub.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 6px 18px -8px rgba(26,95,235,.9)}
-.sub.on .dim{color:rgba(255,255,255,.72)}
 .sub.on:hover{color:#fff;background:var(--blue-dim)}
 
 /* ── system card ── */
 .sysbar{
-  display:flex;align-items:flex-start;justify-content:space-between;gap:2rem;
-  flex-wrap:wrap;margin-top:1.5rem;padding:1.15rem 1.35rem;
+  margin-top:1.5rem;padding:1.2rem 1.4rem;
   border:1px solid var(--border);border-radius:var(--rl);
   background:linear-gradient(180deg,rgba(26,95,235,.045),rgba(26,95,235,0));
 }
-.sysbar h2{font-size:1.3rem;margin-bottom:.3rem}
-.ham{font-family:var(--mono);font-size:.82rem;color:var(--muted)}
-.chips{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.7rem}
-.chip{
-  font-family:var(--mono);font-size:.7rem;color:var(--muted);
-  background:var(--surface);border:1px solid var(--border);
-  padding:2px 9px;border-radius:100px;
+.sysbar h2{font-size:1.3rem;margin-bottom:0}
+/* the Hamiltonian is the one piece of real notation here: give it its own
+   panel so it does not read as a caption under the title */
+.ham-box{
+  display:inline-flex;align-items:center;gap:1.1rem;flex-wrap:wrap;max-width:100%;
+  margin:.85rem 0 .9rem;padding:.6rem .95rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
 }
-.chip b{color:var(--navy);font-weight:600}
+.ham-lbl{
+  flex:0 0 auto;font-size:.62rem;font-family:var(--mono);color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;
+}
+.ham{font-family:var(--mono);font-size:.82rem;color:var(--muted)}
+.ham mjx-container{font-size:1.05rem;color:var(--navy)}
+.ham mjx-container[display]{margin:0;text-align:left}
+/* key-value chips: the label says what the number is, so nothing is guesswork */
+.chips{display:flex;gap:.45rem;flex-wrap:wrap}
+.chip{
+  display:inline-flex;align-items:baseline;gap:.5rem;
+  background:var(--surface);border:1px solid var(--border);
+  padding:4px 11px;border-radius:100px;
+}
+.chip .k{
+  font-size:.62rem;font-family:var(--mono);color:var(--muted);
+  letter-spacing:.08em;text-transform:uppercase;
+}
+.chip b{font-family:var(--mono);font-size:.78rem;color:var(--navy);font-weight:600}
 
-/* ── stat tiles ── */
-.stats{display:grid;grid-template-columns:1fr 1fr 1.7fr;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-top:1.5rem}
-.st{background:var(--surface);padding:1.1rem 1.25rem;transition:background .25s}
-.st:hover{background:#FBFCFE}
-.st-k{font-size:.68rem;font-family:var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.35rem}
-.st-v{font-family:var(--mono);font-size:1.35rem;font-weight:700;color:var(--navy);letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.25}
-.st-v.hl{color:var(--blue)}
-/* the citation tile carries prose, not a figure: prose font, prose size */
-.st-v.cite{font-family:var(--font);font-size:.95rem;font-weight:600;letter-spacing:0;line-height:1.4}
-.st-v.cite a{color:var(--navy);border-bottom:1px solid var(--border);transition:color .18s,border-color .18s}
-.st-v.cite a:hover{color:var(--blue);border-bottom-color:var(--blue);text-decoration:none}
-.st-s{font-size:.75rem;color:var(--muted);margin-top:.15rem}
 
 /* ── table ── */
 .tbl-sec{padding:2.5rem 0 3.5rem}
 .tbl-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem}
 .sec-lbl{font-size:.7rem;font-family:var(--mono);color:var(--blue);letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-bottom:.35rem}
-.tools{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
-.search{
-  display:flex;align-items:center;gap:8px;background:var(--surface);
-  border:1px solid var(--border);border-radius:var(--r);padding:7px 12px;
-  transition:border-color .2s,box-shadow .2s;
-}
-.search:focus-within{border-color:var(--blue-lt);box-shadow:0 0 0 3px rgba(26,95,235,.1)}
-.search svg{color:var(--muted);flex-shrink:0}
-.search input{border:0;outline:0;background:none;font-family:var(--font);font-size:.82rem;color:var(--text);width:170px}
-.tbtn{
-  display:inline-flex;align-items:center;gap:6px;
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r);padding:7px 13px;
-  font-size:.8rem;font-weight:600;color:var(--text2);cursor:pointer;
-  transition:border-color .18s,color .18s,background .18s,transform .18s;
-}
-.tbtn:hover{border-color:var(--blue-lt);color:var(--blue);transform:translateY(-1px)}
-.tbtn.ok{border-color:var(--green);color:var(--green)}
-
 .tbl-box{
   background:var(--surface);border:1px solid var(--border);
   border-radius:var(--rl);
@@ -244,17 +240,25 @@ tbody tr:last-child td{border-bottom:0}
 tbody tr.best{background:linear-gradient(90deg,rgba(16,185,129,.09),rgba(16,185,129,.02))}
 tbody tr.best:hover{background:linear-gradient(90deg,rgba(16,185,129,.14),rgba(16,185,129,.04))}
 tbody tr.tagged td:first-child{box-shadow:inset 3px 0 0 var(--blue)}
+tbody tr.tachys{background:linear-gradient(90deg,rgba(26,95,235,.07),rgba(26,95,235,0))}
+tbody tr.tachys:hover{background:linear-gradient(90deg,rgba(26,95,235,.12),rgba(26,95,235,.02))}
+tbody tr.tachys td:first-child{box-shadow:inset 2px 0 0 var(--blue-lt)}
+tr.tachys .e{color:var(--blue-dim)}
 
 .rank{font-family:var(--mono);font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .rank.top{color:var(--green);font-weight:700}
 .e{font-family:var(--mono);font-size:.9rem;font-weight:600;color:var(--navy);font-variant-numeric:tabular-nums;white-space:nowrap}
 tr.best .e{color:#047857}
-.wf{font-weight:600;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:3px}
-.kd{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.wf{font-weight:600;color:var(--navy);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;row-gap:3px}
+.wf-n{flex:1 1 0;min-width:0}
+.kd{width:7px;height:7px;border-radius:50%;flex-shrink:0;align-self:center}
 .kd.NQS{background:var(--blue)}
 .kd.Hybrid{background:var(--violet)}
 .kd.Tensor{background:var(--orange)}
 .kd.Variational{background:var(--green)}
+/* not a variational energy: an extrapolation of one, so it gets its own key */
+.kd.Extrapolation{background:var(--muted);border-radius:1px;transform:rotate(45deg)}
+.kd.Projector{background:transparent;box-shadow:inset 0 0 0 2px var(--blue)}
 /* no nowrap: grouped digits never break, but free-text entries such as
    "8192 SU(2) states" must wrap instead of bleeding into the next column */
 .num{font-family:var(--mono);font-size:.8rem;color:var(--text2);font-variant-numeric:tabular-nums}
@@ -267,10 +271,12 @@ tr.best .e{color:#047857}
   background:rgba(26,95,235,.1);color:var(--blue);
   padding:1px 7px;border-radius:100px;white-space:nowrap;
 }
+.tachys-mark{
+  font-family:var(--mono);font-size:.62rem;font-weight:500;letter-spacing:.04em;
+  color:var(--blue);opacity:.8;white-space:nowrap;cursor:default;
+}
 .legend{display:flex;gap:1.2rem;flex-wrap:wrap;margin-top:1rem;font-size:.78rem;color:var(--muted)}
 .legend span{display:inline-flex;align-items:center;gap:7px}
-.cap{font-size:.82rem;color:var(--muted);margin-top:1rem;max-width:none}
-.cap a{font-weight:600}
 .empty{padding:3rem 1rem;text-align:center;color:var(--muted);font-size:.9rem}
 
 /* ── contribute ── */
@@ -307,13 +313,9 @@ footer a{color:#6B7FA0}
   .tbl-scroll{overflow-x:auto}
   thead th{position:static}
 }
-@media(max-width:980px){
-  .stats{grid-template-columns:repeat(2,1fr)}
-  .st:last-child{grid-column:1/-1}
-}
 @media(max-width:768px){
   .tab{font-size:.875rem;padding:.9rem .8rem}
-  .subtabs .sub-lbl{width:100%;margin-bottom:.1rem}
+  .sys-lbl{width:100%;margin-bottom:.1rem}
   .n-links a:not(.n-ver){display:none}
   .hero{padding:3rem 1.5rem 2.5rem}
   .container{padding:0 1.25rem}
@@ -357,9 +359,10 @@ footer a{color:#6B7FA0}
     <div class="eyebrow">Variational Benchmarks</div>
     <h1>Reference energies for <em>quantum lattice models.</em></h1>
     <p class="lead">
-      Ground-state energies collected from the literature. Select a model and a system to
-      compare every published variational wave function side by side. Energies are reproduced
-      as printed in the cited work; parenthesised digits are statistical errors on the last digit.
+      Ground-state energies collected from the literature. Parenthesised digits are statistical
+      errors on the last digit. To have a new result added, email
+      <a href="mailto:rrende@flatironinstitute.org">rrende@flatironinstitute.org</a> or
+      <a href="mailto:luciano.viteritti@epfl.ch">luciano.viteritti@epfl.ch</a>.
     </p>
   </div>
 </section>
@@ -370,10 +373,9 @@ footer a{color:#6B7FA0}
     <div class="tabbar">
       <div class="tabs" id="tabs" role="tablist"><span class="tab-ink" id="ink"></span></div>
     </div>
-    <div class="subtabs" id="subtabs" role="tablist"></div>
+    <div class="subtabs" id="subtabs"></div>
 
     <div class="sysbar" id="sysbar"></div>
-    <div class="stats" id="stats"></div>
   </div>
 </div>
 
@@ -384,20 +386,6 @@ footer a{color:#6B7FA0}
       <div>
         <div class="sec-lbl">Leaderboard</div>
         <h2 id="tbl-title">Ground-state energy</h2>
-      </div>
-      <div class="tools">
-        <label class="search">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input id="q" type="search" placeholder="Filter wave function…" autocomplete="off">
-        </label>
-        <button class="tbtn" id="btn-csv">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
-          CSV
-        </button>
-        <button class="tbtn" id="btn-link">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
-          <span id="btn-link-t">Copy link</span>
-        </button>
       </div>
     </div>
 
@@ -425,15 +413,15 @@ footer a{color:#6B7FA0}
       <span><i class="kd Hybrid" style="display:inline-block"></i> Hybrid</span>
       <span><i class="kd Tensor" style="display:inline-block"></i> Tensor network</span>
       <span><i class="kd Variational" style="display:inline-block"></i> Variational (Gutzwiller)</span>
+      <span><i class="kd Projector" style="display:inline-block"></i> Projected (GFMC)</span>
+      <span><i class="kd Extrapolation" style="display:inline-block"></i> Zero-variance extrapolation</span>
     </div>
-    <p class="cap" id="cap"></p>
   </div>
 </section>
 
 <!-- CTA -->
 <section class="cta">
   <h2>Missing a result?</h2>
-  <p>The benchmark database is a single data file. Add a table for a new model, geometry or size and it appears here automatically.</p>
   <div>
     <a href="https://github.com/tachys-dev/tachys" class="btn">Contribute a benchmark <span class="arr">→</span></a>
     <a href="quickstart.html" class="btn ghost">Run it with tachys</a>
@@ -457,18 +445,19 @@ footer a{color:#6B7FA0}
   onScroll(); window.addEventListener('scroll', onScroll, {passive:true});
 
   /* ── selection state ── */
-  var sel = {model:null, lattice:null, size:null, point:null};
+  var sel = {model:null, lattice:null, size:null, point:null, boundary:null};
   var sort = {key:'energy', dir:1};   // dir: 1 = ascending
-  var query = '';
 
-  var LEVELS = ['model','lattice','size','point'];
+  /* A published table is identified by all five: the 16x16 Hubbard model at
+     t' = 0 exists under both open and periodic boundaries. */
+  var LEVELS = ['model','lattice','size','point','boundary'];
 
   function models(){
     var out = [], seen = {};
     DATA.forEach(function(t){ if(!seen[t.model]){ seen[t.model] = 1; out.push(t.model); } });
     return out;
   }
-  /* every (lattice, size, point) table published for the active model */
+  /* every (lattice, size, point, boundary) table published for the active model */
   function systems(){
     return DATA.filter(function(t){ return t.model === sel.model; });
   }
@@ -482,10 +471,11 @@ footer a{color:#6B7FA0}
   function normalize(){
     if(models().indexOf(sel.model) === -1) sel.model = models()[0] || null;
     var sys = systems();
+    var sub = LEVELS.slice(1);
     var hit = sys.filter(function(t){
-      return ['lattice','size','point'].every(function(k){ return sel[k] === null || t[k] === sel[k]; });
+      return sub.every(function(k){ return sel[k] === null || t[k] === sel[k]; });
     })[0] || sys[0];
-    ['lattice','size','point'].forEach(function(k){ sel[k] = hit ? hit[k] : null; });
+    sub.forEach(function(k){ sel[k] = hit ? hit[k] : null; });
   }
 
   /* ── tabs ── */
@@ -500,11 +490,11 @@ footer a{color:#6B7FA0}
       b.type = 'button'; b.className = 'tab' + (m === sel.model ? ' on' : '');
       b.setAttribute('role','tab');
       b.setAttribute('aria-selected', m === sel.model ? 'true' : 'false');
-      b.innerHTML = m + '<span class="cnt">' + n + '</span>';
+      b.innerHTML = pretty(m) + '<span class="cnt">' + n + '</span>';
       b.addEventListener('click', function(){
         if(sel.model === m) return;
         sel.model = m;
-        ['lattice','size','point'].forEach(function(k){ sel[k] = null; });
+        LEVELS.slice(1).forEach(function(k){ sel[k] = null; });
         normalize(); writeHash(); render();
       });
       bar.appendChild(b);
@@ -519,21 +509,39 @@ footer a{color:#6B7FA0}
       ink.style.width = '0';
     }
 
-    var sub = document.getElementById('subtabs');
-    var sys = systems();
-    sub.innerHTML = sys.length > 1 ? '<span class="sub-lbl">System</span>' : '';
-    sys.forEach(function(t){
-      var isOn = t.lattice === sel.lattice && t.size === sel.size && t.point === sel.point;
-      var b = document.createElement('button');
-      b.type = 'button'; b.className = 'sub' + (isOn ? ' on' : '');
-      b.setAttribute('role','tab');
-      b.setAttribute('aria-selected', isOn ? 'true' : 'false');
-      b.innerHTML = t.lattice + ' ' + t.size + '<span class="dim">' + t.point + '</span>';
-      b.addEventListener('click', function(){
-        sel.lattice = t.lattice; sel.size = t.size; sel.point = t.point;
-        writeHash(); render();
+    /* One row per (lattice, coupling, boundary): that triple is the physical
+       system, and the pills on it are the cluster sizes it was solved on. */
+    var subbar = document.getElementById('subtabs');
+    subbar.innerHTML = '';
+    var groups = [], at = {};
+    systems().forEach(function(t){
+      var key = [t.lattice, t.point, t.boundary].join(' | ');
+      if(!(key in at)){
+        at[key] = groups.length;
+        groups.push({lattice:t.lattice, point:t.point, boundary:t.boundary, items:[]});
+      }
+      groups[at[key]].items.push(t);
+    });
+    groups.forEach(function(g){
+      var row = document.createElement('div');
+      row.className = 'sysrow'; row.setAttribute('role','tablist');
+      row.innerHTML = '<span class="sys-lbl"><b>' + g.lattice + '</b>' +
+                      '<span class="pt">' + pretty(g.point) + '</span>' +
+                      '<span class="pt">' + bcShort(g.boundary) + '</span></span>';
+      g.items.forEach(function(t){
+        var isOn = LEVELS.slice(1).every(function(k){ return t[k] === sel[k]; });
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'sub' + (isOn ? ' on' : '');
+        b.setAttribute('role','tab');
+        b.setAttribute('aria-selected', isOn ? 'true' : 'false');
+        b.textContent = sizeLabel(t.size);
+        b.addEventListener('click', function(){
+          LEVELS.slice(1).forEach(function(k){ sel[k] = t[k]; });
+          writeHash(); render();
+        });
+        row.appendChild(b);
       });
-      sub.appendChild(b);
+      subbar.appendChild(row);
     });
   }
 
@@ -556,7 +564,37 @@ footer a{color:#6B7FA0}
     var v = parseFloat(String(r.variance == null ? '' : r.variance).replace(/[^0-9.eE+-]/g,''));
     return isNaN(v) ? Infinity : v;
   }
+  function chip(k, v){
+    return '<span class="chip"><span class="k">' + k + '</span><b>' + v + '</b></span>';
+  }
+  /* couplings read as physics, not as ASCII: J1-J2 -> J\u2081-J\u2082 and so on */
+  function pretty(v){
+    return String(v).replace(/J1-J2/g, 'J\u2081\u2013J\u2082')
+                    .replace(/J2\/J1/g, 'J\u2082/J\u2081');
+  }
+  function bcShort(v){ return v === 'Periodic' ? 'PBC' : (v === 'Open' ? 'OBC' : v); }
+  function sizeLabel(v){ return String(v).replace(/\s*x\s*/i, ' \u00d7 '); }
   function kindClass(k){ return k === 'Tensor network' ? 'Tensor' : (k || 'NQS').replace(/\s+/g,''); }
+
+  /* The Hamiltonian is written as LaTeX and typeset with MathJax. MathJax is
+     deferred and loaded from a CDN, so until (or unless) it arrives the card
+     shows the plain-text form -- the page never waits on it. */
+  function mathReady(){ return !!(window.MathJax && window.MathJax.typesetPromise); }
+  function typesetHam(el, t){
+    if(!el) return;
+    if(t.hamiltonianTex && mathReady()){
+      el.textContent = '\\(' + t.hamiltonianTex + '\\)';
+      window.MathJax.typesetPromise([el]).catch(function(){ el.textContent = t.hamiltonian || ''; });
+    } else {
+      el.textContent = t.hamiltonian || '';
+    }
+  }
+  /* re-render once MathJax is up so the first paint is not stuck on plain text */
+  var mjx = document.getElementById('mjx');
+  if(mjx) mjx.addEventListener('load', function(){
+    var p = window.MathJax && window.MathJax.startup && window.MathJax.startup.promise;
+    (p || Promise.resolve()).then(function(){ render(); });
+  });
 
   /* ── main render ── */
   function render(){
@@ -564,50 +602,42 @@ footer a{color:#6B7FA0}
     renderTabs();
 
     var sysbar = document.getElementById('sysbar');
-    var stats  = document.getElementById('stats');
     var tb     = document.getElementById('tb');
 
     if(!t){
       sysbar.innerHTML = '<div><h2>No data</h2><p class="ham">No benchmark table matches this selection.</p></div>';
-      stats.innerHTML = ''; tb.innerHTML = '<tr><td colspan="7" class="empty">Nothing to show.</td></tr>';
+      tb.innerHTML = '<tr><td colspan="7" class="empty">Nothing to show.</td></tr>';
       return;
     }
 
     /* system card */
     sysbar.innerHTML =
-      '<div>' +
-        '<h2>' + t.model + ' · ' + t.lattice + ' · ' + t.size + '</h2>' +
-        '<div class="ham">' + (t.hamiltonian || '') + '</div>' +
-        '<div class="chips">' +
-          '<span class="chip"><b>N</b> = ' + t.sites + ' sites</span>' +
-          '<span class="chip"><b>' + t.point + '</b></span>' +
-          '<span class="chip">' + (t.boundary || '—') + ' boundaries</span>' +
-          '<span class="chip">' + t.rows.length + ' entries</span>' +
-        '</div>' +
-      '</div>' +
-      (t.source ? '<div style="text-align:right;font-size:.78rem;color:var(--muted);max-width:30ch">' +
-        'Table compiled from<br><a href="' + t.source.url + '" target="_blank" rel="noopener">' + t.source.cite + '</a></div>' : '');
+      '<div class="sec-lbl">System</div>' +
+      '<h2>' + pretty(t.model) + ' · ' + t.lattice + ' lattice · ' + sizeLabel(t.size) + '</h2>' +
+      '<div class="ham-box"><span class="ham-lbl">Hamiltonian</span>' +
+        '<div class="ham" id="ham"></div></div>' +
+      '<div class="chips">' +
+        chip('Sites', t.sites) +
+        chip(t.pointLabel || 'Coupling', pretty(t.point)) +
+        (t.extra || []).map(function(e){ return chip(e.k, e.v); }).join('') +
+        chip('Boundaries', t.boundary
+              ? t.boundary + (bcShort(t.boundary) !== t.boundary ? ' (' + bcShort(t.boundary) + ')' : '')
+              : '—') +
+      '</div>';
+    typesetHam(document.getElementById('ham'), t);
 
-    /* ranking is always by energy, independent of the display sort */
-    var byE = t.rows.slice().sort(function(a,b){ return a.energy - b.energy; });
-    var best = byE[0];
+    /* Ranking is always by energy, independent of the display sort. Zero-variance
+       extrapolations are not variational energies and carry no variational bound,
+       so they are shown but left out of the ranking. */
+    var byE = t.rows.filter(function(r){ return r.kind !== 'Extrapolation'; })
+                    .sort(function(a,b){ return a.energy - b.energy; });
     byE.forEach(function(r,i){ r._rank = i + 1; });
+    t.rows.forEach(function(r){ if(r.kind === 'Extrapolation') r._rank = null; });
 
-    document.getElementById('tbl-title').textContent = t.quantity + ' — ' + t.lattice + ' ' + t.size;
-
-    stats.innerHTML =
-      tile('Best energy / site', '<span class="hl">' + best.display + '</span>', best.wf) +
-      tile('Best · N·E', (best.energy * t.sites).toFixed(4).replace('-','−'), 'total energy, ' + t.sites + ' sites') +
-      tile('Reference',
-           (best.url ? '<a href="' + best.url + '" target="_blank" rel="noopener">' + best.ref + '</a>' : best.ref),
-           best.wf + ' · ' + best.year, 'cite');
+    document.getElementById('tbl-title').textContent = t.quantity + ' — ' + t.lattice + ' ' + sizeLabel(t.size);
 
     /* rows */
-    var rows = t.rows.filter(function(r){
-      if(!query) return true;
-      var hay = (r.wf + ' ' + r.ref + ' ' + r.kind + ' ' + r.year).toLowerCase();
-      return hay.indexOf(query) !== -1;
-    });
+    var rows = t.rows.slice();
 
     var key = sort.key, dir = sort.dir;
     rows.sort(function(a,b){
@@ -624,20 +654,19 @@ footer a{color:#6B7FA0}
 
     tb.innerHTML = rows.length ? rows.map(function(r){
       var isBest = r._rank === 1;
-      return '<tr class="' + (isBest ? 'best ' : '') + (r.tag ? 'tagged' : '') + '">' +
-        '<td class="rank' + (isBest ? ' top' : '') + '">' + r._rank + '</td>' +
+      return '<tr class="' + (isBest ? 'best ' : '') + (r.tachys ? 'tachys ' : '') + (r.tag ? 'tagged' : '') + '">' +
+        '<td class="rank' + (isBest ? ' top' : '') + '">' + (r._rank || '<span class="na">—</span>') + '</td>' +
         '<td class="e">' + r.display + '</td>' +
         '<td class="num">' + fmtVar(r.variance) + '</td>' +
-        '<td><span class="wf">' + '<i class="kd ' + kindClass(r.kind) + '" title="' + r.kind + '"></i>' + r.wf +
+        '<td><span class="wf">' + '<i class="kd ' + kindClass(r.kind) + '" title="' + r.kind + '"></i>' +
+            '<span class="wf-n">' + r.wf + '</span>' +
+            (r.tachys ? '<span class="tachys-mark" title="Simulated in tachys">tachys</span>' : '') +
             (r.tag ? '<span class="badge">' + r.tag + '</span>' : '') + '</span></td>' +
         '<td class="num">' + fmtParams(r.params) + '</td>' +
         '<td><span class="ref">' + (r.url ? '<a href="' + r.url + '" target="_blank" rel="noopener">' + r.ref + '</a>' : r.ref) + '</span></td>' +
         '<td class="num">' + r.year + '</td>' +
       '</tr>';
-    }).join('') : '<tr><td colspan="7" class="empty">No wave function matches “' + query + '”.</td></tr>';
-
-    document.getElementById('cap').innerHTML = (t.note || '') +
-      (t.source ? ' <a href="' + t.source.url + '" target="_blank" rel="noopener">Open the source paper →</a>' : '');
+    }).join('') : '<tr><td colspan="7" class="empty">Nothing to show.</td></tr>';
 
     /* header state */
     document.querySelectorAll('thead th[data-sort]').forEach(function(th){
@@ -648,12 +677,6 @@ footer a{color:#6B7FA0}
     });
   }
 
-  function tile(k, v, s, cls){
-    return '<div class="st"><div class="st-k">' + k + '</div>' +
-           '<div class="st-v' + (cls ? ' ' + cls : '') + '">' + v + '</div>' +
-           '<div class="st-s">' + s + '</div></div>';
-  }
-
   /* ── sorting ── */
   document.querySelectorAll('thead th[data-sort]').forEach(function(th){
     th.addEventListener('click', function(){
@@ -662,28 +685,6 @@ footer a{color:#6B7FA0}
       else { sort.key = k; sort.dir = 1; }
       render();
     });
-  });
-
-  /* ── search ── */
-  document.getElementById('q').addEventListener('input', function(e){
-    query = e.target.value.trim().toLowerCase();
-    render();
-  });
-
-  /* ── CSV export ── */
-  document.getElementById('btn-csv').addEventListener('click', function(){
-    var t = current(); if(!t) return;
-    var esc = function(v){ return '"' + String(v).replace(/"/g,'""') + '"'; };
-    var head = ['rank','energy_per_site','variance','wave_function','class','n_parameters','reference','url','year'];
-    var body = t.rows.slice().sort(function(a,b){ return a.energy - b.energy; }).map(function(r,i){
-      return [i+1, r.display.replace('−','-'), r.variance || '', r.wf, r.kind, r.params || 'n/a', r.ref, r.url || '', r.year].map(esc).join(',');
-    });
-    var csv = head.map(esc).join(',') + '\n' + body.join('\n');
-    var name = [t.model, t.lattice, t.size, t.point].join('_').replace(/[^A-Za-z0-9._-]+/g,'-') + '.csv';
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-    a.download = name; document.body.appendChild(a); a.click();
-    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
   });
 
   /* ── deep links ── */
@@ -697,12 +698,6 @@ footer a{color:#6B7FA0}
     var parts = location.hash.replace(/^#/,'').split('/');
     LEVELS.forEach(function(k,i){ sel[k] = parts[i] ? decodeURIComponent(parts[i]) : null; });
   }
-  document.getElementById('btn-link').addEventListener('click', function(){
-    var btn = this, lbl = document.getElementById('btn-link-t');
-    var done = function(){ btn.classList.add('ok'); lbl.textContent = 'Copied'; setTimeout(function(){ btn.classList.remove('ok'); lbl.textContent = 'Copy link'; }, 1400); };
-    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(location.href).then(done, done);
-    else done();
-  });
   window.addEventListener('hashchange', function(){ readHash(); normalize(); render(); });
 
   /* ── boot ── */
