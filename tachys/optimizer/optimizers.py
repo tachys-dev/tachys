@@ -55,6 +55,12 @@ def _eps(eloc: jax.Array, N_mc: int) -> jax.Array:
 
 def _center_eloc(E_L: jax.Array, state: Any) -> jax.Array:
     """Center local energies: per-system for foundation states, globally otherwise."""
+    # The constant subtracted here is arbitrary -- this centering could even be
+    # dropped. center_ntk centers the Jacobian with the weighted mean, which puts
+    # sqrt(w) in the null space of the centered O^T, so any offset in E_L cancels
+    # out of the update. That is why the plain mean is also correct on the
+    # reweighted path, where jaxvmcf instead centers with the weighted mean: the
+    # two are exactly equivalent. See tests/optimizer/test_reweighted_sr.py.
     if isinstance(state, FoundationState):
         return E_L - grouped_mean(E_L, state.system_ids, state.n_systems, broadcast=True)
     return E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
@@ -161,6 +167,7 @@ class _BaseOptimizer(struct.PyTreeNode):
              in_specs=(P(),     P(),     P('i'), P(),     P('i'), P('i')),
              out_specs=P(), check_vma=False)
     def _call_reweighted(self, opt_state, state, wf, E_L, weights):
+        weights = weights / jax.lax.pmean(jnp.mean(weights), 'i')
         return self.update(E_L, opt_state, state, wf, weights)
 
     def __call__(self, E_L, opt_state, state, wf, weights=None):
@@ -200,6 +207,13 @@ class SPRING(_BaseOptimizer, kw_only=True):
 
     Incorporates a JVP-based momentum correction into the gradient vector,
     then adds momentum to the final parameter updates.
+
+    Reference
+    ---------
+    G. Goldshlager, N. Abrahamsen, L. Lin, "A Kaczmarz-inspired approach to
+    accelerate the optimization of neural network wavefunctions", Journal of
+    Computational Physics 516, 113351 (2024).
+    https://doi.org/10.1016/j.jcp.2024.113351
     """
 
     mu: float = 0.9
@@ -235,6 +249,13 @@ class MARCH(_BaseOptimizer, kw_only=True):
 
     Maintains an exponential moving average V of squared update differences
     and uses its bias-corrected value to scale the NTK and the final updates.
+
+    Reference
+    ---------
+    Y. Gu, W. Li, H. Lin, B. Zhan, R. Li, Y. Huang, D. He, Y. Wu, T. Xiang,
+    M. Qin, L. Wang, D. Lv, "Solving the Hubbard model with neural quantum
+    states", Nature Communications 17, 7838 (2026).
+    https://doi.org/10.1038/s41467-026-74028-6
     """
 
     mu: float = 0.95

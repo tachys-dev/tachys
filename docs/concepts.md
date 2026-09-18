@@ -125,5 +125,33 @@ of a JAX `scan`, just written out as an ordinary Python loop. There's no
 know what a tachys training run does, this loop *is* the answer. See
 {doc}`quickstart` for a complete, runnable version of it.
 
+### Sampling from something other than `|ψ|²`
+
+Step 2 is the only one that assumes the batch is distributed as `|ψ|²`. Swap in
+a different density there and every expectation value needs a per-sample
+importance weight to correct it back — which is what `train`'s `estimator`
+argument is for:
+
+```python
+eval_state, E_L, weights, e_mean, e2_mean, metrics = estimator(keys, H, wf, state, log_amps)
+updates, opt_state = optimizer(E_L, opt_state, eval_state, wf, weights=weights)
+```
+
+Two things are worth being explicit about. The optimizer is handed
+`eval_state`, not `state`: the weights correct the configurations `E_L` was
+evaluated on, so the Jacobian has to be taken on those same configurations. And
+the chain itself is untouched — `state` carries forward to the next `sample`
+call exactly as before. An estimator changes what the energy and the gradient
+are computed *from*, never what is sampled.
+
+`tachys.experimental.blurred_sampling.BlurredEstimator` is the implementation
+that ships with tachys. `E_loc(x)` has heavy tails, because a walker landing
+where `|ψ(x)|` is small produces a huge local energy and such configurations are
+too rare under `|ψ|²` to average out. Blurred sampling moves each walker, with
+probability `q`, to a uniformly chosen configuration connected to it by `H`'s
+off-diagonal part, so those configurations get visited at a controlled rate, and
+reweights by the exact density ratio. The amplitude ratios in the weight are the
+ones the local estimator already computes, so the correction is close to free.
+
 Training a single network across *many* Hamiltonians at once builds on
 exactly this — see {doc}`foundation_models`.
