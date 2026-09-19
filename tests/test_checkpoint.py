@@ -7,11 +7,12 @@ wandb = pytest.importorskip("wandb")
 
 from tachys.checkpoint import load_checkpoint
 from tachys.ground_state_training import train
-from tachys.lattice.ansatz.rbm import SpinRBM
+from testing_ansatz import SpinRBM, frozen_params
+from testing_configs import frozen_config
 from tachys.lattice.lattice_database import square
 from tachys.lattice.spins.hamiltonians.ising_transverse_field import ising_transverse_field_square_pbc
 from tachys.lattice.spins.spin_action import SpinFlip
-from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.spins.spin_state import SpinState
 from tachys.optimizer import MARCH
 from tachys.wavefunction import WaveFunction
 
@@ -25,9 +26,9 @@ def _build_problem():
     H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
     model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=False)
     lattice = square(shape=(L, L))
-    spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lattice)
-    params = model.init(jax.random.key(0), state)
+    params = frozen_params("square16_1hidden_real")
     wf = WaveFunction(params=params, apply_fn=model.apply)
     action = SpinFlip()
     optimizer = MARCH(diag_shift=1e-4, mode="real")

@@ -4,9 +4,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from tachys.lattice.ansatz.rbm_foundation import FermionFoundationRBM
+from testing_ansatz import FermionFoundationRBM, frozen_params
+from testing_configs import frozen_config
 from tachys.lattice.bond_exchange import BondExchange
-from tachys.lattice.fermions.fermion_state import init_config_spinful
 from tachys.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
 from tachys.lattice.foundation.foundation_state import FermionFoundationState
 from tachys.lattice.foundation.operators import combine_systems, extract_system_couplings
@@ -59,7 +59,7 @@ def test_foundation_local_energies_and_mean():
     system_couplings = extract_system_couplings(H)
     system_ids = jnp.repeat(jnp.arange(n_systems), N_mc_per_system)
 
-    initial_occupations, *_ = init_config_spinful(key=jax.random.key(0), Ne=Ne, Ns=N, N_mc=N_mc)
+    initial_occupations = frozen_config("foundation_square16_ne10_nmc32")
     state = FermionFoundationState(
         occupations=initial_occupations,
         lattice=lattice,
@@ -70,7 +70,7 @@ def test_foundation_local_energies_and_mean():
     )
 
     model = FermionFoundationRBM(hidden_units=64)
-    params = model.init(jax.random.key(1), state)
+    params = frozen_params("foundation_hidden64")
     wf = WaveFunction(params=params, apply_fn=model.apply, dtype=jnp.float64)
 
     log_amps = wf.apply_fn(wf.params, state)
@@ -105,7 +105,7 @@ def test_foundation_log_amps_after_sampling():
     system_couplings = extract_system_couplings(H)
     system_ids = jnp.repeat(jnp.arange(n_systems), N_mc_per_system)
 
-    initial_occupations, *_ = init_config_spinful(key=jax.random.key(0), Ne=Ne, Ns=N, N_mc=N_mc)
+    initial_occupations = frozen_config("foundation_square16_ne10_nmc32")
     state = FermionFoundationState(
         occupations=initial_occupations,
         lattice=lattice,
@@ -116,7 +116,7 @@ def test_foundation_log_amps_after_sampling():
     )
 
     model = FermionFoundationRBM(hidden_units=64)
-    params = model.init(jax.random.key(1), state)
+    params = frozen_params("foundation_hidden64")
     wf = WaveFunction(params=params, apply_fn=model.apply, dtype=jnp.float64)
 
     action = BondExchange.create(lattice, max_dist=1, Nbands=2)
@@ -145,7 +145,7 @@ def test_march_updates_first_step():
     system_couplings = extract_system_couplings(H)
     system_ids = jnp.repeat(jnp.arange(n_systems), N_mc_per_system)
 
-    initial_occupations, *_ = init_config_spinful(key=jax.random.key(0), Ne=Ne, Ns=N, N_mc=N_mc)
+    initial_occupations = frozen_config("foundation_square16_ne10_nmc32")
     state = FermionFoundationState(
         occupations=initial_occupations,
         lattice=lattice,
@@ -156,7 +156,7 @@ def test_march_updates_first_step():
     )
 
     model = FermionFoundationRBM(hidden_units=64)
-    params = model.init(jax.random.key(1), state)
+    params = frozen_params("foundation_hidden64")
     wf = WaveFunction(params=params, apply_fn=model.apply, dtype=jnp.float64)
 
     action = BondExchange.create(lattice, max_dist=1, Nbands=2)
@@ -197,7 +197,7 @@ def test_wf_params_after_5_training_steps():
     system_couplings = extract_system_couplings(H)
     system_ids = jnp.repeat(jnp.arange(n_systems), N_mc_per_system)
 
-    initial_occupations, *_ = init_config_spinful(key=jax.random.key(0), Ne=Ne, Ns=N, N_mc=N_mc)
+    initial_occupations = frozen_config("foundation_square16_ne10_nmc32")
     state = FermionFoundationState(
         occupations=initial_occupations,
         lattice=lattice,
@@ -208,7 +208,7 @@ def test_wf_params_after_5_training_steps():
     )
 
     model = FermionFoundationRBM(hidden_units=64)
-    params = model.init(jax.random.key(1), state)
+    params = frozen_params("foundation_hidden64")
     wf = WaveFunction(params=params, apply_fn=model.apply, dtype=jnp.float64)
 
     action = BondExchange.create(lattice, max_dist=1, Nbands=2)
@@ -254,7 +254,7 @@ def test_wf_params_after_5_training_steps_sr():
     system_couplings = extract_system_couplings(H)
     system_ids = jnp.repeat(jnp.arange(n_systems), N_mc_per_system)
 
-    initial_occupations, *_ = init_config_spinful(key=jax.random.key(0), Ne=Ne, Ns=N, N_mc=N_mc)
+    initial_occupations = frozen_config("foundation_square16_ne10_nmc32")
     state = FermionFoundationState(
         occupations=initial_occupations,
         lattice=lattice,
@@ -265,7 +265,7 @@ def test_wf_params_after_5_training_steps_sr():
     )
 
     model = FermionFoundationRBM(hidden_units=64)
-    params = model.init(jax.random.key(1), state)
+    params = frozen_params("foundation_hidden64")
     wf = WaveFunction(params=params, apply_fn=model.apply, dtype=jnp.float64)
 
     action = BondExchange.create(lattice, max_dist=1, Nbands=2)

@@ -3,8 +3,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from testing_configs import frozen_config
 from tachys.lattice.fermions.fermion_action import FermionSpinExchange
-from tachys.lattice.fermions.fermion_state import FermionState, init_config_spinful
+from tachys.lattice.fermions.fermion_state import FermionState
 from tachys.lattice.lattice_database import square
 from tachys.montecarlo import sample
 from tachys.utils import same_treedef_and_avals
@@ -23,7 +24,7 @@ def lat():
 
 @pytest.fixture(scope="module")
 def fermion_setup(lat):
-    config, _, _ = init_config_spinful(jax.random.key(1), Ns, Ne=Ne, N_mc=N_mc)
+    config = frozen_config("square16_ne8_nmc32")
     state = FermionState(occupations=config, lattice=lat, Ne=Ne, Nbands=2)
     action = FermionSpinExchange.create(lat, max_dist=1)
     mc_keys = jax.random.split(jax.random.key(2), N_mc)

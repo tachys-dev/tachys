@@ -10,14 +10,14 @@ import pytest
 from jax import shard_map
 from jax.sharding import PartitionSpec as P
 
-from tachys.lattice.ansatz.rbm_foundation import FermionFoundationRBM
-from tachys.lattice.fermions.fermion_state import init_config_spinful
+from testing_ansatz import FermionFoundationRBM, frozen_params
+from testing_configs import frozen_config
 from tachys.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
 from tachys.lattice.foundation.foundation_state import FermionFoundationState
 from tachys.lattice.foundation.operators import combine_systems, extract_system_couplings
 from tachys.lattice.lattice_database import square
 from tachys.lattice.operator.local_estimator import compute_expectation
-from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.spins.spin_state import SpinState
 from tachys.optimizer._kernels import center_ntk, center_sr_solution, ntk_parallel_fn
 from tachys.optimizer.optimizers import _center_eloc
 from tachys.parallel import mesh
@@ -39,7 +39,7 @@ def _make_foundation_state_and_wf():
     system_couplings = extract_system_couplings(H)
     system_ids = jnp.repeat(jnp.arange(n_systems), N_mc_per_system)
 
-    initial_occupations, *_ = init_config_spinful(key=jax.random.key(0), Ne=Ne, Ns=N, N_mc=N_mc)
+    initial_occupations = frozen_config("foundation_square16_ne10_nmc32")
     state = FermionFoundationState(
         occupations=initial_occupations,
         lattice=lattice,
@@ -50,7 +50,7 @@ def _make_foundation_state_and_wf():
     )
 
     model = FermionFoundationRBM(hidden_units=8)
-    params = model.init(jax.random.key(1), state)
+    params = frozen_params("foundation_hidden8")
     wf = WaveFunction(params=params, apply_fn=model.apply, dtype=jnp.float64)
     return H, state, wf
 
@@ -90,7 +90,7 @@ def test_center_eloc_foundation_state_uses_per_system_mean():
 
 def test_center_eloc_plain_state_uses_global_mean():
     lattice = square(shape=(L, L))
-    spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
+    spins = frozen_config("foundation_square16_nmc32")
     state = SpinState(spins=spins, lattice=lattice)
     E_L = jax.random.normal(jax.random.key(2), (N_mc,))
 

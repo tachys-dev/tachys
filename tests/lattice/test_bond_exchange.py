@@ -3,12 +3,13 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from tachys.lattice.ansatz.rbm import SpinRBM
+from testing_ansatz import SpinRBM, frozen_params
+from testing_configs import frozen_config
 from tachys.lattice.bond_exchange import BondExchange
-from tachys.lattice.fermions.fermion_state import FermionState, init_config_spinful
+from tachys.lattice.fermions.fermion_state import FermionState
 from tachys.lattice.lattice_database import chain, square
 from tachys.lattice.spins.spin_action import SpinFlip
-from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.spins.spin_state import SpinState
 from tachys.lattice.state_array import get_array
 from tachys.montecarlo import CompositeAction, sample
 from tachys.utils import same_treedef_and_avals
@@ -27,7 +28,7 @@ def lat():
 
 @pytest.fixture(scope="module")
 def fermion_setup(lat):
-    config, _, _ = init_config_spinful(jax.random.key(1), Ns, Ne=Ne, N_mc=N_mc)
+    config = frozen_config("square16_ne4_nmc16")
     state = FermionState(occupations=config, lattice=lat, Ne=Ne, Nbands=2)
     action = BondExchange.create(lat, max_dist=1, Nbands=2)
     mc_keys = jax.random.split(jax.random.key(2), N_mc)
@@ -36,7 +37,7 @@ def fermion_setup(lat):
 
 @pytest.fixture(scope="module")
 def spin_setup(lat):
-    spins = init_config_fixed_magn(jax.random.key(1), Ns, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lat)
     action = BondExchange.create(lat, max_dist=1)
     mc_keys = jax.random.split(jax.random.key(2), N_mc)
@@ -133,7 +134,7 @@ def test_sample_spin_conserves_magnetization(spin_setup):
 
     model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, Ns), dtype=jnp.float64), lattice=state.lattice)
-    params = model.init(jax.random.key(0), dummy)
+    params = frozen_params("square16_1hidden_complex")
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     out_state, log_amps, acceptance = sample(5, state, action, mc_keys, wf)
@@ -174,7 +175,7 @@ def test_sample_fermion_conserves_occupations(fermion_setup):
 
 @pytest.fixture(scope="module")
 def composite_setup(lat):
-    spins = init_config_fixed_magn(jax.random.key(1), Ns, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lat)
     action = CompositeAction(
         actions=(BondExchange.create(lat, max_dist=1), SpinFlip()),
@@ -225,7 +226,7 @@ def test_composite_bond_exchange_sample_runs(composite_setup):
 
     model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, Ns), dtype=jnp.float64), lattice=state.lattice)
-    params = model.init(jax.random.key(0), dummy)
+    params = frozen_params("square16_1hidden_complex")
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     out_state, log_amps, acceptance = sample(5, state, action, mc_keys, wf)

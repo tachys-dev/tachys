@@ -18,7 +18,8 @@ from tachys.experimental.lanczos import (
     lanczos_step, lanczos_wavefunction, measure_energy, measure_lanczos, optimal_alpha,
     stationarity_coefficients,
 )
-from tachys.lattice.ansatz.rbm import SpinRBM
+from testing_ansatz import SpinRBM, frozen_params
+from testing_configs import frozen_config
 from tachys.lattice.exact_diag import spins_hilbert_space
 from tachys.lattice.lattice_database import chain
 from tachys.lattice.operator.local_estimator import local_estimator
@@ -78,8 +79,9 @@ def setup(request):
     M = _dense_hamiltonian(H, state, idx)
 
     model = SpinRBM(hidden_units=L, dtype=jnp.float64, complex=request.param)
-    dummy = SpinState(spins=jnp.ones((1, L)), lattice=lat)
-    wf = WaveFunction(params=model.init(jax.random.key(3), dummy), apply_fn=model.apply)
+    params = frozen_params(
+        "lanczos_chain8_complex" if request.param else "lanczos_chain8_real")
+    wf = WaveFunction(params=params, apply_fn=model.apply)
 
     log_psi = np.asarray(wf.apply_fn(wf.params, state)).astype(complex)
     # Amplitudes up to a common constant; the constant cancels from every ratio
@@ -203,9 +205,7 @@ def test_chi_estimator_equals_local_energy_form(setup, alpha):
     """
     wf, H = setup["wf"], setup["H"]
     lat = setup["lat"]
-    key = jax.random.key(7)
-    spins = jnp.sign(jax.random.normal(key, (32, L))).astype(jnp.int8)
-    state = SpinState(spins=spins, lattice=lat)
+    state = SpinState(spins=frozen_config("lanczos_chain8_nmc32"), lattice=lat)
 
     wf_alpha = lanczos_wavefunction(wf, H, alpha)
     log_amps_alpha = wf_alpha.apply_fn(wf_alpha.params, state).astype(jnp.complex128)

@@ -32,11 +32,12 @@ import numpy as np
 import pytest
 from jax.flatten_util import ravel_pytree
 
-from tachys.lattice.ansatz.rbm import SpinRBM
+from testing_ansatz import SpinRBM, frozen_params
+from testing_configs import frozen_config
 from tachys.lattice.lattice_database import square
 from tachys.lattice.operator.local_estimator import local_estimator
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
-from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.spins.spin_state import SpinState
 from tachys.optimizer import MARCH, SPRING, SR
 from tachys.wavefunction import WaveFunction
 
@@ -51,17 +52,13 @@ def _setup(mode):
     lattice = square(shape=(L, L))
 
     model = SpinRBM(hidden_units=2, dtype=jnp.float64, complex=(mode == "complex"))
-    spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lattice)
-    params = model.init(jax.random.key(0), state)
-    # Draw O(1) parameters rather than relying on SpinRBM's default init: a
-    # near-uniform psi gives a degenerate Jacobian and near-constant local
-    # energies, which would not exercise the weighting algebra at all.
-    leaves, treedef = jax.tree.flatten(params)
-    keys = jax.random.split(jax.random.key(2), len(leaves))
-    params = jax.tree.unflatten(treedef, [
-        0.4 * jax.random.normal(k, x.shape, dtype=x.dtype) for k, x in zip(keys, leaves)
-    ])
+    # O(1) parameters rather than SpinRBM's default init: a near-uniform psi
+    # gives a degenerate Jacobian and near-constant local energies, which would
+    # not exercise the weighting algebra at all.
+    params = jax.tree.map(lambda x: 0.4 * x, frozen_params(
+        f"reweighted_square16_2hidden_{mode}"))
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     log_amps = wf.apply_fn(wf.params, state)
@@ -175,7 +172,7 @@ def test_weighted_sr_matches_dense_reference(mode):
 
 # ─── Exact ground truth ───────────────────────────────────────────────────────
 
-def _exact_setup(N=6, scale=0.3):
+def _exact_setup(N=6, scale=0.3):  # N is pinned to 6 by the frozen parameters
     """Whole enumerated basis as the sample set, with w_i = M * p_i.
 
     Then (1/M) sum_i w_i f_i == sum_i p_i f_i exactly and mean(w) == 1, so the
@@ -195,12 +192,7 @@ def _exact_setup(N=6, scale=0.3):
     M = full.spins.shape[0]
 
     model = SpinRBM(hidden_units=N, dtype=jnp.float64)
-    params = model.init(jax.random.key(0), full)
-    leaves, treedef = jax.tree.flatten(params)
-    ks = jax.random.split(jax.random.key(7), len(leaves))
-    params = jax.tree.unflatten(treedef, [
-        scale * jax.random.normal(k, x.shape, dtype=x.dtype) for k, x in zip(ks, leaves)
-    ])
+    params = jax.tree.map(lambda x: scale * x, frozen_params("reweighted_exact_chain6"))
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     log_amps = wf.apply_fn(wf.params, full)

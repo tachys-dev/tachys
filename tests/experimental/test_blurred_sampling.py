@@ -16,7 +16,8 @@ from tachys.experimental.blurred_sampling import (
     BlurredEstimator, _split_result, blur_states, blurred_local_estimator,
     compute_expectation_blurred,
 )
-from tachys.lattice.ansatz.rbm import SpinRBM
+from testing_ansatz import SpinRBM, frozen_params
+from testing_configs import frozen_config
 from tachys.lattice.bond_exchange import BondExchange
 from tachys.lattice.exact_diag import spins_hilbert_space
 from tachys.lattice.lattice_database import chain, square
@@ -25,7 +26,7 @@ from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from tachys.lattice.spins.hamiltonians.ising_transverse_field import (
     ising_transverse_field_hamiltonian,
 )
-from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.spins.spin_state import SpinState
 from tachys.montecarlo import sample
 from tachys.wavefunction import WaveFunction
 
@@ -48,22 +49,15 @@ def setup():
     H = heisenberg_square_pbc(L, J=1.0)
     lattice = square(shape=(L, L))
 
-    k1, k2, k3 = jax.random.split(jax.random.key(0), 3)
     model = SpinRBM(hidden_units=N, dtype=jnp.float64)
-    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
-    params = model.init(k2, dummy)
-    # Draw O(1) parameters rather than relying on SpinRBM's default init: a
-    # near-uniform |psi| makes every blur weight ~1, which is far too flat to
-    # distinguish a correct weight formula from a wrong one. With these,
-    # |psi|^2 spans ~3 orders of magnitude and the weights ~4.
-    leaves, treedef = jax.tree.flatten(params)
-    keys = jax.random.split(k3, len(leaves))
-    params = jax.tree.unflatten(treedef, [
-        0.4 * jax.random.normal(k, x.shape, dtype=x.dtype) for k, x in zip(keys, leaves)
-    ])
+    # O(1) parameters rather than SpinRBM's default init: a near-uniform |psi|
+    # makes every blur weight ~1, which is far too flat to distinguish a correct
+    # weight formula from a wrong one. With these, |psi|^2 spans ~3 orders of
+    # magnitude and the weights ~4.
+    params = jax.tree.map(lambda x: 0.4 * x, frozen_params("blurred_square4"))
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
-    spins = init_config_fixed_magn(k1, N, sz=0, N_mc=N_mc)
+    spins = frozen_config("blurred_square4_nmc8")
     state = SpinState(spins=spins, lattice=lattice)
 
     full = SpinState(spins=jnp.asarray(spins_hilbert_space(N), dtype=jnp.float64),
@@ -214,7 +208,7 @@ def test_blur_proposal(setup, exact, q):
     _, A, n_conn, _, _ = exact
 
     n_walkers = 4096
-    spins = init_config_fixed_magn(jax.random.key(7), N, sz=0, N_mc=n_walkers)
+    spins = frozen_config("blurred_square4_nmc4096")
     state = SpinState(spins=spins, lattice=lattice)
     keys = jax.random.split(jax.random.key(8), n_walkers)
 
@@ -248,9 +242,9 @@ def test_reweighted_energy_matches_exact_mc(setup, exact, seed):
 
     n_walkers = 8192
     key = jax.random.key(seed)
-    key, k_init, k_mc, k_blur = jax.random.split(key, 4)
+    key, _, k_mc, k_blur = jax.random.split(key, 4)
 
-    state = SpinState(spins=init_config_fixed_magn(k_init, N, sz=0, N_mc=n_walkers),
+    state = SpinState(spins=frozen_config(f"blurred_square4_nmc8192_seed{seed}"),
                       lattice=lattice)
     action = BondExchange.create(lattice, max_dist=1)
     state, log_amps, _ = sample(20, state, action, jax.random.split(k_mc, n_walkers), wf)
@@ -286,12 +280,7 @@ def tfim():
     model = SpinRBM(hidden_units=TFIM_L, dtype=jnp.float64)
     full = SpinState(spins=jnp.asarray(spins_hilbert_space(TFIM_L), dtype=jnp.float64),
                      lattice=lat)
-    params = model.init(jax.random.key(0), full)
-    leaves, treedef = jax.tree.flatten(params)
-    keys = jax.random.split(jax.random.key(11), len(leaves))
-    params = jax.tree.unflatten(treedef, [
-        0.4 * jax.random.normal(k, x.shape, dtype=x.dtype) for k, x in zip(keys, leaves)
-    ])
+    params = jax.tree.map(lambda x: 0.4 * x, frozen_params("blurred_tfim_chain8"))
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     dim = full.spins.shape[0]
@@ -367,10 +356,9 @@ def test_train_with_q0_estimator_matches_default_path():
 
     def go(est):
         key = jax.random.key(0)
-        key, ki, kp = jax.random.split(key, 3)
-        spins = jnp.where(jax.random.bernoulli(ki, 0.5, (n_walkers, L_t)), 1.0, -1.0)
-        st = SpinState(spins=spins, lattice=lat)
-        wf = WaveFunction(params=model.init(kp, st), apply_fn=model.apply)
+        key, _, _ = jax.random.split(key, 3)
+        st = SpinState(spins=frozen_config("blurred_chain6_nmc32"), lattice=lat)
+        wf = WaveFunction(params=frozen_params("blurred_sr_chain6"), apply_fn=model.apply)
         *_, hist = train(key, H, st, wf, SR(diag_shift=1e-3, mode="real"), SpinFlip(),
                          steps, lambda t: 0.01, n_walkers, estimator=est)
         return np.array(hist["energy"])

@@ -1,12 +1,12 @@
 from functools import partial
 
-import jax
 import jax.numpy as jnp
 from jax import shard_map
 from jax.sharding import PartitionSpec as P
 
-from tachys.lattice.ansatz.rbm import SpinRBM
-from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from testing_ansatz import SpinRBM, frozen_params
+from testing_configs import frozen_config
+from tachys.lattice.spins.spin_state import SpinState
 from tachys.lattice.lattice_database import square
 from tachys.optimizer.optimizers import _build_ntk as _build_ntk_base
 from tachys.parallel import mesh
@@ -20,11 +20,11 @@ N_mc = 16
 def test_ntk_values():
     """Regression test: ntk[:, :, 0, 0] for hidden_units=1, complex=True, keys matching main.py."""
     lattice = square(shape=(L, L))
-    spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
-    params = model.init(jax.random.key(0), state)
+    params = frozen_params("square16_1hidden_complex")
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     _build_ntk = partial(shard_map, mesh=mesh,

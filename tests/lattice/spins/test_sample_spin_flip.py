@@ -3,9 +3,10 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from tachys.lattice.ansatz.rbm import SpinRBM
+from testing_ansatz import SpinRBM, frozen_params
+from testing_configs import frozen_config
 from tachys.lattice.spins.spin_action import SpinFlip
-from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.spins.spin_state import SpinState
 from tachys.lattice.lattice_database import square
 from tachys.montecarlo import sample
 from tachys.utils import same_treedef_and_avals
@@ -19,12 +20,12 @@ N_mc = 16
 @pytest.fixture(scope="module")
 def setup():
     lattice = square(shape=(L, L))
-    spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
-    params = model.init(jax.random.key(0), dummy)
+    params = frozen_params("square16_1hidden_complex")
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     action = SpinFlip()
@@ -63,12 +64,12 @@ def test_sample_spins_valid_values(setup):
 def test_sample_1_sweep_regression():
     """Regression test: log-amplitudes and spins after 1 sweep with SpinFlip match main.py reference."""
     lattice = square(shape=(L, L))
-    spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
-    params = model.init(jax.random.key(0), dummy)
+    params = frozen_params("square16_1hidden_complex")
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     action = SpinFlip()
@@ -119,12 +120,12 @@ def test_sample_1_sweep_regression():
 def test_sample_10_sweeps_regression():
     """Regression test: log-amplitudes and spins after 10 sweeps with SpinFlip."""
     lattice = square(shape=(L, L))
-    spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
     dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
-    params = model.init(jax.random.key(0), dummy)
+    params = frozen_params("square16_1hidden_complex")
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     action = SpinFlip()
