@@ -279,6 +279,17 @@ tr.best .e{color:#047857}
 .legend span{display:inline-flex;align-items:center;gap:7px}
 .empty{padding:3rem 1rem;text-align:center;color:var(--muted);font-size:.9rem}
 
+/* ── exact tab ── */
+/* The exact energies ride in the same table shell as the leaderboards, but
+   they have four columns instead of seven, so they set their own widths. */
+table.ex{min-width:620px}
+.ex th:nth-child(1){width:170px}
+.ex th:nth-child(2){width:80px}
+.ex th:nth-child(3){width:250px}
+.ex th:nth-child(4){width:auto}
+.ex-lat{font-weight:600;color:var(--navy);font-size:.85rem}
+.ex-note{margin-top:.9rem;font-size:.82rem;color:var(--muted);max-width:72ch}
+
 /* ── contribute ── */
 .cta{
   background:var(--hero);text-align:center;padding:4rem 2rem;
@@ -384,31 +395,23 @@ footer a{color:#6B7FA0}
   <div class="container">
     <div class="tbl-head">
       <div>
-        <div class="sec-lbl">Leaderboard</div>
+        <div class="sec-lbl" id="tbl-lbl">Leaderboard</div>
         <h2 id="tbl-title">Ground-state energy</h2>
       </div>
     </div>
 
     <div class="tbl-box">
       <div class="tbl-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th class="nosort">#</th>
-              <th data-sort="energy" class="sorted">Energy per site <span class="car">▲</span></th>
-              <th data-sort="variance">Variance <span class="car">▲</span></th>
-              <th data-sort="wf">Wave function <span class="car">▲</span></th>
-              <th data-sort="params"># parameters <span class="car">▲</span></th>
-              <th class="nosort">Reference</th>
-              <th data-sort="year">Year <span class="car">▲</span></th>
-            </tr>
-          </thead>
+        <table id="tbl">
+          <!-- filled by render(): the leaderboard and the exact tab do not
+               share a column layout -->
+          <thead id="thd"></thead>
           <tbody id="tb"></tbody>
         </table>
       </div>
     </div>
 
-    <div class="legend">
+    <div class="legend" id="legend">
       <span><i class="kd NQS" style="display:inline-block"></i> Neural quantum state</span>
       <span><i class="kd Hybrid" style="display:inline-block"></i> Hybrid</span>
       <span><i class="kd Tensor" style="display:inline-block"></i> Tensor network</span>
@@ -438,6 +441,14 @@ footer a{color:#6B7FA0}
 (function(){
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
   var DATA = (typeof BENCHMARKS !== 'undefined') ? BENCHMARKS : [];
+  var EX   = (typeof EXACT !== 'undefined') ? EXACT : [];
+
+  /* The exact energies sit in the same tab bar as the models, at the end: they
+     answer the same question the leaderboards do -- what is the energy of this
+     system -- for clusters small enough that no variational ansatz is needed.
+     `Exact` is not a model of DATA, so it carries its own selection, stored in
+     sel.lattice, which keeps the deep links working unchanged. */
+  var EXTAB = 'Exact';
 
   /* ── nav elevation ── */
   var nav = document.getElementById('nav');
@@ -457,6 +468,12 @@ footer a{color:#6B7FA0}
     DATA.forEach(function(t){ if(!seen[t.model]){ seen[t.model] = 1; out.push(t.model); } });
     return out;
   }
+  /* every tab of the bar: the models, then the exact energies */
+  function tabNames(){ return EX.length ? models().concat([EXTAB]) : models(); }
+  function exOn(){ return sel.model === EXTAB; }
+  function exGroup(){
+    return EX.filter(function(g){ return g.model === sel.lattice; })[0] || EX[0] || null;
+  }
   /* every (lattice, size, point, boundary) table published for the active model */
   function systems(){
     return DATA.filter(function(t){ return t.model === sel.model; });
@@ -469,7 +486,13 @@ footer a{color:#6B7FA0}
   }
   /* repair the selection so it always points at an existing table */
   function normalize(){
-    if(models().indexOf(sel.model) === -1) sel.model = models()[0] || null;
+    if(tabNames().indexOf(sel.model) === -1) sel.model = tabNames()[0] || null;
+    if(exOn()){
+      var g = exGroup();
+      sel.lattice = g ? g.model : null;
+      sel.size = sel.point = sel.boundary = null;
+      return;
+    }
     var sys = systems();
     var sub = LEVELS.slice(1);
     var hit = sys.filter(function(t){
@@ -484,8 +507,10 @@ footer a{color:#6B7FA0}
     var ink = document.getElementById('ink');
     bar.querySelectorAll('.tab').forEach(function(el){ el.remove(); });
 
-    models().forEach(function(m){
-      var n = DATA.filter(function(t){ return t.model === m; }).length;
+    tabNames().forEach(function(m){
+      var n = m === EXTAB
+        ? EX.reduce(function(a,g){ return a + g.rows.length; }, 0)
+        : DATA.filter(function(t){ return t.model === m; }).length;
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'tab' + (m === sel.model ? ' on' : '');
       b.setAttribute('role','tab');
@@ -513,6 +538,27 @@ footer a{color:#6B7FA0}
        system, and the pills on it are the cluster sizes it was solved on. */
     var subbar = document.getElementById('subtabs');
     subbar.innerHTML = '';
+
+    /* on the exact tab the pills are the Hamiltonians, not the cluster sizes */
+    if(exOn()){
+      var exrow = document.createElement('div');
+      exrow.className = 'sysrow'; exrow.setAttribute('role','tablist');
+      exrow.innerHTML = '<span class="sys-lbl"><b>Hamiltonian</b></span>';
+      EX.forEach(function(g){
+        var on = g.model === sel.lattice;
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'sub' + (on ? ' on' : '');
+        b.setAttribute('role','tab'); b.setAttribute('aria-selected', on ? 'true' : 'false');
+        b.textContent = pretty(g.model);
+        b.addEventListener('click', function(){
+          sel.lattice = g.model; writeHash(); render();
+        });
+        exrow.appendChild(b);
+      });
+      subbar.appendChild(exrow);
+      return;
+    }
+
     var groups = [], at = {};
     systems().forEach(function(t){
       var key = [t.lattice, t.point, t.boundary].join(' | ');
@@ -596,10 +642,80 @@ footer a{color:#6B7FA0}
     (p || Promise.resolve()).then(function(){ render(); });
   });
 
+  /* ── table headers ── */
+  /* One <table>, two column layouts: the header row is written by whichever
+     renderer owns the tab. */
+  var HEAD_MAIN =
+    '<tr>' +
+      '<th class="nosort">#</th>' +
+      '<th data-sort="energy">Energy per site <span class="car">\u25b2</span></th>' +
+      '<th data-sort="variance">Variance <span class="car">\u25b2</span></th>' +
+      '<th data-sort="wf">Wave function <span class="car">\u25b2</span></th>' +
+      '<th data-sort="params"># parameters <span class="car">\u25b2</span></th>' +
+      '<th class="nosort">Reference</th>' +
+      '<th data-sort="year">Year <span class="car">\u25b2</span></th>' +
+    '</tr>';
+  var HEAD_EX =
+    '<tr>' +
+      '<th class="nosort">Lattice</th>' +
+      '<th class="nosort">Sites</th>' +
+      '<th class="nosort">Parameters</th>' +
+      '<th class="nosort">Energy per site</th>' +
+    '</tr>';
+
+  function mode(isExact){
+    document.getElementById('thd').innerHTML = isExact ? HEAD_EX : HEAD_MAIN;
+    document.getElementById('tbl').classList.toggle('ex', isExact);
+    document.getElementById('tbl-lbl').textContent = isExact ? 'Exact' : 'Leaderboard';
+    document.getElementById('legend').style.display = isExact ? 'none' : '';
+  }
+
+  /* ── exact energies ── */
+  function renderExact(){
+    mode(true);
+    var g = exGroup();
+    var sysbar = document.getElementById('sysbar');
+    var tb     = document.getElementById('tb');
+
+    if(!g){
+      sysbar.innerHTML = '<div><h2>No data</h2></div>';
+      tb.innerHTML = '<tr><td colspan="4" class="empty">Nothing to show.</td></tr>';
+      return;
+    }
+
+    sysbar.innerHTML =
+      '<div class="sec-lbl">System</div>' +
+      '<h2>' + pretty(g.model) + ' \u00b7 exact ground states</h2>' +
+      '<div class="ham-box"><span class="ham-lbl">Hamiltonian</span>' +
+        '<div class="ham" id="ham"></div></div>' +
+      '<div class="chips">' +
+        chip('Clusters', g.rows.length) +
+        chip('Boundaries', 'Periodic (PBC)') +
+      '</div>' +
+      '<p class="ex-note">Energies of clusters small enough to be diagonalized exactly. ' +
+        'Two-dimensional lattices, periodic in every direction.</p>';
+    typesetHam(document.getElementById('ham'), g);
+
+    document.getElementById('tbl-title').textContent =
+      'Ground-state energy per site \u2014 ' + pretty(g.model);
+
+    tb.innerHTML = g.rows.map(function(r){
+      return '<tr>' +
+        '<td class="ex-lat">' + r.lattice + '</td>' +
+        '<td class="num">' + r.sites + '</td>' +
+        '<td class="num">' + (r.params || '<span class="na">\u2014</span>') + '</td>' +
+        '<td class="e">' + r.eps + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
   /* ── main render ── */
   function render(){
-    var t = current();
     renderTabs();
+    if(exOn()){ renderExact(); return; }
+
+    var t = current();
+    mode(false);
 
     var sysbar = document.getElementById('sysbar');
     var tb     = document.getElementById('tb');
@@ -678,13 +794,13 @@ footer a{color:#6B7FA0}
   }
 
   /* ── sorting ── */
-  document.querySelectorAll('thead th[data-sort]').forEach(function(th){
-    th.addEventListener('click', function(){
-      var k = th.getAttribute('data-sort');
-      if(sort.key === k) sort.dir = -sort.dir;
-      else { sort.key = k; sort.dir = 1; }
-      render();
-    });
+  document.getElementById('thd').addEventListener('click', function(e){
+    var th = e.target.closest && e.target.closest('th[data-sort]');
+    if(!th) return;
+    var k = th.getAttribute('data-sort');
+    if(sort.key === k) sort.dir = -sort.dir;
+    else { sort.key = k; sort.dir = 1; }
+    render();
   });
 
   /* ── deep links ── */

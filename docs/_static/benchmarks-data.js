@@ -715,3 +715,131 @@ const BENCHMARKS = [
     ],
   },
 ];
+
+/* ---------------------------------------------------------------------------
+ * EXACT — exact ground-state energies
+ * ---------------------------------------------------------------------------
+ * These are not variational results, so they live on their own tab instead of
+ * inside the leaderboards: every cluster here is small enough to be solved
+ * exactly, and no published wave function competes on it.
+ *
+ * Only two-dimensional lattices with periodic boundaries in every direction are
+ * listed, and energies are per site, in the conventions written in each group's
+ * Hamiltonian -- the same ones the leaderboard tables use.
+ *
+ * Group schema
+ * ------------
+ *   model       string  Hamiltonian family; also the label of its pill
+ *   hamiltonian string  plain-text formula -- the fallback without MathJax
+ *   hamiltonianTex string the same formula as LaTeX
+ *
+ * Row schema
+ * ----------
+ *   lattice   string   lattice type, with the unit-cell extents where they are
+ *                      needed to pin the cluster down ("Kagome 4x4")
+ *   sites     number   number of lattice sites N
+ *   params    string   the remaining couplings / fillings ("" => none)
+ *   eps       string   ground-state energy per site, to 8 significant digits
+ * ------------------------------------------------------------------------- */
+
+const EXACT = [
+  {
+    model: "Heisenberg",
+    hamiltonian: "H = J Σ⟨i,j⟩ Si·Sj",
+    hamiltonianTex: "H = J \\sum_{\\langle i,j \\rangle} \\mathbf{S}_i \\cdot \\mathbf{S}_j",
+    rows: [
+      { lattice: "Square", sites: 16, params: "", eps: "−0.7017802" },
+      { lattice: "Square", sites: 36, params: "", eps: "−0.67887215" },
+      { lattice: "Square", sites: 50, params: "", eps: "−0.67510204" },
+      { lattice: "Triangular", sites: 16, params: "", eps: "−0.53471968" },
+      { lattice: "Triangular", sites: 36, params: "", eps: "−0.5603734" },
+      { lattice: "Triangular", sites: 48, params: "", eps: "−0.55860303" },
+      { lattice: "Rectangular 6×8", sites: 48, params: "", eps: "−0.67598666" },
+      { lattice: "Kagome 2×3", sites: 18, params: "", eps: "−0.44712615" },
+      { lattice: "Kagome 4×4", sites: 48, params: "", eps: "−0.4387039" },
+      { lattice: "Shuriken", sites: 24, params: "", eps: "−0.448329" },
+    ],
+  },
+  {
+    model: "J1-J2 Heisenberg",
+    hamiltonian: "H = J1 Σ⟨i,j⟩ Si·Sj + J2 Σ⟨⟨i,j⟩⟩ Si·Sj",
+    hamiltonianTex: "H = J_1 \\sum_{\\langle i,j \\rangle} \\mathbf{S}_i \\cdot \\mathbf{S}_j + J_2 \\sum_{\\langle\\langle i,j \\rangle\\rangle} \\mathbf{S}_i \\cdot \\mathbf{S}_j",
+    rows: [
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.05", eps: "−0.68059004" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.1", eps: "−0.65981717" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.15", eps: "−0.63954285" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.2", eps: "−0.61987394" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.25", eps: "−0.6009545" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.3", eps: "−0.58298383" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.35", eps: "−0.56624475" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.4", eps: "−0.55114777" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.45", eps: "−0.5382998" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.5", eps: "−0.52862021" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.6", eps: "−0.52589582" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.65", eps: "−0.53938247" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.7", eps: "−0.56385812" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.75", eps: "−0.59427308" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.8", eps: "−0.6273351" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.85", eps: "−0.66171967" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.9", eps: "−0.69686563" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 0.95", eps: "−0.73249885" },
+      { lattice: "Square", sites: 16, params: "J₂/J₁ = 1.0", eps: "−0.76846814" },
+      { lattice: "Square", sites: 36, params: "J₂/J₁ = 0.3", eps: "−0.56245947" },
+      { lattice: "Square", sites: 36, params: "J₂/J₁ = 0.4", eps: "−0.52974501" },
+      { lattice: "Square", sites: 36, params: "J₂/J₁ = 0.5", eps: "−0.50380965" },
+      { lattice: "Square", sites: 36, params: "J₂/J₁ = 0.6", eps: "−0.49323859" },
+      { lattice: "Square", sites: 36, params: "J₂/J₁ = 0.7", eps: "−0.53000123" },
+      { lattice: "Square", sites: 36, params: "J₂/J₁ = 0.8", eps: "−0.5864866" },
+      { lattice: "Square", sites: 36, params: "J₂/J₁ = 0.9", eps: "−0.64905201" },
+      { lattice: "Square", sites: 36, params: "J₂/J₁ = 1", eps: "−0.71436043" },
+      { lattice: "Triangular", sites: 36, params: "J₂/J₁ = 0.125", eps: "−0.515564" },
+      { lattice: "Triangular", sites: 48, params: "J₂/J₁ = 0.125", eps: "−0.51731444" },
+      { lattice: "Rectangular 4×6", sites: 24, params: "J₂/J₁ = 0.5", eps: "−0.52252494" },
+    ],
+  },
+  {
+    model: "Hubbard",
+    hamiltonian: "H = −t Σ⟨i,j⟩σ (c†iσ cjσ + h.c.) + U Σi ni↑ni↓",
+    hamiltonianTex: "H = -t \\sum_{\\langle i,j \\rangle \\sigma} (c^{\\dagger}_{i\\sigma} c_{j\\sigma} + \\mathrm{h.c.}) + U \\sum_i n_{i\\uparrow} n_{i\\downarrow}",
+    rows: [
+      { lattice: "Square", sites: 16, params: "U/t = 2 · N↑ = N↓ = 4", eps: "−1.1559648" },
+      { lattice: "Square", sites: 16, params: "U/t = 3.5981 · N↑ = N↓ = 4", eps: "−1.1061269" },
+      { lattice: "Square", sites: 16, params: "U/t = 4 · N↑ = N↓ = 4", eps: "−1.0959311" },
+      { lattice: "Square", sites: 16, params: "U/t = 6 · N↑ = N↓ = 4", eps: "−1.0562454" },
+      { lattice: "Square", sites: 16, params: "U/t = 7.74264 · N↑ = N↓ = 4", eps: "−1.0318222" },
+      { lattice: "Square", sites: 16, params: "U/t = 8 · N↑ = N↓ = 4", eps: "−1.0287892" },
+      { lattice: "Square", sites: 16, params: "U/t = 10 · N↑ = N↓ = 4", eps: "−1.0089505" },
+      { lattice: "Square", sites: 16, params: "U/t = 2 · N↑ = N↓ = 5", eps: "−1.3360594" },
+      { lattice: "Square", sites: 16, params: "U/t = 2.1544 · N↑ = N↓ = 5", eps: "−1.3257647" },
+      { lattice: "Square", sites: 16, params: "U/t = 3.5981 · N↑ = N↓ = 5", eps: "−1.2432273" },
+      { lattice: "Square", sites: 16, params: "U/t = 4 · N↑ = N↓ = 5", eps: "−1.2238086" },
+      { lattice: "Square", sites: 16, params: "U/t = 6 · N↑ = N↓ = 5", eps: "−1.1473978" },
+      { lattice: "Square", sites: 16, params: "U/t = 7.74264 · N↑ = N↓ = 5", eps: "−1.1002332" },
+      { lattice: "Square", sites: 16, params: "U/t = 8 · N↑ = N↓ = 5", eps: "−1.0943979" },
+      { lattice: "Square", sites: 16, params: "U/t = 10 · N↑ = N↓ = 5", eps: "−1.0564725" },
+    ],
+  },
+  {
+    model: "t-V",
+    hamiltonian: "H = −t Σ⟨i,j⟩ (c†i cj + h.c.) + V Σ⟨i,j⟩ ni nj",
+    hamiltonianTex: "H = -t \\sum_{\\langle i,j \\rangle} (c^{\\dagger}_i c_j + \\mathrm{h.c.}) + V \\sum_{\\langle i,j \\rangle} n_i n_j",
+    rows: [
+      { lattice: "Square", sites: 16, params: "V/t = 0.01 · 5 fermions", eps: "−0.74875164" },
+      { lattice: "Square", sites: 16, params: "V/t = 0.1 · 5 fermions", eps: "−0.73766319" },
+      { lattice: "Square", sites: 16, params: "V/t = 1 · 5 fermions", eps: "−0.64004066" },
+      { lattice: "Square", sites: 16, params: "V/t = 10 · 5 fermions", eps: "−0.25325345" },
+      { lattice: "Square", sites: 36, params: "V/t = 0.01 · 13 fermions", eps: "−0.77592793" },
+      { lattice: "Square", sites: 36, params: "V/t = 0.1 · 13 fermions", eps: "−0.75945956" },
+      { lattice: "Square", sites: 36, params: "V/t = 1 · 13 fermions", eps: "−0.61326034" },
+      { lattice: "Square", sites: 36, params: "V/t = 10 · 13 fermions", eps: "−0.22022295" },
+    ],
+  },
+  {
+    model: "Transverse-field Ising",
+    hamiltonian: "H = J Σ⟨i,j⟩ σzi σzj + Γ Σi σxi",
+    hamiltonianTex: "H = J \\sum_{\\langle i,j \\rangle} \\sigma^z_i \\sigma^z_j + \\Gamma \\sum_i \\sigma^x_i",
+    rows: [
+      { lattice: "Square", sites: 36, params: "Γ/J = 3", eps: "−3.2009085" },
+    ],
+  },
+];
