@@ -1,16 +1,16 @@
 import dataclasses
 
-import jax
 import jax.numpy as jnp
 import pytest
 from jax.sharding import PartitionSpec as P
 
-from tachys.lattice.ansatz.rbm import SpinRBM
+from testing_ansatz import SpinRBM, frozen_params
+from testing_configs import frozen_config
 from tachys.lattice.foundation.operators import combine_systems
 from tachys.lattice.operator.base import _OperatorSum, _OperatorMul
 from tachys.lattice.operator.local_estimator import local_estimator, _operator_in_spec
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
-from tachys.lattice.spins.spin_state import SpinState, init_config_fixed_magn
+from tachys.lattice.spins.spin_state import SpinState
 from tachys.lattice.lattice_database import square
 from tachys.wavefunction import WaveFunction
 
@@ -21,18 +21,14 @@ N_mc = 16
 
 @pytest.fixture(scope="module")
 def setup():
-    key = jax.random.key(0)
-
     H = heisenberg_square_pbc(L, J=1.0)
 
     lattice = square(shape=(L, L))
-    key, k1, k2 = jax.random.split(key, 3)
-    spins = init_config_fixed_magn(k1, N, sz=0, N_mc=N_mc)
+    spins = frozen_config("local_estimator_square16")
     state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(hidden_units=N, dtype=jnp.float64)
-    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
-    params = model.init(k2, dummy)
+    params = frozen_params("square16_16hidden")
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     log_amps = wf.apply_fn(wf.params, state)
@@ -66,12 +62,11 @@ def test_local_estimator_hidden_units_1_values():
     H = heisenberg_square_pbc(L, J=1.0)
 
     lattice = square(shape=(L, L))
-    spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(hidden_units=1, dtype=jnp.float64)
-    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
-    params = model.init(jax.random.key(0), dummy)
+    params = frozen_params("square16_1hidden_real")
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     log_amps = wf.apply_fn(wf.params, state)
@@ -91,12 +86,11 @@ def test_local_estimator_hidden_units_1_complex_values():
     H = heisenberg_square_pbc(L, J=1.0)
 
     lattice = square(shape=(L, L))
-    spins = init_config_fixed_magn(jax.random.key(1), N, sz=0, N_mc=N_mc)
+    spins = frozen_config("square16_nmc16")
     state = SpinState(spins=spins, lattice=lattice)
 
     model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=True)
-    dummy = SpinState(spins=jnp.ones((1, N), dtype=jnp.float64), lattice=lattice)
-    params = model.init(jax.random.key(0), dummy)
+    params = frozen_params("square16_1hidden_complex")
     wf = WaveFunction(params=params, apply_fn=model.apply)
 
     log_amps = wf.apply_fn(wf.params, state)

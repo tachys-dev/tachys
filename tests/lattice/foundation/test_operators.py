@@ -6,10 +6,10 @@ them into a single foundation-model operator, and checks that applying the
 combined operator to a batch mixing samples from every system reproduces
 exactly what applying each system's own operator to its own slice would give.
 """
-import jax
 import jax.numpy as jnp
 import pytest
 
+from testing_configs import frozen_config
 from tachys.lattice.foundation.operators import (
     broadcast_coupling, concatenate_couplings, combine_systems, extract_system_couplings,
 )
@@ -26,9 +26,8 @@ Js = [1.0, 2.0]
 N_MC_PER_SYSTEM = 3
 
 
-def _make_state(key, n_mc):
-    spins = jax.random.choice(key, jnp.array([-1.0, 1.0]), shape=(n_mc, N))
-    return SpinState(spins=spins, lattice=square(shape=(L, L)))
+def _make_state(name):
+    return SpinState(spins=frozen_config(name), lattice=square(shape=(L, L)))
 
 
 @pytest.fixture(scope="module")
@@ -66,9 +65,9 @@ def test_combine_systems_coupling_shape(systems):
 def test_combine_systems_matches_per_system_application(systems):
     H_comb = combine_systems(systems, N_MC_PER_SYSTEM)
 
-    key = jax.random.key(0)
-    keys = jax.random.split(key, len(systems))
-    states = [_make_state(k, N_MC_PER_SYSTEM) for k in keys]
+    names = ("foundation_operators_square4_a", "foundation_operators_square4_b")
+    assert len(names) == len(systems)
+    states = [_make_state(n) for n in names]
     state_comb = states[0].replace(
         spins=jnp.concatenate([s.spins for s in states], axis=0)
     )
