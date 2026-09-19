@@ -53,10 +53,29 @@ def _eps(eloc: jax.Array, N_mc: int) -> jax.Array:
     """Force vector ε_i = 2 * conj(E_{Li} - Ē_L) / sqrt(M)."""
     return 2.0 * eloc.conj() / N_mc ** 0.5
 
-def _center_eloc(E_L: jax.Array, state: Any) -> jax.Array:
-    """Center local energies: per-system for foundation states, globally otherwise."""
+def _center_eloc(E_L: jax.Array, state: Any, weights: Optional[jax.Array] = None) -> jax.Array:
+    """Center local energies: per-system for foundation states, globally otherwise.
+
+    On the reweighted path the weighted mean is used, so that `eloc` is the
+    fluctuation about the energy estimator that is actually being minimized (and
+    matches the weighted centering in `center_ntk` / `_jvp_correction`).
+    `weights` are pre-normalized to mean 1 by `_call_reweighted`, so
+    `mean(w * E_L)` already is the weighted mean.
+    """
+    # The constant subtracted here is arbitrary -- this centering could even be
+    # dropped. center_ntk centers the Jacobian with the weighted mean, which puts
+    # sqrt(w) in the null space of the centered O^T, so any offset in E_L cancels
+    # out of the update: the plain mean would give the same answer here. Using
+    # the weighted mean is a readability/conditioning choice, not a correctness
+    # fix. See tests/optimizer/test_reweighted_sr.py.
     if isinstance(state, FoundationState):
+        if weights is not None:
+            raise NotImplementedError(
+                "_center_eloc: weights + FoundationState is not supported yet."
+            )
         return E_L - grouped_mean(E_L, state.system_ids, state.n_systems, broadcast=True)
+    if weights is not None:
+        return E_L - jax.lax.pmean(jnp.mean(weights * E_L), 'i')
     return E_L - jax.lax.pmean(jnp.mean(E_L), 'i')
 
 def _jvp_correction(
@@ -168,6 +187,7 @@ class _BaseOptimizer(struct.PyTreeNode):
              in_specs=(P(),     P(),     P('i'), P(),     P('i'), P('i')),
              out_specs=P(), check_vma=False)
     def _call_reweighted(self, opt_state, state, wf, E_L, weights):
+        weights = weights / jax.lax.pmean(jnp.mean(weights), 'i')
         return self.update(E_L, opt_state, state, wf, weights)
 
     def __call__(self, E_L, opt_state, state, wf, weights=None):
@@ -189,7 +209,7 @@ class SR(_BaseOptimizer):
         N_mc_local = get_n_mc_local(state)
         N_mc       = get_n_mc(state)
 
-        eloc = _center_eloc(E_L, state)
+        eloc = _center_eloc(E_L, state, weights)
         eps = _eps(eloc, N_mc)
         if weights is not None:
             eps = jnp.sqrt(weights) * eps
@@ -207,6 +227,13 @@ class SPRING(_BaseOptimizer, kw_only=True):
 
     Incorporates a JVP-based momentum correction into the gradient vector,
     then adds momentum to the final parameter updates.
+
+    Reference
+    ---------
+    G. Goldshlager, N. Abrahamsen, L. Lin, "A Kaczmarz-inspired approach to
+    accelerate the optimization of neural network wavefunctions", Journal of
+    Computational Physics 516, 113351 (2024).
+    https://doi.org/10.1016/j.jcp.2024.113351
     """
 
     mu: float = 0.9
@@ -219,7 +246,7 @@ class SPRING(_BaseOptimizer, kw_only=True):
         N_mc_local = get_n_mc_local(state)
         N_mc       = get_n_mc(state)
 
-        eloc = _center_eloc(E_L, state)
+        eloc = _center_eloc(E_L, state, weights)
         correction = _jvp_correction(
             apply_fn, self.mode, wf.params, opt_state.old_updates, weights, N_mc, state
         )
@@ -242,6 +269,13 @@ class MARCH(_BaseOptimizer, kw_only=True):
 
     Maintains an exponential moving average V of squared update differences
     and uses its bias-corrected value to scale the NTK and the final updates.
+
+    Reference
+    ---------
+    Y. Gu, W. Li, H. Lin, B. Zhan, R. Li, Y. Huang, D. He, Y. Wu, T. Xiang,
+    M. Qin, L. Wang, D. Lv, "Solving the Hubbard model with neural quantum
+    states", Nature Communications 17, 7838 (2026).
+    https://doi.org/10.1038/s41467-026-74028-6
     """
 
     mu: float = 0.95
@@ -259,7 +293,7 @@ class MARCH(_BaseOptimizer, kw_only=True):
         N_mc_local = get_n_mc_local(state)
         N_mc       = get_n_mc(state)
 
-        eloc = _center_eloc(E_L, state)
+        eloc = _center_eloc(E_L, state, weights)
 
         # Bias-corrected V used for both NTK and update scaling.
         V_bc = jax.tree.map(

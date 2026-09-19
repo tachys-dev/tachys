@@ -1,0 +1,915 @@
+{% raw %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchmarks — Tachys</title>
+<meta name="description" content="Reference ground-state energies for lattice quantum models: select a model and a system to compare published variational wave functions.">
+<link rel="icon" href="_static/logo.svg" type="image/svg+xml">
+<!-- MathJax typesets the Hamiltonian in the system card. Same CDN and major
+     version Sphinx loads on the rest of the site. It is optional: if the CDN is
+     unreachable (offline), the plain-text formula stays in place. -->
+<script id="mjx" defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#F7F9FD;
+  --surface:#FFFFFF;
+  --hero:#081525;
+  --navy:#0D1B2E;
+  --blue:#1A5FEB;
+  --blue-dim:#1550C8;
+  --blue-lt:#4F8EF7;
+  --violet:#7C3AED;
+  --green:#10B981;
+  --orange:#D97706;
+  --muted:#5B6E8A;
+  --border:#D4DCEB;
+  --code:#0D1B2E;
+  --text:#111827;
+  --text2:#374151;
+  --font:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,monospace;
+  --r:6px;--rl:10px;
+}
+
+html{scroll-behavior:smooth}
+body{font-family:var(--font);font-size:1rem;line-height:1.7;color:var(--text);background:var(--bg);overflow-x:hidden}
+
+h1,h2,h3,h4{color:var(--navy);line-height:1.2;text-wrap:balance;font-weight:700}
+h2{font-size:1.875rem;letter-spacing:-.02em;margin-bottom:.75rem}
+h3{font-size:1.25rem;letter-spacing:-.01em;margin-bottom:.5rem}
+p{max-width:65ch;color:var(--text2)}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+strong{font-weight:600;color:var(--navy)}
+code{font-family:var(--mono);font-size:.875em}
+
+.container{max-width:1240px;margin:0 auto;padding:0 2rem}
+
+/* ── nav ── */
+nav.top{
+  position:sticky;top:0;z-index:100;
+  background:rgba(247,249,253,.85);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid transparent;
+  height:56px;display:flex;align-items:center;
+  justify-content:space-between;padding:0 2rem;
+  transition:border-color .25s,box-shadow .25s,background .25s;
+}
+nav.top.scrolled{border-bottom-color:var(--border);box-shadow:0 4px 24px -12px rgba(13,27,46,.25)}
+.n-logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:1.05rem;color:var(--navy);letter-spacing:-.03em}
+.n-logo:hover{text-decoration:none}
+.n-logo .lm{
+  width:26px;height:26px;background:var(--blue);border-radius:5px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:5px;
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+.n-logo:hover .lm{transform:rotate(90deg)}
+.n-logo .dot{background:#fff;border-radius:50%}
+.n-links{display:flex;align-items:center;gap:1.5rem}
+.n-links a{font-size:.875rem;color:var(--muted);font-weight:500;position:relative}
+.n-links a.active{color:var(--blue)}
+.n-links a:not(.n-ver)::after{content:'';position:absolute;left:0;bottom:-4px;height:2px;width:0;background:var(--blue);transition:width .22s ease}
+.n-links a.active::after{width:100%}
+.n-links a:not(.n-ver):hover{color:var(--blue);text-decoration:none}
+.n-links a:not(.n-ver):hover::after{width:100%}
+.n-ver{font-family:var(--mono);font-size:.7rem;background:var(--border);color:var(--muted);padding:2px 8px;border-radius:100px}
+
+/* ── hero ── */
+.hero{background:var(--hero);padding:4.25rem 2rem 3.5rem;position:relative;overflow:hidden}
+#lattice{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.9}
+.hero::after{
+  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 75% 70% at 50% -10%,rgba(26,95,235,.22) 0%,transparent 62%);
+}
+.hero-in{max-width:1240px;margin:0 auto;position:relative;z-index:2;padding:0 .5rem}
+.eyebrow{
+  font-size:.75rem;font-family:var(--mono);color:var(--blue-lt);
+  letter-spacing:.1em;text-transform:uppercase;
+  margin-bottom:1rem;display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:'';width:0;height:1px;background:var(--blue-lt);animation:lineGrow .8s .1s ease forwards}
+@keyframes lineGrow{to{width:18px}}
+.hero h1{font-size:clamp(2rem,4.6vw,3rem);color:#E8EDF7;letter-spacing:-.04em;margin-bottom:.9rem;line-height:1.08}
+.hero h1 em{
+  font-style:normal;
+  background:linear-gradient(100deg,var(--blue-lt) 0%,#9Fc4ff 30%,#E8EDF7 50%,#9Fc4ff 70%,var(--blue-lt) 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:shimmer 5s linear infinite;
+}
+@keyframes shimmer{to{background-position:-220% 0}}
+.hero .lead{
+  font-size:1.05rem;color:#8B96B0;max-width:62ch;line-height:1.65;
+  opacity:0;transform:translateY(14px);animation:fadeUp .7s .35s ease forwards;
+}
+@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+/* links on the dark hero need the light blue: --blue is unreadable on --hero */
+.hero .lead a{color:var(--blue-lt);border-bottom:1px solid rgba(79,142,247,.35);transition:border-color .18s}
+.hero .lead a:hover{text-decoration:none;border-bottom-color:var(--blue-lt)}
+
+/* ── panel ── */
+.panel-wrap{background:var(--surface);border-bottom:1px solid var(--border);padding:0 0 2.25rem}
+
+/* ── model tabs (primary) ── */
+.tabbar{border-bottom:1px solid var(--border);margin-bottom:1.5rem}
+.tabs{display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none;position:relative}
+.tabs::-webkit-scrollbar{display:none}
+.tab{
+  position:relative;background:none;border:0;cursor:pointer;
+  font-family:var(--font);font-size:.95rem;font-weight:600;
+  color:var(--muted);padding:1.05rem 1.15rem;white-space:nowrap;
+  transition:color .18s;
+}
+.tab:hover{color:var(--navy)}
+.tab.on{color:var(--blue)}
+.tab .cnt{
+  font-family:var(--mono);font-size:.66rem;font-weight:700;
+  background:var(--border);color:var(--muted);
+  padding:1px 7px;border-radius:100px;margin-left:8px;
+  transition:background .18s,color .18s;
+}
+.tab.on .cnt{background:rgba(26,95,235,.12);color:var(--blue)}
+.tab-ink{
+  position:absolute;bottom:-1px;height:2px;background:var(--blue);
+  border-radius:2px 2px 0 0;left:0;width:0;
+  transition:transform .28s cubic-bezier(.2,.7,.3,1),width .28s cubic-bezier(.2,.7,.3,1);
+}
+
+/* ── system tabs (secondary) ── */
+.subtabs{display:flex;flex-direction:column;gap:.5rem}
+.sysrow{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center}
+/* fixed label column so the pills of every lattice start on the same edge */
+.sys-lbl{
+  flex:0 0 auto;min-width:14rem;display:inline-flex;align-items:baseline;gap:.5rem;
+  font-size:.7rem;font-family:var(--mono);color:var(--muted);letter-spacing:.08em;
+}
+.sys-lbl b{color:var(--navy);font-weight:700;text-transform:uppercase}
+.sys-lbl .pt{color:#9AA8BE;letter-spacing:0}
+.sub{
+  font-family:var(--mono);font-size:.78rem;font-weight:500;
+  padding:7px 13px;border-radius:100px;cursor:pointer;
+  background:var(--bg);border:1px solid var(--border);color:var(--text2);
+  transition:background .18s,border-color .18s,color .18s,transform .18s,box-shadow .2s;
+  white-space:nowrap;display:inline-flex;align-items:center;gap:8px;
+}
+.sub{min-width:5.5rem;justify-content:center}
+.sub:hover{border-color:var(--blue-lt);color:var(--blue);transform:translateY(-1px)}
+.sub.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 6px 18px -8px rgba(26,95,235,.9)}
+.sub.on:hover{color:#fff;background:var(--blue-dim)}
+
+/* ── system card ── */
+.sysbar{
+  margin-top:1.5rem;padding:1.2rem 1.4rem;
+  border:1px solid var(--border);border-radius:var(--rl);
+  background:linear-gradient(180deg,rgba(26,95,235,.045),rgba(26,95,235,0));
+}
+.sysbar h2{font-size:1.3rem;margin-bottom:0}
+/* the Hamiltonian is the one piece of real notation here: give it its own
+   panel so it does not read as a caption under the title */
+.ham-box{
+  display:inline-flex;align-items:center;gap:1.1rem;flex-wrap:wrap;max-width:100%;
+  margin:.85rem 0 .9rem;padding:.6rem .95rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+}
+.ham-lbl{
+  flex:0 0 auto;font-size:.62rem;font-family:var(--mono);color:var(--muted);
+  letter-spacing:.1em;text-transform:uppercase;
+}
+.ham{font-family:var(--mono);font-size:.82rem;color:var(--muted)}
+.ham mjx-container{font-size:1.05rem;color:var(--navy)}
+.ham mjx-container[display]{margin:0;text-align:left}
+/* key-value chips: the label says what the number is, so nothing is guesswork */
+.chips{display:flex;gap:.45rem;flex-wrap:wrap}
+.chip{
+  display:inline-flex;align-items:baseline;gap:.5rem;
+  background:var(--surface);border:1px solid var(--border);
+  padding:4px 11px;border-radius:100px;
+}
+.chip .k{
+  font-size:.62rem;font-family:var(--mono);color:var(--muted);
+  letter-spacing:.08em;text-transform:uppercase;
+}
+.chip b{font-family:var(--mono);font-size:.78rem;color:var(--navy);font-weight:600}
+
+
+/* ── table ── */
+.tbl-sec{padding:2.5rem 0 3.5rem}
+.tbl-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.sec-lbl{font-size:.7rem;font-family:var(--mono);color:var(--blue);letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-bottom:.35rem}
+.tbl-box{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--rl);
+  /* clip, not hidden: `overflow:hidden` would establish a scroll container and
+     the sticky <thead> would pin itself inside the box instead of below the nav */
+  overflow:clip;
+  box-shadow:0 24px 60px -44px rgba(13,27,46,.65);
+}
+/* No overflow on .tbl-scroll here: an overflow-x:auto ancestor becomes the scroll
+   container for the sticky <thead>, which would then pin 56px *inside* the box and
+   cover the first row. It is enabled below 1180px, where the header is static. */
+table{width:100%;min-width:940px;border-collapse:collapse;font-size:.86rem;table-layout:fixed}
+/* fixed widths for the narrow columns so the reference column keeps the slack */
+th:nth-child(1){width:46px}
+th:nth-child(2){width:152px}
+th:nth-child(3){width:132px}
+th:nth-child(4){width:200px}
+th:nth-child(5){width:150px}
+th:nth-child(7){width:74px}
+thead th{
+  position:sticky;top:56px;z-index:5;
+  background:#F2F6FD;border-bottom:1px solid var(--border);
+  text-align:left;padding:.7rem .9rem;white-space:nowrap;
+  font-size:.68rem;font-family:var(--mono);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);font-weight:700;
+  cursor:pointer;user-select:none;transition:color .18s,background .18s;
+}
+thead th:hover{color:var(--blue);background:#EAF1FD}
+thead th.nosort{cursor:default}
+thead th.nosort:hover{color:var(--muted);background:#F2F6FD}
+thead th .car{opacity:0;margin-left:5px;font-size:.85em;transition:opacity .18s}
+thead th.sorted{color:var(--blue)}
+thead th.sorted .car{opacity:1}
+tbody td{padding:.62rem .9rem;border-bottom:1px solid #EDF1F8;vertical-align:middle}
+tbody tr{transition:background .16s}
+tbody tr:hover{background:#F7FAFF}
+tbody tr:last-child td{border-bottom:0}
+tbody tr.best{background:linear-gradient(90deg,rgba(16,185,129,.09),rgba(16,185,129,.02))}
+tbody tr.best:hover{background:linear-gradient(90deg,rgba(16,185,129,.14),rgba(16,185,129,.04))}
+tbody tr.tagged td:first-child{box-shadow:inset 3px 0 0 var(--blue)}
+tbody tr.tachys{background:linear-gradient(90deg,rgba(26,95,235,.07),rgba(26,95,235,0))}
+tbody tr.tachys:hover{background:linear-gradient(90deg,rgba(26,95,235,.12),rgba(26,95,235,.02))}
+tbody tr.tachys td:first-child{box-shadow:inset 2px 0 0 var(--blue-lt)}
+tr.tachys .e{color:var(--blue-dim)}
+
+.rank{font-family:var(--mono);font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.rank.top{color:var(--green);font-weight:700}
+.e{font-family:var(--mono);font-size:.9rem;font-weight:600;color:var(--navy);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.best .e{color:#047857}
+.wf{font-weight:600;color:var(--navy);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;row-gap:3px}
+.wf-n{flex:1 1 0;min-width:0}
+.kd{width:7px;height:7px;border-radius:50%;flex-shrink:0;align-self:center}
+.kd.NQS{background:var(--blue)}
+.kd.Hybrid{background:var(--violet)}
+.kd.Tensor{background:var(--orange)}
+.kd.Variational{background:var(--green)}
+/* not a variational energy: an extrapolation of one, so it gets its own key */
+.kd.Extrapolation{background:var(--muted);border-radius:1px;transform:rotate(45deg)}
+.kd.Projector{background:transparent;box-shadow:inset 0 0 0 2px var(--blue)}
+/* no nowrap: grouped digits never break, but free-text entries such as
+   "8192 SU(2) states" must wrap instead of bleeding into the next column */
+.num{font-family:var(--mono);font-size:.8rem;color:var(--text2);font-variant-numeric:tabular-nums}
+.na{color:#9AA8BE}
+.ref{font-size:.8rem;line-height:1.45;color:var(--text2);display:block}
+.ref a{color:var(--text2);border-bottom:1px solid transparent;transition:color .18s,border-color .18s}
+.ref a:hover{color:var(--blue);border-bottom-color:var(--blue);text-decoration:none}
+.badge{
+  font-family:var(--mono);font-size:.62rem;font-weight:700;letter-spacing:.05em;
+  background:rgba(26,95,235,.1);color:var(--blue);
+  padding:1px 7px;border-radius:100px;white-space:nowrap;
+}
+.tachys-mark{
+  font-family:var(--mono);font-size:.62rem;font-weight:500;letter-spacing:.04em;
+  color:var(--blue);opacity:.8;white-space:nowrap;cursor:default;
+}
+.legend{display:flex;gap:1.2rem;flex-wrap:wrap;margin-top:1rem;font-size:.78rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.empty{padding:3rem 1rem;text-align:center;color:var(--muted);font-size:.9rem}
+
+/* ── exact tab ── */
+/* The exact energies ride in the same table shell as the leaderboards, but
+   they have four columns instead of seven, so they set their own widths. */
+table.ex{min-width:620px}
+.ex th:nth-child(1){width:170px}
+.ex th:nth-child(2){width:80px}
+.ex th:nth-child(3){width:250px}
+.ex th:nth-child(4){width:auto}
+.ex-lat{font-weight:600;color:var(--navy);font-size:.85rem}
+.ex-note{margin-top:.9rem;font-size:.82rem;color:var(--muted);max-width:72ch}
+
+/* ── contribute ── */
+.cta{
+  background:var(--hero);text-align:center;padding:4rem 2rem;
+  background-image:radial-gradient(circle,rgba(26,95,235,.10) 1px,transparent 1px);
+  background-size:26px 26px;
+}
+.cta h2{color:#E8EDF7}
+.cta p{color:#8B96B0;margin:0 auto 1.75rem;max-width:52ch}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--blue);color:#fff;padding:11px 24px;border-radius:var(--r);
+  font-size:.875rem;font-weight:600;
+  transition:background .15s,transform .15s,box-shadow .2s;
+  box-shadow:0 6px 20px -8px rgba(26,95,235,.8);margin:0 6px 10px;
+}
+.btn:hover{background:var(--blue-dim);text-decoration:none;transform:translateY(-2px)}
+.btn .arr{transition:transform .2s}
+.btn:hover .arr{transform:translateX(4px)}
+.btn.ghost{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.15);box-shadow:none}
+.btn.ghost:hover{background:rgba(255,255,255,.12)}
+
+footer{background:var(--navy);color:#4A5E7A;padding:2.5rem 2rem;text-align:center;font-size:.875rem}
+footer a{color:#6B7FA0}
+
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+.reveal[data-d="1"]{transition-delay:.08s}
+.reveal[data-d="2"]{transition-delay:.16s}
+.reveal[data-d="3"]{transition-delay:.24s}
+
+@media(max-width:1180px){
+  .tbl-scroll{overflow-x:auto}
+  thead th{position:static}
+}
+@media(max-width:768px){
+  .tab{font-size:.875rem;padding:.9rem .8rem}
+  .sys-lbl{width:100%;margin-bottom:.1rem}
+  .n-links a:not(.n-ver){display:none}
+  .hero{padding:3rem 1.5rem 2.5rem}
+  .container{padding:0 1.25rem}
+}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+  #lattice{display:none}
+  .hero .lead{opacity:1;transform:none}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="top" id="nav">
+  <a href="index.html" class="n-logo">
+    <span class="lm">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </span>
+    tachys
+  </a>
+  <div class="n-links">
+    <a href="quickstart.html">Quickstart</a>
+    <a href="concepts.html">Concepts</a>
+    <a href="foundation_models.html">Foundation Models</a>
+    <a href="benchmarks.html" class="active">Benchmarks</a>
+    <a href="api.html">API</a>
+    <a href="https://github.com/tachys-dev/tachys">GitHub</a>
+    <span class="n-ver">v0.1.0</span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas id="lattice"></canvas>
+  <div class="hero-in">
+    <div class="eyebrow">Variational Benchmarks</div>
+    <h1>Reference energies for <em>quantum lattice models.</em></h1>
+    <p class="lead">
+      Ground-state energies collected from the literature. Parenthesised digits are statistical
+      errors on the last digit. To have a new result added, email
+      <a href="mailto:rrende@flatironinstitute.org">rrende@flatironinstitute.org</a> or
+      <a href="mailto:luciano.viteritti@epfl.ch">luciano.viteritti@epfl.ch</a>.
+    </p>
+  </div>
+</section>
+
+<!-- TABS -->
+<div class="panel-wrap">
+  <div class="container">
+    <div class="tabbar">
+      <div class="tabs" id="tabs" role="tablist"><span class="tab-ink" id="ink"></span></div>
+    </div>
+    <div class="subtabs" id="subtabs"></div>
+
+    <div class="sysbar" id="sysbar"></div>
+  </div>
+</div>
+
+<!-- TABLE -->
+<section class="tbl-sec">
+  <div class="container">
+    <div class="tbl-head">
+      <div>
+        <div class="sec-lbl" id="tbl-lbl">Leaderboard</div>
+        <h2 id="tbl-title">Ground-state energy</h2>
+      </div>
+    </div>
+
+    <div class="tbl-box">
+      <div class="tbl-scroll">
+        <table id="tbl">
+          <!-- filled by render(): the leaderboard and the exact tab do not
+               share a column layout -->
+          <thead id="thd"></thead>
+          <tbody id="tb"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="legend" id="legend">
+      <span><i class="kd NQS" style="display:inline-block"></i> Neural quantum state</span>
+      <span><i class="kd Hybrid" style="display:inline-block"></i> Hybrid</span>
+      <span><i class="kd Tensor" style="display:inline-block"></i> Tensor network</span>
+      <span><i class="kd Variational" style="display:inline-block"></i> Variational (Gutzwiller)</span>
+      <span><i class="kd Projector" style="display:inline-block"></i> Projected (GFMC)</span>
+      <span><i class="kd Extrapolation" style="display:inline-block"></i> Zero-variance extrapolation</span>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <h2>Missing a result?</h2>
+  <div>
+    <a href="https://github.com/tachys-dev/tachys" class="btn">Contribute a benchmark <span class="arr">→</span></a>
+    <a href="quickstart.html" class="btn ghost">Run it with tachys</a>
+  </div>
+</section>
+
+<footer>
+  <p>Tachys v0.1.0 — Built on <a href="https://jax.dev">JAX</a> and <a href="https://flax.readthedocs.io">Flax</a> · <a href="https://github.com/tachys-dev/tachys">GitHub</a></p>
+  <p style="margin-top:.4rem;font-size:.75rem">Energies are reproduced from the cited publications; follow the reference for the original numbers.</p>
+</footer>
+
+<script src="_static/benchmarks-data.js"></script>
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var DATA = (typeof BENCHMARKS !== 'undefined') ? BENCHMARKS : [];
+  var EX   = (typeof EXACT !== 'undefined') ? EXACT : [];
+
+  /* The exact energies sit in the same tab bar as the models, at the end: they
+     answer the same question the leaderboards do -- what is the energy of this
+     system -- for clusters small enough that no variational ansatz is needed.
+     `Exact` is not a model of DATA, so it carries its own selection, stored in
+     sel.lattice, which keeps the deep links working unchanged. */
+  var EXTAB = 'Exact';
+
+  /* ── nav elevation ── */
+  var nav = document.getElementById('nav');
+  function onScroll(){ nav.classList.toggle('scrolled', window.scrollY > 8); }
+  onScroll(); window.addEventListener('scroll', onScroll, {passive:true});
+
+  /* ── selection state ── */
+  var sel = {model:null, lattice:null, size:null, point:null, boundary:null};
+  var sort = {key:'energy', dir:1};   // dir: 1 = ascending
+
+  /* A published table is identified by all five: the 16x16 Hubbard model at
+     t' = 0 exists under both open and periodic boundaries. */
+  var LEVELS = ['model','lattice','size','point','boundary'];
+
+  function models(){
+    var out = [], seen = {};
+    DATA.forEach(function(t){ if(!seen[t.model]){ seen[t.model] = 1; out.push(t.model); } });
+    return out;
+  }
+  /* every tab of the bar: the models, then the exact energies */
+  function tabNames(){ return EX.length ? models().concat([EXTAB]) : models(); }
+  function exOn(){ return sel.model === EXTAB; }
+  function exGroup(){
+    return EX.filter(function(g){ return g.model === sel.lattice; })[0] || EX[0] || null;
+  }
+  /* every (lattice, size, point, boundary) table published for the active model */
+  function systems(){
+    return DATA.filter(function(t){ return t.model === sel.model; });
+  }
+  function current(){
+    var p = DATA.filter(function(t){
+      return LEVELS.every(function(k){ return sel[k] === null || t[k] === sel[k]; });
+    });
+    return p[0] || null;
+  }
+  /* repair the selection so it always points at an existing table */
+  function normalize(){
+    if(tabNames().indexOf(sel.model) === -1) sel.model = tabNames()[0] || null;
+    if(exOn()){
+      var g = exGroup();
+      sel.lattice = g ? g.model : null;
+      sel.size = sel.point = sel.boundary = null;
+      return;
+    }
+    var sys = systems();
+    var sub = LEVELS.slice(1);
+    var hit = sys.filter(function(t){
+      return sub.every(function(k){ return sel[k] === null || t[k] === sel[k]; });
+    })[0] || sys[0];
+    sub.forEach(function(k){ sel[k] = hit ? hit[k] : null; });
+  }
+
+  /* ── tabs ── */
+  function renderTabs(){
+    var bar = document.getElementById('tabs');
+    var ink = document.getElementById('ink');
+    bar.querySelectorAll('.tab').forEach(function(el){ el.remove(); });
+
+    tabNames().forEach(function(m){
+      var n = m === EXTAB
+        ? EX.reduce(function(a,g){ return a + g.rows.length; }, 0)
+        : DATA.filter(function(t){ return t.model === m; }).length;
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'tab' + (m === sel.model ? ' on' : '');
+      b.setAttribute('role','tab');
+      b.setAttribute('aria-selected', m === sel.model ? 'true' : 'false');
+      b.innerHTML = pretty(m) + '<span class="cnt">' + n + '</span>';
+      b.addEventListener('click', function(){
+        if(sel.model === m) return;
+        sel.model = m;
+        LEVELS.slice(1).forEach(function(k){ sel[k] = null; });
+        normalize(); writeHash(); render();
+      });
+      bar.appendChild(b);
+    });
+
+    /* slide the underline to the active tab */
+    var on = bar.querySelector('.tab.on');
+    if(on){
+      ink.style.width = on.offsetWidth + 'px';
+      ink.style.transform = 'translateX(' + on.offsetLeft + 'px)';
+    } else {
+      ink.style.width = '0';
+    }
+
+    /* One row per (lattice, coupling, boundary): that triple is the physical
+       system, and the pills on it are the cluster sizes it was solved on. */
+    var subbar = document.getElementById('subtabs');
+    subbar.innerHTML = '';
+
+    /* on the exact tab the pills are the Hamiltonians, not the cluster sizes */
+    if(exOn()){
+      var exrow = document.createElement('div');
+      exrow.className = 'sysrow'; exrow.setAttribute('role','tablist');
+      exrow.innerHTML = '<span class="sys-lbl"><b>Hamiltonian</b></span>';
+      EX.forEach(function(g){
+        var on = g.model === sel.lattice;
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'sub' + (on ? ' on' : '');
+        b.setAttribute('role','tab'); b.setAttribute('aria-selected', on ? 'true' : 'false');
+        b.textContent = pretty(g.model);
+        b.addEventListener('click', function(){
+          sel.lattice = g.model; writeHash(); render();
+        });
+        exrow.appendChild(b);
+      });
+      subbar.appendChild(exrow);
+      return;
+    }
+
+    var groups = [], at = {};
+    systems().forEach(function(t){
+      var key = [t.lattice, t.point, t.boundary].join(' | ');
+      if(!(key in at)){
+        at[key] = groups.length;
+        groups.push({lattice:t.lattice, point:t.point, boundary:t.boundary, items:[]});
+      }
+      groups[at[key]].items.push(t);
+    });
+    groups.forEach(function(g){
+      var row = document.createElement('div');
+      row.className = 'sysrow'; row.setAttribute('role','tablist');
+      row.innerHTML = '<span class="sys-lbl"><b>' + g.lattice + '</b>' +
+                      '<span class="pt">' + pretty(g.point) + '</span>' +
+                      '<span class="pt">' + bcShort(g.boundary) + '</span></span>';
+      g.items.forEach(function(t){
+        var isOn = LEVELS.slice(1).every(function(k){ return t[k] === sel[k]; });
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'sub' + (isOn ? ' on' : '');
+        b.setAttribute('role','tab');
+        b.setAttribute('aria-selected', isOn ? 'true' : 'false');
+        b.textContent = sizeLabel(t.size);
+        b.addEventListener('click', function(){
+          LEVELS.slice(1).forEach(function(k){ sel[k] = t[k]; });
+          writeHash(); render();
+        });
+        row.appendChild(b);
+      });
+      subbar.appendChild(row);
+    });
+  }
+
+  /* ── helpers ── */
+  function nParams(v){
+    var n = parseInt(String(v).replace(/[^0-9]/g,''), 10);
+    return isNaN(n) ? -1 : n;
+  }
+  function fmtParams(v){
+    if(!v) return '<span class="na">not available</span>';
+    var n = parseInt(v, 10);
+    if(String(n) === String(v).trim()) return n.toLocaleString('en-US');
+    return v;
+  }
+  /* variance is optional: rows without one show an em dash and sort last */
+  function fmtVar(v){
+    return (v === undefined || v === null || v === '') ? '<span class="na">—</span>' : v;
+  }
+  function vNum(r){
+    var v = parseFloat(String(r.variance == null ? '' : r.variance).replace(/[^0-9.eE+-]/g,''));
+    return isNaN(v) ? Infinity : v;
+  }
+  function chip(k, v){
+    return '<span class="chip"><span class="k">' + k + '</span><b>' + v + '</b></span>';
+  }
+  /* couplings read as physics, not as ASCII: J1-J2 -> J\u2081-J\u2082 and so on */
+  function pretty(v){
+    return String(v).replace(/J1-J2/g, 'J\u2081\u2013J\u2082')
+                    .replace(/J2\/J1/g, 'J\u2082/J\u2081');
+  }
+  function bcShort(v){ return v === 'Periodic' ? 'PBC' : (v === 'Open' ? 'OBC' : v); }
+  function sizeLabel(v){ return String(v).replace(/\s*x\s*/i, ' \u00d7 '); }
+  function kindClass(k){ return k === 'Tensor network' ? 'Tensor' : (k || 'NQS').replace(/\s+/g,''); }
+
+  /* The Hamiltonian is written as LaTeX and typeset with MathJax. MathJax is
+     deferred and loaded from a CDN, so until (or unless) it arrives the card
+     shows the plain-text form -- the page never waits on it. */
+  function mathReady(){ return !!(window.MathJax && window.MathJax.typesetPromise); }
+  function typesetHam(el, t){
+    if(!el) return;
+    if(t.hamiltonianTex && mathReady()){
+      el.textContent = '\\(' + t.hamiltonianTex + '\\)';
+      window.MathJax.typesetPromise([el]).catch(function(){ el.textContent = t.hamiltonian || ''; });
+    } else {
+      el.textContent = t.hamiltonian || '';
+    }
+  }
+  /* re-render once MathJax is up so the first paint is not stuck on plain text */
+  var mjx = document.getElementById('mjx');
+  if(mjx) mjx.addEventListener('load', function(){
+    var p = window.MathJax && window.MathJax.startup && window.MathJax.startup.promise;
+    (p || Promise.resolve()).then(function(){ render(); });
+  });
+
+  /* ── table headers ── */
+  /* One <table>, two column layouts: the header row is written by whichever
+     renderer owns the tab. */
+  var HEAD_MAIN =
+    '<tr>' +
+      '<th class="nosort">#</th>' +
+      '<th data-sort="energy">Energy per site <span class="car">\u25b2</span></th>' +
+      '<th data-sort="variance">Variance <span class="car">\u25b2</span></th>' +
+      '<th data-sort="wf">Wave function <span class="car">\u25b2</span></th>' +
+      '<th data-sort="params"># parameters <span class="car">\u25b2</span></th>' +
+      '<th class="nosort">Reference</th>' +
+      '<th data-sort="year">Year <span class="car">\u25b2</span></th>' +
+    '</tr>';
+  var HEAD_EX =
+    '<tr>' +
+      '<th class="nosort">Lattice</th>' +
+      '<th class="nosort">Sites</th>' +
+      '<th class="nosort">Parameters</th>' +
+      '<th class="nosort">Energy per site</th>' +
+    '</tr>';
+
+  function mode(isExact){
+    document.getElementById('thd').innerHTML = isExact ? HEAD_EX : HEAD_MAIN;
+    document.getElementById('tbl').classList.toggle('ex', isExact);
+    document.getElementById('tbl-lbl').textContent = isExact ? 'Exact' : 'Leaderboard';
+    document.getElementById('legend').style.display = isExact ? 'none' : '';
+  }
+
+  /* ── exact energies ── */
+  function renderExact(){
+    mode(true);
+    var g = exGroup();
+    var sysbar = document.getElementById('sysbar');
+    var tb     = document.getElementById('tb');
+
+    if(!g){
+      sysbar.innerHTML = '<div><h2>No data</h2></div>';
+      tb.innerHTML = '<tr><td colspan="4" class="empty">Nothing to show.</td></tr>';
+      return;
+    }
+
+    sysbar.innerHTML =
+      '<div class="sec-lbl">System</div>' +
+      '<h2>' + pretty(g.model) + ' \u00b7 exact ground states</h2>' +
+      '<div class="ham-box"><span class="ham-lbl">Hamiltonian</span>' +
+        '<div class="ham" id="ham"></div></div>' +
+      '<div class="chips">' +
+        chip('Clusters', g.rows.length) +
+        chip('Boundaries', 'Periodic (PBC)') +
+      '</div>' +
+      '<p class="ex-note">Energies of clusters small enough to be diagonalized exactly. ' +
+        'Two-dimensional lattices, periodic in every direction.</p>';
+    typesetHam(document.getElementById('ham'), g);
+
+    document.getElementById('tbl-title').textContent =
+      'Ground-state energy per site \u2014 ' + pretty(g.model);
+
+    tb.innerHTML = g.rows.map(function(r){
+      return '<tr>' +
+        '<td class="ex-lat">' + r.lattice + '</td>' +
+        '<td class="num">' + r.sites + '</td>' +
+        '<td class="num">' + (r.params || '<span class="na">\u2014</span>') + '</td>' +
+        '<td class="e">' + r.eps + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  /* ── main render ── */
+  function render(){
+    renderTabs();
+    if(exOn()){ renderExact(); return; }
+
+    var t = current();
+    mode(false);
+
+    var sysbar = document.getElementById('sysbar');
+    var tb     = document.getElementById('tb');
+
+    if(!t){
+      sysbar.innerHTML = '<div><h2>No data</h2><p class="ham">No benchmark table matches this selection.</p></div>';
+      tb.innerHTML = '<tr><td colspan="7" class="empty">Nothing to show.</td></tr>';
+      return;
+    }
+
+    /* system card */
+    sysbar.innerHTML =
+      '<div class="sec-lbl">System</div>' +
+      '<h2>' + pretty(t.model) + ' · ' + t.lattice + ' lattice · ' + sizeLabel(t.size) + '</h2>' +
+      '<div class="ham-box"><span class="ham-lbl">Hamiltonian</span>' +
+        '<div class="ham" id="ham"></div></div>' +
+      '<div class="chips">' +
+        chip('Sites', t.sites) +
+        chip(t.pointLabel || 'Coupling', pretty(t.point)) +
+        (t.extra || []).map(function(e){ return chip(e.k, e.v); }).join('') +
+        chip('Boundaries', t.boundary
+              ? t.boundary + (bcShort(t.boundary) !== t.boundary ? ' (' + bcShort(t.boundary) + ')' : '')
+              : '—') +
+      '</div>';
+    typesetHam(document.getElementById('ham'), t);
+
+    /* Ranking is always by energy, independent of the display sort. Zero-variance
+       extrapolations are not variational energies and carry no variational bound,
+       so they are shown but left out of the ranking. */
+    var byE = t.rows.filter(function(r){ return r.kind !== 'Extrapolation'; })
+                    .sort(function(a,b){ return a.energy - b.energy; });
+    byE.forEach(function(r,i){ r._rank = i + 1; });
+    t.rows.forEach(function(r){ if(r.kind === 'Extrapolation') r._rank = null; });
+
+    document.getElementById('tbl-title').textContent = t.quantity + ' — ' + t.lattice + ' ' + sizeLabel(t.size);
+
+    /* rows */
+    var rows = t.rows.slice();
+
+    var key = sort.key, dir = sort.dir;
+    rows.sort(function(a,b){
+      var x, y;
+      if(key === 'energy'){ x = a.energy; y = b.energy; }
+      else if(key === 'variance'){ x = vNum(a); y = vNum(b); }
+      else if(key === 'params'){ x = nParams(a.params); y = nParams(b.params); }
+      else if(key === 'year'){ x = a.year; y = b.year; }
+      else { x = String(a[key] || '').toLowerCase(); y = String(b[key] || '').toLowerCase(); }
+      if(x < y) return -dir;
+      if(x > y) return dir;
+      return a.energy - b.energy;
+    });
+
+    tb.innerHTML = rows.length ? rows.map(function(r){
+      var isBest = r._rank === 1;
+      return '<tr class="' + (isBest ? 'best ' : '') + (r.tachys ? 'tachys ' : '') + (r.tag ? 'tagged' : '') + '">' +
+        '<td class="rank' + (isBest ? ' top' : '') + '">' + (r._rank || '<span class="na">—</span>') + '</td>' +
+        '<td class="e">' + r.display + '</td>' +
+        '<td class="num">' + fmtVar(r.variance) + '</td>' +
+        '<td><span class="wf">' + '<i class="kd ' + kindClass(r.kind) + '" title="' + r.kind + '"></i>' +
+            '<span class="wf-n">' + r.wf + '</span>' +
+            (r.tachys ? '<span class="tachys-mark" title="Simulated in tachys">tachys</span>' : '') +
+            (r.tag ? '<span class="badge">' + r.tag + '</span>' : '') + '</span></td>' +
+        '<td class="num">' + fmtParams(r.params) + '</td>' +
+        '<td><span class="ref">' + (r.url ? '<a href="' + r.url + '" target="_blank" rel="noopener">' + r.ref + '</a>' : r.ref) + '</span></td>' +
+        '<td class="num">' + r.year + '</td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="7" class="empty">Nothing to show.</td></tr>';
+
+    /* header state */
+    document.querySelectorAll('thead th[data-sort]').forEach(function(th){
+      var on = th.getAttribute('data-sort') === sort.key;
+      th.classList.toggle('sorted', on);
+      var car = th.querySelector('.car');
+      if(car) car.textContent = sort.dir === 1 ? '▲' : '▼';
+    });
+  }
+
+  /* ── sorting ── */
+  document.getElementById('thd').addEventListener('click', function(e){
+    var th = e.target.closest && e.target.closest('th[data-sort]');
+    if(!th) return;
+    var k = th.getAttribute('data-sort');
+    if(sort.key === k) sort.dir = -sort.dir;
+    else { sort.key = k; sort.dir = 1; }
+    render();
+  });
+
+  /* ── deep links ── */
+  function writeHash(){
+    var h = LEVELS.map(function(k){ return encodeURIComponent(sel[k] || ''); }).join('/');
+    if(('#' + h) !== location.hash) history.replaceState(null, '', '#' + h);
+  }
+  function readHash(){
+    /* split first, decode after: values such as "J2/J1 = 0.5" carry an escaped
+       slash, and decoding up front would turn it into a segment separator */
+    var parts = location.hash.replace(/^#/,'').split('/');
+    LEVELS.forEach(function(k,i){ sel[k] = parts[i] ? decodeURIComponent(parts[i]) : null; });
+  }
+  window.addEventListener('hashchange', function(){ readHash(); normalize(); render(); });
+
+  /* ── boot ── */
+  readHash(); normalize(); writeHash(); render();
+
+  /* the tab underline is positioned in pixels, so re-measure when the bar reflows */
+  var inkT;
+  window.addEventListener('resize', function(){ clearTimeout(inkT); inkT = setTimeout(renderTabs, 120); }, {passive:true});
+
+  /* ── scroll reveal ── */
+  var revs = document.querySelectorAll('.reveal');
+  if(reduce || !('IntersectionObserver' in window)){
+    revs.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, {threshold:0.12, rootMargin:'0px 0px -8% 0px'});
+    revs.forEach(function(el){ io.observe(el); });
+  }
+
+  /* ── hero quantum-lattice canvas (shared with the landing page) ── */
+  var canvas = document.getElementById('lattice');
+  if(canvas && !reduce){
+    var ctx = canvas.getContext('2d');
+    var W, H, DPR, cols, rows, gap, nodes, offX, offY, t = 0, raf;
+    var C_UP = [79,142,247], C_DN = [124,58,237], C_BASE = [40,64,104];
+
+    function build(){
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      var rect = canvas.getBoundingClientRect();
+      W = rect.width; H = rect.height;
+      canvas.width = W*DPR; canvas.height = H*DPR;
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+      gap = Math.max(38, Math.min(56, W/22));
+      cols = Math.ceil(W/gap)+2;
+      rows = Math.ceil(H/gap)+2;
+      offX = (W - (cols-1)*gap)/2;
+      offY = (H - (rows-1)*gap)/2;
+      nodes = [];
+      for(var i=0;i<cols;i++){
+        for(var j=0;j<rows;j++){
+          nodes.push({x: offX + i*gap, y: offY + j*gap, phase: Math.random()*Math.PI*2,
+                      speed: 0.2 + Math.random()*0.5, up: Math.random() > 0.5});
+        }
+      }
+    }
+    function rgba(c,a){ return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')'; }
+
+    function draw(){
+      t += 0.01;
+      ctx.clearRect(0,0,W,H);
+      var e1x = W*(0.5 + 0.42*Math.sin(t*0.35)), e1y = H*(0.4 + 0.35*Math.cos(t*0.27));
+      var e2x = W*(0.5 + 0.40*Math.cos(t*0.22+2)), e2y = H*(0.55 + 0.30*Math.sin(t*0.31+1));
+
+      ctx.lineWidth = 1;
+      for(var i=0;i<cols;i++){
+        for(var j=0;j<rows;j++){
+          var n = nodes[i*rows + j];
+          if(i < cols-1) link(n, nodes[(i+1)*rows + j]);
+          if(j < rows-1) link(n, nodes[i*rows + (j+1)]);
+        }
+      }
+      for(var k=0;k<nodes.length;k++){
+        var p = nodes[k];
+        var d1 = Math.hypot(p.x-e1x, p.y-e1y), d2 = Math.hypot(p.x-e2x, p.y-e2y);
+        var glow = Math.min(Math.max(0, 1 - d1/210) + Math.max(0, 1 - d2/210), 1);
+        var pulse = 0.5 + 0.5*Math.sin(t*p.speed + p.phase);
+        var col = p.up ? C_UP : C_DN;
+        var a = 0.18 + 0.12*pulse + glow*0.75;
+        var r = 1.6 + glow*2.4 + pulse*0.5;
+        if(glow > 0.02){
+          ctx.beginPath(); ctx.fillStyle = rgba(col, glow*0.12);
+          ctx.arc(p.x, p.y, r*3.4, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.beginPath(); ctx.fillStyle = rgba(glow>0.15 ? col : C_BASE, a);
+        ctx.arc(p.x, p.y, r, 0, Math.PI*2); ctx.fill();
+      }
+      raf = requestAnimationFrame(draw);
+
+      function link(a,b){
+        var mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+        var d1=Math.hypot(mx-e1x,my-e1y), d2=Math.hypot(mx-e2x,my-e2y);
+        var g=Math.max(0,1-d1/200)+Math.max(0,1-d2/200);
+        ctx.strokeStyle = g<0.04 ? rgba(C_BASE,0.05) : rgba(C_UP, Math.min(g,1)*0.28);
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      }
+    }
+    var rt;
+    window.addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(build, 150); }, {passive:true});
+    build(); draw();
+    document.addEventListener('visibilitychange', function(){
+      if(document.hidden){ cancelAnimationFrame(raf); } else { raf = requestAnimationFrame(draw); }
+    });
+  }
+})();
+</script>
+
+</body>
+</html>{% endraw %}

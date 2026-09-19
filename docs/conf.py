@@ -31,7 +31,12 @@ exclude_patterns = ["_build", "README.md"]
 root_doc = "contents"
 
 templates_path = ["_templates"]
-html_additional_pages = {"index": "landing.html"}
+# benchmarks.html is likewise standalone: it reads its whole dataset from
+# _static/benchmarks-data.js at runtime, so new systems are a data-only edit.
+html_additional_pages = {
+    "index": "landing.html",
+    "benchmarks": "benchmarks.html",
+}
 
 html_theme = "pydata_sphinx_theme"
 html_title = "tachys"

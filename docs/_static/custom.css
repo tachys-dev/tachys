@@ -29,3 +29,47 @@ h1, h2, h3 {
     display: inline-block;
     margin-bottom: 1rem;
 }
+
+/* ── site header ───────────────────────────────────────────────────────────
+ * The wordmark sat flush against the first nav link, so "tachys Quickstart"
+ * read as one run of text. Separate the brand from the navigation with space
+ * and a hairline rule, and let the links themselves breathe.
+ * Only above the theme's collapse breakpoint: below it the links move into
+ * the sidebar and a trailing rule would hang off the logo.
+ */
+.bd-header .navbar-brand {
+    gap: 0.6rem;
+    /* Bootstrap's own right margin would push the rule off-centre */
+    margin-right: 0;
+}
+.bd-header .navbar-brand .logo__title {
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+
+@media (min-width: 992px) {
+    .bd-header .navbar-header-items__start {
+        margin-right: 1.25rem;
+    }
+    .bd-header .navbar-header-items__start > .navbar-item {
+        position: relative;
+        padding-right: 1.25rem;
+    }
+    .bd-header .navbar-header-items__start > .navbar-item::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 1px;
+        height: 1.5rem;
+        background: var(--pst-color-border);
+    }
+    .bd-header ul.bd-navbar-elements {
+        gap: 0.4rem;
+    }
+    .bd-header ul.bd-navbar-elements .nav-link {
+        padding-left: 0.3rem;
+        padding-right: 0.3rem;
+    }
+}

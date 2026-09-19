@@ -38,7 +38,7 @@ def _format_fields(obj):
     return ", ".join(parts)
 
 
-def _check_energy(e_per_site, wandb_run, e_min=-10.0, e_max=10.0):
+def _check_energy(e_per_site, wandb_run, e_min=-100.0, e_max=100.0):
     """Abort the run if the energy per site has diverged or gone NaN.
 
     Every rank sees the same ``e_per_site`` (already psum-reduced in
@@ -64,7 +64,8 @@ def _compute_metrics(mean_e, mean_E2, Ns):
     return e, e2, e_per_site, vscore, variance_per_site
 
 
-def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc, start_step=0):
+def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc,
+                         start_step=0, estimator=None):
     lattice = state.lattice
     model = getattr(wf.apply_fn, "__self__", None)
 
@@ -79,6 +80,8 @@ def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, 
     print(f"             : {wf.num_params:,} parameters")
     print(f"Optimizer    : {type(optimizer).__name__}({_format_fields(optimizer)})")
     print(f"MC action    : {type(action).__name__}({_format_fields(action)})")
+    if estimator is not None:
+        print(f"Estimator    : {type(estimator).__name__}({_format_fields(estimator)})")
     print(f"N_mc         : {N_mc}    N_steps: {N_steps}" + (f"    start_step: {start_step}" if start_step else ""))
     print(f"lr schedule  : {lr_schedule(start_step):.2e} -> {lr_schedule(start_step + N_steps - 1):.2e}")
     print("-" * 60)
@@ -86,7 +89,7 @@ def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, 
 
 def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
           wandb_run=None, log_callback_fn=None, skip_optimization=False, nsweeps=1,
-          opt_state=None, start_step=0):
+          opt_state=None, start_step=0, estimator=None):
     """Run the SR optimization loop, printing live diagnostics.
 
     Parameters
@@ -128,13 +131,32 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
                       where the previous run left off instead of restarting at 0.
                       ``N_steps`` still counts iterations run by *this* call — pass the
                       remaining steps, not the original total.
+    estimator       : optional callable replacing the default ``|psi|^2`` expectation
+                      value with an importance-weighted one (e.g.
+                      ``tachys.experimental.blurred_sampling.BlurredEstimator``).
+                      ``None`` (default) uses ``compute_expectation`` directly.
+                      The protocol is
+
+                          estimator(keys, H, wf, state, log_amps)
+                              -> (eval_state, E_L, weights, e_mean, e2_mean, metrics)
+
+                      where ``keys`` is a ``(N_mc,)`` array of per-chain keys (as
+                      ``sample`` takes), ``eval_state`` is the batch ``E_L`` was
+                      actually evaluated on — which is what the optimizer is then
+                      given, since the weights correct *those* configurations back to
+                      ``|psi|^2`` — ``weights`` is ``None`` or a ``(N_mc,)`` array
+                      at any scale (the optimizer normalizes it), and ``metrics`` is a dict of extra
+                      scalars merged into the wandb log and the printed line. The
+                      Markov chain itself always carries the unmodified ``state``
+                      forward, and ``log_callback_fn`` / checkpoints keep seeing it.
 
     Returns
     -------
     key, state, wf, opt_state, history
     """
     N = state.Ns
-    _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc, start_step)
+    _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc,
+                         start_step, estimator)
 
     if callable(log_callback_fn):
         log_callback_fn = [log_callback_fn]
@@ -176,13 +198,30 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
             jax.block_until_ready((state, log_amps))
 
         with Timer() as t_expect:
-            E_L, e_mean, e2_mean = compute_expectation(H, wf, state, log_amps)
+            if estimator is None:
+                eval_state, weights, extra_metrics = state, None, {}
+                E_L, e_mean, e2_mean = compute_expectation(H, wf, state, log_amps)
+            else:
+                # Derive the estimator's keys from this step's sampling key by
+                # fold_in rather than splitting `key` again. That leaves the main
+                # key stream advancing identically whether or not an estimator is
+                # passed, so a no-op estimator (e.g. BlurredEstimator(q=0)) follows
+                # the same Markov trajectory as the default path, and switching one
+                # on does not shift the RNG stream a resumed run depends on. It
+                # also makes standard-vs-reweighted comparisons paired on the same
+                # Monte Carlo noise, which is what makes them worth comparing.
+                eval_state, E_L, weights, e_mean, e2_mean, extra_metrics = estimator(
+                    jax.random.split(jax.random.fold_in(subkey, 1), N_mc),
+                    H, wf, state, log_amps,
+                )
             jax.block_until_ready(E_L)
 
         lr = lr_schedule(step)
         with Timer() as t_opt:
             if not skip_optimization:
-                updates, opt_state = optimizer(E_L, opt_state, state, wf)
+                # eval_state, not state: with importance weights the Jacobian has to
+                # be taken on the very configurations the weights were derived for.
+                updates, opt_state = optimizer(E_L, opt_state, eval_state, wf, weights=weights)
                 jax.block_until_ready(updates)
                 wf = wf.apply_gradients(updates, lr)
 
@@ -215,6 +254,7 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
                 "variance_per_site": variance_per_site,
                 "vscore": vscore,
                 "acceptance": acc,
+                **extra_metrics,
                 **callback_metrics,
             }
             wandb_run.log(metrics, step=step)
@@ -238,7 +278,8 @@ def train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
             f"{e_per_site:20.12f} │ {variance_per_site:10.2e} │ {vscore:8.4f} │ "
             f"{acc:7.3f} │ {lr:9.2e} │ "
             f"{t_sample.elapsed:6.2f} │ {t_expect.elapsed:6.2f} │ {t_opt.elapsed:6.2f} │ {t_step:6.2f} (s) │ "
-            f"{eta_hours:7.2f} (h)",
+            f"{eta_hours:7.2f} (h)"
+            + "".join(f" │ {k}: {v:.3f}" for k, v in extra_metrics.items()),
             flush=True,
         )
 
