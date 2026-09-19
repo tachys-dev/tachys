@@ -1,27 +1,24 @@
 # Foundation Models
 
-Normally, one wavefunction is trained for one Hamiltonian. A **foundation
-model** instead trains a single network across *many* Hamiltonians at
-once — say, every value of a coupling constant you'd otherwise sweep one run
-at a time — by mixing samples from all of them into one Monte Carlo batch.
-The network reads off which system produced each sample and conditions its
-output on that, so one trained model generalizes across the whole family
-instead of one model per parameter value.
+A **foundation model** is a single network trained on a family of
+Hamiltonians at once, in place of one network per Hamiltonian. Samples from
+every member of the family are mixed into one Monte Carlo batch, and the
+network conditions its output on the couplings of the system each sample came
+from, so one trained model covers the whole family — every value of a coupling
+constant that would otherwise be swept one run at a time.
 
-## The equations behind it
+## Formulation
 
-This is the setup introduced in Rende, Viteritti, Becca, Scardicchio, Laio &
-Carleo, ["Foundation neural-network quantum states as a unified Ansatz for
-multiple Hamiltonians"](https://www.nature.com/articles/s41467-025-62098-x),
-*Nature Communications* (2025) — one of tachys's own authors. It's worth
-reading alongside this page; here's the minimum needed to connect their
-notation to tachys's objects.
+The construction follows Rende, Viteritti, Becca, Scardicchio, Laio & Carleo,
+["Foundation neural-network quantum states as a unified Ansatz for multiple
+Hamiltonians"](https://www.nature.com/articles/s41467-025-62098-x), *Nature
+Communications* (2025).
 
-The paper writes the wavefunction as $\psi_\theta(\sigma|\gamma)$: one network
-with parameters $\theta$, taking both a configuration $\sigma$ and a coupling
-vector $\gamma$ (e.g. $\gamma = J$ or $\gamma = U$) as input. That's exactly
-`apply_fn(params, state)` here, once `state.system_couplings` supplies
-$\gamma$ for every sample in the batch.
+The wavefunction is $\psi_\theta(\sigma|\gamma)$: one network with parameters
+$\theta$, taking a configuration $\sigma$ and a coupling vector $\gamma$ (for
+instance $\gamma = J$ or $\gamma = U$). In tachys this is
+`apply_fn(params, state)`, with `state.system_couplings` supplying $\gamma$ for
+every sample in the batch.
 
 Training minimizes the energy averaged over an ensemble of Hamiltonians, drawn
 from some distribution $P(\gamma)$ over coupling space:
@@ -35,48 +32,46 @@ $$
 E_L(\sigma,\gamma)
 $$
 
-A tachys training step estimates exactly this by Monte Carlo: pick
-$\mathcal{R}$ = `n_systems` values of $\gamma$ (a discrete stand-in for
-$P(\gamma)$), sample $M/\mathcal{R}$ = `n_mc_per_system` configurations for
-each, and average the local energy $E_L$ over the whole mixed batch of
-$M$ = `N_mc` samples — which is exactly the `e_mean` that `compute_expectation`
-returns.
+A training step estimates this by Monte Carlo: $\mathcal{R}$ = `n_systems`
+values of $\gamma$ discretize $P(\gamma)$, $M/\mathcal{R}$ =
+`n_mc_per_system` configurations are sampled for each, and the local energy
+$E_L$ is averaged over the mixed batch of $M$ = `N_mc` samples. That average is
+the `e_mean` returned by `compute_expectation`.
 
-Building the gradient correctly needs *per-system* averages rather than one
-average over the whole mixed batch — e.g. the paper's per-system observable
-average $\bar A_k = \frac{1}{M_k}\sum_j \langle\sigma_j|\hat A_{\gamma_k}|
+The gradient requires *per-system* averages rather than a single average over
+the mixed batch, for instance the per-system observable average $\bar A_k = \frac{1}{M_k}\sum_j \langle\sigma_j|\hat A_{\gamma_k}|
 \psi_\theta(\gamma_k)\rangle / \langle\sigma_j|\psi_\theta(\gamma_k)\rangle$.
-That's `tachys.lattice.foundation.collectives.grouped_mean(x, state.system_ids,
-state.n_systems)` — used internally by the SR-family optimizers whenever
-`state` is a `FoundationState`, so centering happens system-by-system rather
-than across the mixed batch.
+`tachys.lattice.foundation.collectives.grouped_mean(x, state.system_ids,
+state.n_systems)` computes them. The SR-family optimizers call it whenever
+`state` is a `FoundationState`, so energies are centered system by system
+rather than across the mixed batch.
 
 ## The data: two extra fields
 
-This needs exactly two extra pieces of per-sample data, and no new machinery:
+Two per-sample arrays are added:
 
-- `system_couplings`, shape `(N_mc, n_couplings)` — $\gamma$: the Hamiltonian
+- `system_couplings`, shape `(N_mc, n_couplings)` — $\gamma$, the Hamiltonian
   parameters of the system each sample came from.
-- `system_ids`, shape `(N_mc,)` — an integer in `[0, n_systems)` marking
-  which system each sample belongs to.
+- `system_ids`, shape `(N_mc,)` — an integer in `[0, n_systems)` identifying
+  that system.
 
-`FoundationState` is a small `PyTreeNode` carrying exactly those two fields.
-It's mixed into an ordinary `SpinState`/`FermionState` via multiple
-inheritance to give `SpinFoundationState`/`FermionFoundationState` — still
-just a `State`, so `sample`, `compute_expectation`, and the optimizer all work
-on it completely unchanged (see {doc}`concepts` if those aren't familiar yet).
+`FoundationState` is a `PyTreeNode` holding these two fields. Combined with
+`SpinState` or `FermionState` by multiple inheritance, it gives
+`SpinFoundationState` and `FermionFoundationState`; both remain `State`s, so
+`sample`, `compute_expectation` and the optimizer apply to them unchanged (see
+{doc}`concepts`).
 
-Building the batch happens once, before the loop: build one Hamiltonian per
-system from the same template, `combine_systems` them into a single operator
-whose couplings vary per sample, and `extract_system_couplings` reads that
-same operator back out into the array `FoundationState.system_couplings`
+The batch is built once, before the loop: one Hamiltonian per system from a
+common template, `combine_systems` merges them into a single operator whose
+couplings vary per sample, and `extract_system_couplings` returns that
+operator's couplings as the array `FoundationState.system_couplings`
 expects.
 
-## A full example: the Hubbard model across many `U`
+## Example: the Hubbard model at several values of `U`
 
-One network, trained simultaneously on the Hubbard model at four values of the
-on-site interaction — weakly correlated ($U=0$) all the way to strongly
-correlated ($U=8$) — on the same 4×4 lattice at fixed filling.
+One network trained on the Hubbard model at four values of the on-site
+interaction, from the non-interacting limit ($U=0$) to the strongly correlated
+regime ($U=8$), on a 4×4 lattice at fixed filling.
 
 ```python
 import jax
@@ -140,26 +135,23 @@ for step in range(N_steps):
     print(f"step {step:3d}  E/N (ensemble avg) = {jnp.real(e_mean) / N: .4f}")
 ```
 
-This mirrors `tests/lattice/foundation/test_main_foundation_setup.py`, which
-pins down exact expected values for each stage of this same pipeline (local
-energies, sampled log-amplitudes, and optimizer updates) as a regression test
-— worth a read if you want to see every intermediate value checked.
+`tests/lattice/foundation/test_main_foundation_setup.py` runs this pipeline
+as a regression test, with expected values for the local energies, the sampled
+log-amplitudes and the optimizer updates.
 
-A couple of things worth noticing:
+Three properties of the example are worth stating explicitly.
 
-- `system_couplings` here has shape `(32, 1)`: only the on-site $U$ term
-  varies across the four systems (the hopping amplitude $t$ is shared), so
-  `extract_system_couplings` finds exactly one distinct varying column. That
-  won't always be true — for a Hamiltonian where more than one *numeric*
-  coupling value varies (like `heisenberg_hamiltonian`'s $J$ and $J/2$ terms),
-  you'd see one column per distinct value, not one per physical parameter.
-- The wavefunction just needs to read `lattice.system_couplings` alongside the
-  configuration. `FermionFoundationRBM` (and `SpinFoundationRBM`) do exactly
-  that, concatenating it onto the network's input before the ordinary
-  backflow/RBM layer — everything else about them is unchanged from
-  `FermionRBM`/`SpinRBM`.
-- The training loop itself is untouched from {doc}`concepts`: `sample` and
-  `compute_expectation` don't care that `state` is a `FoundationState` instead
-  of a plain `FermionState`, and the optimizer already uses `system_ids`
-  internally to center energies per-system rather than across the whole mixed
-  batch.
+**Couplings.** `system_couplings` has shape `(32, 1)`: only $U$ varies across
+the four systems, the hopping $t$ being shared, so `extract_system_couplings`
+finds one varying column. In general there is one column per distinct varying
+*numeric* value, not one per physical parameter — `heisenberg_hamiltonian`
+with $J$ and $J/2$ terms yields two.
+
+**Ansatz.** The network reads `system_couplings` from the state alongside the
+configuration. `FermionFoundationRBM` and `SpinFoundationRBM` concatenate it
+onto the input of the backflow/RBM layer, and are otherwise identical to
+`FermionRBM` and `SpinRBM`.
+
+**Loop.** The training loop is unchanged from {doc}`concepts`: `sample` and
+`compute_expectation` are indifferent to the state subtype, and the optimizer
+uses `system_ids` to center energies per system.

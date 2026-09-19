@@ -1,42 +1,32 @@
 # Core Concepts
 
-Tachys is written in a **purely functional** style. There are no objects that
-quietly hold mutable state, and nothing you call ever changes what you pass
-into it. Everything you touch is one of two things:
+Tachys is purely functional: values are immutable, and functions have no side
+effects. Two kinds of object appear throughout — data, in the form of
+immutable JAX pytrees, and pure functions mapping data to data. JAX's
+transformations (`jit`, `vmap`, `grad`) presuppose this structure, so every
+object in tachys can be passed to them directly.
 
-- **Data** — an immutable value, almost always a JAX pytree.
-- **A pure function** — something that takes data in and returns new data
-  out, without side effects.
-
-This isn't an implementation detail you can ignore: JAX's own transformations
-(`jit`, `vmap`, `grad`) already require this discipline, so tachys leans into
-it instead of working around it. Once it clicks, the whole library reads the
-same way: a handful of data types, and a small set of functions that turn one
-piece of data into another.
-
-This page introduces both halves — the data (`State`, and the `Lattice` it
-carries) and the functions that manipulate it, in particular the three you'll
-use in almost every script: `sample`, `compute_expectation`, and an optimizer.
+This page describes the data type `State`, together with the `Lattice` it
+carries, and the three functions that constitute a variational Monte Carlo
+run: `sample`, `compute_expectation`, and an optimizer.
 
 ---
 
 ## The data: `State`
 
-A `State` is the physical configuration of your system — spins, or fermionic
-occupation numbers — batched over however many independent Monte Carlo chains
-you're running at once. It bundles two very different kinds of information:
+A `State` stores the configuration of the system — spins, or fermionic
+occupation numbers — batched over the Monte Carlo chains run in parallel. It
+holds two kinds of information:
 
-- **Dynamic data**: the actual configurations (`state.spins` or
-  `state.occupations`), shape `(batch, ...)`. This is what JAX traces,
-  batches, and differentiates through.
-- **Static geometry**: `state.lattice`, a `Lattice` describing where the sites
-  are and how they're connected. It's attached to every state but marked as
-  non-pytree metadata — shared by the whole batch, not itself something you
-  differentiate through.
+- **Dynamic data**: the configurations, `state.spins` or
+  `state.occupations`, of shape `(batch, ...)`. JAX traces, batches and
+  differentiates these.
+- **Static geometry**: `state.lattice`, a `Lattice` specifying the sites and
+  their connectivity. It is stored as non-pytree metadata, shared by the whole
+  batch and never differentiated.
 
-Because `State` extends `flax.struct.PyTreeNode`, every state is automatically
-a valid JAX pytree: it passes through `jit`, `vmap`, and `grad` with no
-wrapping or special-casing.
+`State` extends `flax.struct.PyTreeNode`, so any state is a valid pytree and
+passes through `jit`, `vmap` and `grad` without wrapping.
 
 ```python
 import jax.numpy as jnp
@@ -53,58 +43,54 @@ occ = jnp.array([[1, 0, 0, 1]], dtype=jnp.int8)        # (batch=1, 2*Ns)
 f = FermionState(occupations=occ, Ne=2, lattice=chain(2))
 ```
 
-Note that `Ns` is not something you pass in: it's a read-only property
-computed as `state.lattice.Ns`. A `State`'s only real constructor arguments
-are its physical data (`spins`/`occupations`, plus `Ne`/`Nbands` for fermions)
-and the `lattice` it lives on.
+`Ns` is a read-only property returning `state.lattice.Ns`. The constructor
+takes the physical data (`spins` or `occupations`, together with `Ne` and
+`Nbands` for fermions) and the `lattice`.
 
 :::{important}
-**States are never mutated in place.** Anything that "changes" a state —
-inside tachys or in your own code — does so by calling `.replace(...)`, which
-returns a brand-new `State` and leaves the original completely untouched. You
-will see this pattern everywhere, starting with the functions below.
+**States are never mutated.** A modified state is produced by `.replace(...)`,
+which returns a new `State` and leaves the original unchanged. Every function
+below follows this rule.
 :::
 
 ---
 
 ## The functions: `sample`, `compute_expectation`, and the optimizer
 
-A VMC run is nothing more than three pure functions, called in a loop, each
-one handing its output to the next:
+A variational Monte Carlo run applies three pure functions in sequence at
+every step.
 
-1. **`sample`** advances the Markov chain. Given the current `state`, a
-   wavefunction, a Monte Carlo move, and a PRNG key, it returns a **new**
-   state — the input `state` is left untouched.
+1. **`sample`** advances the Markov chain. Given the current state, a
+   wavefunction, a Monte Carlo move and a PRNG key, it returns a new state,
+   the log-amplitudes evaluated on it, and the acceptance rate. The input
+   state is unchanged.
 
    ```python
    state, log_amps, acceptance = sample(nsweeps, state, action, mc_keys, wf)
    ```
 
-2. **`compute_expectation`** turns a state into a number. Given an operator, a
-   wavefunction, and a state, it evaluates the operator's local estimator and
-   reduces it to global statistics. It only *reads* `state` — there's no new
-   state coming out the other end, only energies.
+2. **`compute_expectation`** evaluates an operator. Given an operator, a
+   wavefunction and a state, it computes the local estimator on each
+   configuration and reduces it to global statistics. The state is read, not
+   modified.
 
    ```python
    E_L, e_mean, e2_mean = compute_expectation(H, wf, state, log_amps)
    ```
 
-3. **The optimizer** turns those energies into a parameter update. Optimizers
-   like `SR`, `SPRING`, and `MARCH` are themselves just data — plain
-   `flax.struct.PyTreeNode`s — called as functions:
+3. **The optimizer** maps the local energies to a parameter update. `SR`,
+   `SPRING` and `MARCH` are `flax.struct.PyTreeNode`s called as functions:
 
    ```python
    updates, opt_state = optimizer(E_L, opt_state, state, wf)
    wf = wf.apply_gradients(updates, lr)
    ```
 
-   `optimizer(...)` doesn't touch `wf` or `opt_state` — it returns new values
-   for both. `wf.apply_gradients` is the same story: it returns a new
-   `WaveFunction` with updated parameters, rather than editing the one you
-   already have.
+   The optimizer returns the update and a new optimizer state;
+   `apply_gradients` returns a new `WaveFunction` carrying the updated
+   parameters.
 
-Put the three together and you have the entire training loop — nothing else
-is hidden underneath:
+Composed, the three are the entire training loop:
 
 ```python
 for step in range(N_steps):
@@ -118,40 +104,36 @@ for step in range(N_steps):
     wf = wf.apply_gradients(updates, lr)
 ```
 
-Every variable on the left-hand side is a *new* value each iteration —
-`state`, `wf`, and `opt_state` are simply reassigned, exactly like the carry
-of a JAX `scan`, just written out as an ordinary Python loop. There's no
-`Trainer` object accumulating hidden state behind the scenes; if you want to
-know what a tachys training run does, this loop *is* the answer. See
-{doc}`quickstart` for a complete, runnable version of it.
+Each iteration rebinds `state`, `wf` and `opt_state` to new values, as the
+carry of a JAX `scan` would; no state is held anywhere else. A runnable
+version is given in {doc}`quickstart`.
 
-### Sampling from something other than `|ψ|²`
+### Sampling from a density other than `|ψ|²`
 
-Step 2 is the only one that assumes the batch is distributed as `|ψ|²`. Swap in
-a different density there and every expectation value needs a per-sample
-importance weight to correct it back — which is what `train`'s `estimator`
-argument is for:
+Step 2 assumes configurations distributed as `|ψ|²`. Under any other sampling
+density, every expectation value requires a per-sample importance weight,
+supplied through the `estimator` argument of `train`:
 
 ```python
 eval_state, E_L, weights, e_mean, e2_mean, metrics = estimator(keys, H, wf, state, log_amps)
 updates, opt_state = optimizer(E_L, opt_state, eval_state, wf, weights=weights)
 ```
 
-Two things are worth being explicit about. The optimizer is handed
-`eval_state`, not `state`: the weights correct the configurations `E_L` was
-evaluated on, so the Jacobian has to be taken on those same configurations. And
-the chain itself is untouched — `state` carries forward to the next `sample`
-call exactly as before. An estimator changes what the energy and the gradient
-are computed *from*, never what is sampled.
+The optimizer receives `eval_state` rather than `state`: the weights apply to
+the configurations on which `E_L` was evaluated, so the Jacobian must be taken
+on those same configurations. The chain is unaffected, and `state` carries
+forward to the next call to `sample`. An estimator changes the configurations
+the energy and the gradient are computed on, not the ones the chain visits.
 
-`tachys.experimental.blurred_sampling.BlurredEstimator` is the implementation
-that ships with tachys. `E_loc(x)` has heavy tails, because a walker landing
-where `|ψ(x)|` is small produces a huge local energy and such configurations are
-too rare under `|ψ|²` to average out. Blurred sampling moves each walker, with
-probability `q`, to a uniformly chosen configuration connected to it by `H`'s
-off-diagonal part, so those configurations get visited at a controlled rate, and
-reweights by the exact density ratio. The amplitude ratios in the weight are the
-ones the local estimator already computes, so the correction is close to free.
+`tachys.experimental.blurred_sampling.BlurredEstimator` implements one such
+scheme. The local energy `E_loc(x)` has heavy tails: a walker reaching a
+configuration where `|ψ(x)|` is small produces a large contribution, and such
+configurations are too rare under `|ψ|²` to be averaged accurately. Blurred
+sampling moves each walker, with probability `q`, to a uniformly chosen
+configuration connected to it by the off-diagonal part of `H`, so those
+configurations are visited at a controlled rate, and reweights by the exact
+ratio of densities. The amplitude ratios entering the weights are those the
+local estimator already evaluates.
 
-Training a single network across *many* Hamiltonians at once builds on
-exactly this — see {doc}`foundation_models`.
+Training one network across many Hamiltonians uses the same three functions;
+see {doc}`foundation_models`.
