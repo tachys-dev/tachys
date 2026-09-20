@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tachys — Neural Quantum States for JAX</title>
-<meta name="description" content="Functional NQS library for lattice quantum systems. Operators are callables, states are pytrees, physics is composable.">
+<title>Tachys — Neural quantum states in JAX</title>
+<meta name="description" content="A JAX library for variational Monte Carlo with neural quantum states on quantum lattice models. Hamiltonians are callables, states are pytrees, and the optimization loop is explicit.">
 <link rel="icon" href="_static/logo.svg" type="image/svg+xml">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -260,33 +260,66 @@ p code,li code,.ic{
 .note.tip{border-color:var(--green);background:rgba(16,185,129,.05)}
 .note p{font-size:.875rem;color:var(--text2);max-width:none;margin:0}
 
-/* steps */
-.steps{list-style:none;margin-top:2rem;display:flex;flex-direction:column;gap:.75rem}
-.step{display:flex;gap:1rem;align-items:baseline}
-.step-n{
-  flex-shrink:0;width:22px;height:22px;border-radius:50%;
-  background:var(--blue);color:#fff;
-  font-size:.7rem;font-weight:700;font-family:var(--mono);
-  display:flex;align-items:center;justify-content:center;
+/* ── flow: how it works ── */
+.flow{position:relative;margin-top:2.5rem}
+.flow::before{
+  content:'';position:absolute;left:18px;top:16px;bottom:16px;width:2px;
+  background:linear-gradient(180deg,var(--blue),rgba(26,95,235,.10));
 }
-.step-body{font-size:.875rem;color:var(--text2)}
-.step-body strong{color:var(--navy);font-family:var(--mono);font-size:.85em}
+.fstep{
+  position:relative;display:grid;
+  grid-template-columns:38px 1fr;column-gap:1.5rem;
+  padding-bottom:2.75rem;
+}
+.fstep:last-child{padding-bottom:0}
+.fstep-n{
+  width:38px;height:38px;border-radius:50%;
+  background:var(--blue);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:700;font-size:.9rem;
+  box-shadow:0 0 0 7px var(--surface);
+  position:relative;z-index:1;
+}
+.fstep h3{font-size:1.15rem;margin-bottom:.45rem;padding-top:.3rem}
+.fstep-body{max-width:70ch;min-width:0}
+.fstep-body > p{font-size:.95rem}
+.fstep .cb{margin:1.1rem 0 0}
+.fstep .cb{min-width:0}
+.fstep .cb pre{padding:1rem 1.25rem;font-size:.78rem;line-height:1.7;overflow-x:auto}
+.fstep-note{
+  margin-top:.9rem;font-size:.85rem;color:var(--muted);
+  border-left:2px solid var(--border);padding-left:.9rem;
+}
+.closer{
+  max-width:70ch;margin-top:3rem;padding:1.5rem 1.75rem;
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);
+}
+.closer p{font-size:.9rem;margin-bottom:.85rem}
+.more{font-size:.8rem;font-weight:600;font-family:var(--mono)}
+.more .arr{display:inline-block;transition:transform .2s}
+.more:hover .arr{transform:translateX(4px)}
 
-/* concept cards */
-.cc{
+/* ── routes ── */
+.routes{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:2rem}
+.route{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--rl);padding:1.75rem;margin-bottom:1.25rem;
+  border-radius:var(--rl);padding:1.5rem;
+  display:flex;flex-direction:column;color:inherit;
   transition:transform .3s cubic-bezier(.2,.7,.3,1),box-shadow .3s,border-color .3s;
 }
-.cc:hover{transform:translateY(-3px);box-shadow:0 20px 44px -28px rgba(13,27,46,.55);border-color:#c3cee0}
-.cc h3{font-size:1.15rem;margin-bottom:.5rem}
-.cc p{margin-bottom:.75rem;font-size:.9rem}
-.cc p:last-child{margin-bottom:0}
-.cc-more{font-size:.8rem;font-weight:600;font-family:var(--mono)}
-.cc-more .arr{display:inline-block;transition:transform .2s}
-.cc:hover .cc-more .arr{transform:translateX(4px)}
-
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.route:hover{
+  transform:translateY(-3px);text-decoration:none;
+  box-shadow:0 20px 44px -28px rgba(13,27,46,.55);border-color:#c3cee0;
+}
+.route-tag{
+  font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--blue);font-weight:700;margin-bottom:.65rem;
+}
+.route h3{font-size:1.05rem;margin-bottom:.4rem}
+.route p{font-size:.875rem;color:var(--muted);max-width:none;flex:1;margin-bottom:1rem}
+.route-go{font-size:.78rem;font-weight:600;font-family:var(--mono);color:var(--blue)}
+.route-go .arr{display:inline-block;transition:transform .2s}
+.route:hover .route-go .arr{transform:translateX(4px)}
 
 /* CTA */
 .cta{
@@ -316,9 +349,15 @@ footer a{color:#6B7FA0}
 .reveal[data-d="4"]{transition-delay:.32s}
 .reveal[data-d="5"]{transition-delay:.40s}
 
+@media(max-width:980px){
+  .routes{grid-template-columns:repeat(2,1fr)}
+}
 @media(max-width:768px){
   .feat-grid{grid-template-columns:1fr}
-  .grid2{grid-template-columns:1fr}
+  .routes{grid-template-columns:1fr}
+  .fstep{grid-template-columns:30px 1fr;column-gap:1.1rem}
+  .fstep-n{width:30px;height:30px;font-size:.8rem;box-shadow:0 0 0 6px var(--surface)}
+  .flow::before{left:14px}
   .n-links a:not(.n-ver){display:none}
   .hero h1{font-size:2.1rem}
   .hero{padding:4.5rem 1.5rem 4rem}
@@ -360,16 +399,15 @@ footer a{color:#6B7FA0}
 <section class="hero" id="top">
   <canvas id="lattice"></canvas>
   <div class="hero-in">
-    <div class="eyebrow">Variational Monte Carlo · JAX</div>
-    <h1 id="headline">Quantum many-body physics at <em>functional</em> scale.</h1>
+    <div class="eyebrow">Neural quantum states · JAX</div>
+    <h1 id="headline">Variational Monte Carlo for <em>quantum lattice models</em>.</h1>
     <p class="lead">
-      Built on functional programming principles, fully compatible with the JAX ecosystem.
-      Write your physics once — compose, differentiate, and scale from your laptop to a GPU
-      cluster without changing a line. The VMC engine is fast, easy to use, and simple to
-      extend to your own problems.
+      A variational Monte Carlo engine built directly on JAX. Hamiltonians are composed from
+      spin and fermionic operator terms, any Flax module can serve as the ansatz, and the same
+      program runs on a single CPU and across a multi-GPU cluster.
     </p>
     <div class="hero-acts">
-      <a href="quickstart.html" class="btn">Get started <span class="arr">→</span></a>
+      <a href="quickstart.html" class="btn">Quickstart <span class="arr">→</span></a>
       <div class="install-pill" id="installPill" title="Click to copy">
         <span class="pr">$</span>
         <span class="cm">pip install tachys</span>
@@ -388,111 +426,130 @@ footer a{color:#6B7FA0}
       <div class="fc reveal" data-d="1">
         <div class="fc-icon b">↑↓</div>
         <h3>Spin systems</h3>
-        <p>Simulate spin-½ lattice models at scale — benchmarked up to <strong>~<span class="count" data-to="2000">0</span> spins</strong>.</p>
+        <p>Spin-½ lattice models, benchmarked up to <strong>~<span class="count" data-to="2000">0</span> spins</strong>.</p>
       </div>
       <div class="fc reveal" data-d="2">
         <div class="fc-icon v">ψ</div>
         <h3>Fermionic systems</h3>
-        <p>Simulate fermionic systems — benchmarked up to <strong><span class="count" data-to="500">0</span> electrons</strong>. Spin and fermionic degrees of freedom combine freely in a single Hamiltonian.</p>
+        <p>Fermionic lattice models, benchmarked up to <strong><span class="count" data-to="500">0</span> electrons</strong>.</p>
       </div>
       <div class="fc reveal" data-d="3">
         <div class="fc-icon g">∇</div>
         <h3>Foundation models</h3>
-        <p>Train neural quantum states and foundation models for quantum many-body physics.</p>
+        <p>A single network trained across a family of Hamiltonians rather than one per coupling.</p>
       </div>
     </div>
   </div>
 </div>
 
-<!-- MINIMAL EXAMPLE -->
-<section class="sec" style="background:var(--surface)">
+<!-- HOW IT WORKS -->
+<section class="sec" id="how" style="background:var(--surface)">
   <div class="content">
-    <div class="sec-lbl reveal">Example</div>
-    <h2 class="reveal" data-d="1">A simulation in ten lines</h2>
-    <p class="lead-p reveal" data-d="2">Build a Hamiltonian, define an ansatz, and run a variational Monte Carlo optimisation loop.</p>
-    <div class="cb reveal" data-d="3">
-      <div class="cb-head">
-        <span class="cb-file"><span class="dots"><i></i><i></i><i></i></span>main.py</span>
-        <span class="cb-lang">python</span>
-      </div>
-      <pre><span class="kw">from</span> tachys.lattice.lattice_database <span class="kw">import</span> square
-<span class="kw">from</span> tachys.lattice.spins.hamiltonians.ising_transverse_field <span class="kw">import</span> ising_transverse_field_square_pbc
-<span class="kw">from</span> tachys.lattice.spins.spin_state <span class="kw">import</span> SpinState, init_config_fixed_magn
-<span class="kw">from</span> tachys.lattice.ansatz.rbm <span class="kw">import</span> SpinRBM
-<span class="kw">from</span> tachys.lattice.operator.local_estimator <span class="kw">import</span> compute_expectation
-<span class="kw">from</span> tachys.montecarlo <span class="kw">import</span> sample
-<span class="kw">from</span> tachys.wavefunction <span class="kw">import</span> WaveFunction
-<span class="kw">from</span> tachys.optimizer <span class="kw">import</span> SR
+    <div class="sec-lbl reveal">Method</div>
+    <h2 class="reveal" data-d="1">Structure of a calculation</h2>
+    <p class="lead-p reveal" data-d="2">A ground-state calculation consists of three function calls in an explicit Python loop: configurations are sampled, the energy is estimated on that sample, and the parameters are updated. Each call returns new values rather than modifying its arguments; there is no driver object and no callback mechanism.</p>
 
-lattice = <span class="fn">square</span>(shape=(<span class="nm">4</span>, <span class="nm">4</span>))
-H     = <span class="fn">ising_transverse_field_square_pbc</span>(L=<span class="nm">4</span>)
-model = <span class="cls">SpinRBM</span>(hidden_units=<span class="nm">16</span>)
-state = <span class="cls">SpinState</span>(spins=<span class="fn">init_config_fixed_magn</span>(key, lattice.Ns, N_mc=<span class="nm">16</span>), lattice=lattice)
-wf    = <span class="cls">WaveFunction</span>(params=model.<span class="fn">init</span>(key, state), apply_fn=model.apply)
+    <div class="flow">
+      <article class="fstep reveal">
+        <div class="fstep-n">1</div>
+        <div class="fstep-body">
+          <h3>Sampling</h3>
+          <p>A move rule defines a Markov chain over configurations. <code>sample</code> advances every chain and returns the resulting configurations together with their log-amplitudes.</p>
+          <div class="cb">
+            <pre>state, log_amps, acceptance = <span class="fn">sample</span>(nsweeps, state, action, keys, wf)</pre>
+          </div>
+          <p class="fstep-note">Chains are sharded across the available JAX devices, so the call is the same on one CPU and on many GPUs.</p>
+        </div>
+      </article>
 
-optimizer = <span class="cls">SR</span>(diag_shift=<span class="nm">1e-4</span>, mode=<span class="st">"real"</span>)
-opt_state = optimizer.<span class="fn">init</span>(wf.params)
+      <article class="fstep reveal">
+        <div class="fstep-n">2</div>
+        <div class="fstep-body">
+          <h3>Energy estimation</h3>
+          <p>A Hamiltonian is a Python callable assembled from operator terms. <code>compute_expectation</code> applies it to the sampled configurations and returns the local energies together with ⟨E⟩ and ⟨E²⟩.</p>
+          <div class="cb">
+            <pre>E_L, e_mean, e2_mean = <span class="fn">compute_expectation</span>(H, wf, state, log_amps)</pre>
+          </div>
+          <p class="fstep-note">No matrix representation is constructed, so memory scales with the sample rather than with the dimension of the Hilbert space.</p>
+        </div>
+      </article>
 
-<span class="kw">for</span> step <span class="kw">in</span> <span class="fn">range</span>(<span class="nm">100</span>):
-    state, log_amps, _ = <span class="fn">sample</span>(<span class="nm">1</span>, state, action, keys, wf)
-    E_L, e_mean, e2_mean = <span class="fn">compute_expectation</span>(H, wf, state, log_amps)
-    updates, opt_state = <span class="fn">optimizer</span>(E_L, opt_state, state, wf)
-    wf = wf.<span class="fn">apply_gradients</span>(updates, eta=<span class="nm">0.01</span>)</pre>
+      <article class="fstep reveal">
+        <div class="fstep-n">3</div>
+        <div class="fstep-body">
+          <h3>Parameter update</h3>
+          <p>An optimizer maps the local energies to a parameter update. Applying the update returns a new wavefunction rather than modifying the existing one, so a run is a sequence of values that can be checkpointed or compared at any step.</p>
+          <div class="cb">
+            <pre>updates, opt_state = <span class="fn">optimizer</span>(E_L, opt_state, state, wf)
+wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
+          </div>
+          <p class="fstep-note">Learning-rate schedules, stopping criteria and additional observables are expressed directly in the loop rather than registered through hooks.</p>
+        </div>
+      </article>
     </div>
 
-    <ol class="steps">
-      <li class="step reveal"><span class="step-n">1</span><span class="step-body"><strong>ising_transverse_field_square_pbc</strong> — builds the Hamiltonian as a callable operator sum. Adding or scaling terms returns a new operator — no matrix is allocated yet.</span></li>
-      <li class="step reveal"><span class="step-n">2</span><span class="step-body"><strong>SpinRBM</strong> — a Flax module implementing a Restricted Boltzmann Machine ansatz for spin-½ systems. <code>hidden_units</code> sets the hidden layer width.</span></li>
-      <li class="step reveal"><span class="step-n">3</span><span class="step-body"><strong>init_config_fixed_magn</strong> — samples a batch of random spin configurations with fixed total magnetization <code>sz</code>, returning a <code>SpinState</code> pytree of shape <code>(N_mc, N)</code>.</span></li>
-      <li class="step reveal"><span class="step-n">4</span><span class="step-body"><strong>WaveFunction</strong> — wraps parameters and apply function into a single pytree, so the wavefunction flows through <code>jit</code>, <code>vmap</code>, and <code>grad</code>.</span></li>
-      <li class="step reveal"><span class="step-n">5</span><span class="step-body"><strong>SR</strong> — Stochastic Reconfiguration optimizer. Preconditions the energy gradient with the quantum geometric tensor (via NTK). <code>diag_shift</code> regularises the inversion.</span></li>
-      <li class="step reveal"><span class="step-n">6</span><span class="step-body"><strong>sample</strong> — runs Metropolis-Hastings sampling and returns the updated state, its log-amplitudes, and the acceptance rate.</span></li>
-      <li class="step reveal"><span class="step-n">7</span><span class="step-body"><strong>compute_expectation</strong> — evaluates the local energy estimator <code>E_L</code>, then reduces to <code>e_mean = ⟨E⟩</code> and <code>e2_mean = ⟨|E|²⟩</code> across all devices.</span></li>
-      <li class="step reveal"><span class="step-n">8</span><span class="step-body"><strong>optimizer</strong> — applies SR to <code>E_L</code> and returns the parameter updates and the new optimizer state.</span></li>
-      <li class="step reveal"><span class="step-n">9</span><span class="step-body"><strong>apply_gradients</strong> — performs the descent step <code>θ ← θ − η · updates</code>, returning a new <code>WaveFunction</code>.</span></li>
-    </ol>
+    <div class="closer reveal">
+      <p>Each of these is a pure function over JAX pytrees. Any Flax module can be used as the ansatz, and the loop can be passed to <code>jit</code> or <code>vmap</code> without further wrapping.</p>
+      <a class="more" href="quickstart.html">Complete example <span class="arr">→</span></a>
+    </div>
   </div>
 </section>
 
-<!-- CONCEPTS -->
-<section class="sec" id="concepts">
-  <div class="content">
-    <div class="sec-lbl reveal">Core Concepts</div>
-    <h2 class="reveal" data-d="1">How Tachys works</h2>
-    <p class="lead-p reveal" data-d="2">Three primitives — states, operators, and the diagonalization engine — cover the full workflow. Each is independently composable.</p>
+<!-- WHERE TO START -->
+<section class="sec" id="start">
+  <div class="container">
+    <div class="sec-lbl reveal">Documentation</div>
+    <h2 class="reveal" data-d="1">Further reading</h2>
+    <p class="lead-p reveal" data-d="2">The quickstart gives two complete scripts; the remaining pages cover the data types, the reference energies and the full interface.</p>
 
-    <div class="grid2">
-      <div class="cc reveal" data-d="1">
-        <h3>States as pytrees</h3>
-        <p>A <code>State</code> bundles a batch of configurations with the lattice they live on, and extends <code>flax.struct.PyTreeNode</code>, so it passes through <code>jit</code>, <code>vmap</code>, and <code>grad</code> with no wrapping. Nothing is ever mutated in place.</p>
-        <a class="cc-more" href="concepts.html">Read more <span class="arr">→</span></a>
-      </div>
-      <div class="cc reveal" data-d="2">
-        <h3>Sample, estimate, update</h3>
-        <p>A training run is three pure functions in a loop — <code>sample</code>, <code>compute_expectation</code>, and an optimizer — each handing new, immutable values to the next. No hidden <code>Trainer</code> object, no side effects.</p>
-        <a class="cc-more" href="concepts.html">Read more <span class="arr">→</span></a>
-      </div>
-      <div class="cc reveal" data-d="3">
+    <div class="routes">
+      <a class="route reveal" data-d="1" href="quickstart.html">
+        <div class="route-tag">Tutorial</div>
+        <h3>Quickstart</h3>
+        <p>Two complete scripts: a frustrated Heisenberg model and the Hubbard model, on the same lattice and the same loop.</p>
+        <span class="route-go">Read the quickstart <span class="arr">→</span></span>
+      </a>
+      <a class="route reveal" data-d="2" href="benchmarks.html">
+        <div class="route-tag">Reference data</div>
+        <h3>Benchmarks</h3>
+        <p>Reference variational energies for frustrated lattice models, by geometry and system size.</p>
+        <span class="route-go">View the benchmarks <span class="arr">→</span></span>
+      </a>
+      <a class="route reveal" data-d="3" href="foundation_models.html">
+        <div class="route-tag">Method</div>
         <h3>Foundation models</h3>
-        <p>Train a single network across many Hamiltonians at once by mixing samples from every system into one Monte Carlo batch — one trained model generalizes across the whole family instead of one per parameter value.</p>
-        <a class="cc-more" href="foundation_models.html">Read more <span class="arr">→</span></a>
-      </div>
-      <div class="cc reveal" data-d="4">
-        <h3>Operators &amp; Hamiltonians</h3>
-        <p>Operators support arithmetic: <code>+</code> builds an <code>_OperatorSum</code>, scalar <code>*</code> rescales the coupling, and operator <code>*</code> forms a sequential product. Every composite is itself a callable.</p>
-        <a class="cc-more" href="api.html">Read more <span class="arr">→</span></a>
-      </div>
+        <p>How a single network is trained across a family of Hamiltonians.</p>
+        <span class="route-go">Read the method <span class="arr">→</span></span>
+      </a>
+      <a class="route reveal" data-d="4" href="concepts.html">
+        <div class="route-tag">Reference</div>
+        <h3>Concepts</h3>
+        <p>States, operators, wavefunctions and samplers, and the rules by which they compose.</p>
+        <span class="route-go">Read the concepts <span class="arr">→</span></span>
+      </a>
+      <a class="route reveal" data-d="5" href="api.html">
+        <div class="route-tag">Reference</div>
+        <h3>API</h3>
+        <p>Ansätze, optimizers, lattices, Hamiltonians and samplers, with full signatures.</p>
+        <span class="route-go">Browse the API <span class="arr">→</span></span>
+      </a>
+      <a class="route reveal" data-d="5" href="https://github.com/tachys-dev/tachys">
+        <div class="route-tag">Source</div>
+        <h3>GitHub</h3>
+        <p>Implementation and issue tracker.</p>
+        <span class="route-go">View the repository <span class="arr">→</span></span>
+      </a>
     </div>
   </div>
 </section>
 
 <!-- CTA -->
 <section class="cta">
-  <h2 class="reveal">Start simulating in minutes</h2>
-  <p class="reveal" data-d="1">From <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install</code> to a ground-state energy in under five minutes — the same three-step workflow scales to every model in the library.</p>
+  <h2 class="reveal">Getting started</h2>
+  <p class="reveal" data-d="1">Tachys is installed with <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install tachys</code> and requires JAX.</p>
   <div class="reveal" data-d="2">
-    <a href="quickstart.html" class="btn">Get started <span class="arr">→</span></a>
-    <a href="api.html" class="btn ghost">Browse the API</a>
+    <a href="quickstart.html" class="btn">Quickstart <span class="arr">→</span></a>
+    <a href="api.html" class="btn ghost">API reference</a>
   </div>
 </section>
 
