@@ -83,15 +83,15 @@ params = model.init(subkey, state)
 wf = WaveFunction(params=params, apply_fn=model.apply)
 
 action = BondExchange.create(lattice)
-optimizer = SR(diag_shift=1e-3, mode="complex")
+optimizer = SR(diag_shift=1e-4, mode="complex")
 opt_state = optimizer.init(wf.params)
 
-N_steps, lr = 30, 5e-2
+N_steps, nsweeps, lr = 30, 1, 0.03
 for step in range(N_steps):
     key, subkey = jax.random.split(key)
     mc_keys = jax.random.split(subkey, N_mc)
 
-    state, log_amps, acceptance = sample(1, state, action, mc_keys, wf)
+    state, log_amps, acceptance = sample(nsweeps, state, action, mc_keys, wf)
     E_L, e_mean, e2_mean = compute_expectation(H, wf, state, log_amps)
 
     updates, opt_state = optimizer(E_L, opt_state, state, wf)
@@ -145,15 +145,15 @@ params = model.init(subkey, state)
 wf = WaveFunction(params=params, apply_fn=model.apply)
 
 action = BondExchange.create(lattice, Nbands=2)
-optimizer = SR(diag_shift=1e-3, mode="complex")
+optimizer = SR(diag_shift=1e-4, mode="complex")
 opt_state = optimizer.init(wf.params)
 
-N_steps, lr = 30, 5e-2
+N_steps, nsweeps, lr = 30, 1, 0.03
 for step in range(N_steps):
     key, subkey = jax.random.split(key)
     mc_keys = jax.random.split(subkey, N_mc)
 
-    state, log_amps, acceptance = sample(1, state, action, mc_keys, wf)
+    state, log_amps, acceptance = sample(nsweeps, state, action, mc_keys, wf)
     E_L, e_mean, e2_mean = compute_expectation(H, wf, state, log_amps)
 
     updates, opt_state = optimizer(E_L, opt_state, state, wf)
