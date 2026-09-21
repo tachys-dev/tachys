@@ -10,26 +10,31 @@ from jax import config
 config.update("jax_enable_x64", True)
 
 
-def exact_diag(state_full_hilbert, H, pack, k=1):
+def build_sparse_hamiltonian(state_full_hilbert, H, pack):
     """
-    Build the sparse Hamiltonian matrix and return the lowest k eigenvalues
-    and eigenvectors.
+    Assemble the sparse matrix of ``H`` in the basis enumerated by
+    ``state_full_hilbert``.
+
+    Split out of ``exact_diag`` so the matrix itself is reachable — needed by
+    anything that wants more than the extremal eigenpairs, e.g. exact real-time
+    propagation ``exp(-i H t) psi`` for validating ``tachys.dynamics``.
 
     Parameters
     ----------
     state_full_hilbert : State
         State whose physical array rows enumerate every basis state.
     H : operator
-        Callable that accepts a SpinState and returns a DiagOffdiagResult.
+        Callable that accepts a State and returns a DiagOffdiagResult.
     pack : callable
-        Maps a SpinState to a 1-D integer array of basis indices.
-    k : int
-        Number of lowest eigenvalues to compute (default 1).
+        Maps a State to a 1-D integer array of basis indices.
 
     Returns
     -------
-    eigenvalues : np.ndarray, shape (k,)
-    eigenvectors : np.ndarray, shape (n_active_states, k)
+    mat : scipy.sparse.csr_array, shape (n_active_states, n_active_states)
+    sorted_active : np.ndarray, shape (n_active_states,)
+        The sorted ``pack`` indices, in the order the matrix rows/columns use.
+        ``np.searchsorted(sorted_active, pack(some_state))`` maps any state back
+        to its matrix index.
     """
     diag_idx = pack(state_full_hilbert)
 
@@ -69,8 +74,31 @@ def exact_diag(state_full_hilbert, H, pack, k=1):
     # pair (H is Hermitian and applied to every basis state), so no explicit
     # symmetrization is needed.
     mat = scipy.sparse.coo_array((vals, (rows, cols)), shape=(n_states, n_states))
-    mat = mat.tocsr()
+    return mat.tocsr(), sorted_active
 
+
+def exact_diag(state_full_hilbert, H, pack, k=1):
+    """
+    Build the sparse Hamiltonian matrix and return the lowest k eigenvalues
+    and eigenvectors.
+
+    Parameters
+    ----------
+    state_full_hilbert : State
+        State whose physical array rows enumerate every basis state.
+    H : operator
+        Callable that accepts a SpinState and returns a DiagOffdiagResult.
+    pack : callable
+        Maps a SpinState to a 1-D integer array of basis indices.
+    k : int
+        Number of lowest eigenvalues to compute (default 1).
+
+    Returns
+    -------
+    eigenvalues : np.ndarray, shape (k,)
+    eigenvectors : np.ndarray, shape (n_active_states, k)
+    """
+    mat, _ = build_sparse_hamiltonian(state_full_hilbert, H, pack)
     eigenvalues, eigenvectors = scipy.sparse.linalg.eigsh(mat, k=k, which="SA")
     return eigenvalues, eigenvectors
 
