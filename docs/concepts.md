@@ -119,6 +119,36 @@ eval_state, E_L, weights, e_mean, e2_mean, metrics = estimator(keys, H, wf, stat
 updates, opt_state = optimizer(E_L, opt_state, eval_state, wf, weights=weights)
 ```
 
+Training a single network across *many* Hamiltonians at once builds on
+exactly this — see {doc}`foundation_models`.
+
+## Real time is the same loop
+
+Evolving a state in real time reuses every one of those three functions. Only
+the third changes: instead of an optimizer returning a descent direction, a
+`TDVP` driver returns the physical velocity `dtheta/dt`, and the parameters are
+advanced along it by a Runge–Kutta step rather than a gradient step.
+
+```python
+from tachys.dynamics import TDVP, evolve
+
+tdvp = TDVP(mode="complex", rcond=1e-8)
+key, state, wf, opt_state, history = evolve(
+    key, H, state, wf, tdvp, action,
+    N_steps=200, dt=0.005, N_mc=N_mc,
+    integrator="rk4", tdvp_error_every=10,
+)
+```
+
+The reason it is so nearly the same code is that ground-state optimization
+*is* imaginary-time evolution: minimizing the energy solves
+`S dtheta = -Re F`, and propagating in real time solves `S dtheta = Im F` — the
+same metric, the same force, rotated by `i`. What genuinely differs is that a
+physical time step has no learning rate to absorb a stray factor, that the
+kernel must be regularized by discarding small eigenvalues rather than by
+damping every direction, and that the ansatz must be complex-valued, since
+real-time evolution generates a phase. See the *Real-time dynamics* section of
+{doc}`api` for the details, and `main_dynamics.py` for a quench end to end.
 The optimizer receives `eval_state` rather than `state`: the weights apply to
 the configurations on which `E_L` was evaluated, so the Jacobian must be taken
 on those same configurations. The chain is unaffected, and `state` carries
