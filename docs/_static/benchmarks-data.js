@@ -551,6 +551,12 @@ const BENCHMARKS = [
         url: "https://doi.org/10.1038/s41467-026-74028-6", year: 2026,
       },
       {
+        energy: -0.7441, display: "−0.7441(8)", wf: "Tensor-Backflow + sym + Lanczos", kind: "Hybrid",
+        params: "516,096", prior: "",
+        ref: "Liang, arXiv:2609.22618",
+        url: "https://arxiv.org/abs/2609.22618", year: 2026,
+      },
+      {
         energy: -0.75058, display: "−0.75058(1)", wf: "Pfaffian + sym", kind: "NQS",
         variance: "0.016", params: "", prior: "",
         ref: "Viteritti et al., arXiv:2604.21978",
@@ -630,6 +636,12 @@ const BENCHMARKS = [
         params: "", prior: "",
         ref: "Liang, arXiv:2507.01856",
         url: "https://arxiv.org/abs/2507.01856", year: 2025,
+      },
+      {
+        energy: -0.7408, display: "−0.7408(1)", wf: "Tensor-Backflow + Lanczos", kind: "Hybrid",
+        params: "", prior: "",
+        ref: "Liang, arXiv:2609.22618",
+        url: "https://arxiv.org/abs/2609.22618", year: 2026,
       },
       {
         energy: -0.7373, display: "−0.7373", wf: "SCALE", kind: "NQS",

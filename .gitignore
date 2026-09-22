@@ -7,3 +7,4 @@ docs/_build/
 *.sh
 *.vscode
 *.claude
+.DS_Store
