@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tachys — Neural quantum states in JAX</title>
-<meta name="description" content="A JAX library for variational Monte Carlo with neural quantum states on quantum lattice models. Hamiltonians are callables, states are pytrees, and the optimization loop is explicit.">
+<title>tachys — Neural quantum states in JAX</title>
+<meta name="description" content="A JAX library for variational Monte Carlo with neural quantum states, applied to quantum many-body systems. Hamiltonians are callables, states are pytrees, and the optimization loop is explicit.">
 <link rel="icon" href="_static/logo.svg" type="image/svg+xml">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -299,27 +299,34 @@ p code,li code,.ic{
 .more .arr{display:inline-block;transition:transform .2s}
 .more:hover .arr{transform:translateX(4px)}
 
-/* ── routes ── */
-.routes{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-top:2rem}
-.route{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--rl);padding:1.5rem;
-  display:flex;flex-direction:column;color:inherit;
-  transition:transform .3s cubic-bezier(.2,.7,.3,1),box-shadow .3s,border-color .3s;
+/* ── papers ── */
+#papers{padding:3.5rem 0}
+.papers{margin-top:1.5rem;border-top:1px solid var(--border)}
+.paper{
+  display:grid;grid-template-columns:3.25rem minmax(0,1fr) auto;
+  column-gap:1.5rem;align-items:baseline;
+  padding:.9rem .4rem .95rem;color:inherit;
+  border-bottom:1px solid var(--border);
+  transition:background .2s;
 }
-.route:hover{
-  transform:translateY(-3px);text-decoration:none;
-  box-shadow:0 20px 44px -28px rgba(13,27,46,.55);border-color:#c3cee0;
+.paper:hover{text-decoration:none;background:rgba(26,95,235,.035)}
+.paper-meta{display:contents}
+.paper-yr{
+  grid-column:1;grid-row:1;
+  font-family:var(--mono);font-size:.75rem;color:var(--muted);
+  font-variant-numeric:tabular-nums;
 }
-.route-tag{
-  font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--blue);font-weight:700;margin-bottom:.65rem;
+.paper-body{grid-column:2;grid-row:1}
+.paper-t{font-size:.95rem;font-weight:600;line-height:1.45;margin:0;transition:color .2s}
+.paper:hover .paper-t{color:var(--blue)}
+.paper-a{font-size:.8rem;line-height:1.6;color:var(--muted);max-width:none;margin-top:.15rem}
+.paper-ref{
+  grid-column:3;grid-row:1;
+  font-family:var(--mono);font-size:.72rem;color:var(--blue);white-space:nowrap;
 }
-.route h3{font-size:1.05rem;margin-bottom:.4rem}
-.route p{font-size:.875rem;color:var(--muted);max-width:none;flex:1;margin-bottom:1rem}
-.route-go{font-size:.78rem;font-weight:600;font-family:var(--mono);color:var(--blue)}
-.route-go .arr{display:inline-block;transition:transform .2s}
-.route:hover .route-go .arr{transform:translateX(4px)}
+.paper-ref .arr{display:inline-block;transition:transform .2s}
+.paper:hover .paper-ref .arr{transform:translateX(3px)}
+.papers-note{font-size:.8rem;color:var(--muted);margin-top:1.15rem}
 
 /* CTA */
 .cta{
@@ -349,18 +356,16 @@ footer a{color:#6B7FA0}
 .reveal[data-d="4"]{transition-delay:.32s}
 .reveal[data-d="5"]{transition-delay:.40s}
 
-@media(max-width:980px){
-  .routes{grid-template-columns:repeat(2,1fr)}
-}
 @media(max-width:768px){
   .feat-grid{grid-template-columns:1fr}
-  .routes{grid-template-columns:1fr}
   .fstep{grid-template-columns:30px 1fr;column-gap:1.1rem}
   .fstep-n{width:30px;height:30px;font-size:.8rem;box-shadow:0 0 0 6px var(--surface)}
   .flow::before{left:14px}
   .n-links a:not(.n-ver){display:none}
   .hero h1{font-size:2.1rem}
   .hero{padding:4.5rem 1.5rem 4rem}
+  .paper{display:block;padding:1rem .25rem}
+  .paper-meta{display:flex;align-items:center;gap:.7rem;margin-top:.5rem}
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -400,7 +405,7 @@ footer a{color:#6B7FA0}
   <canvas id="lattice"></canvas>
   <div class="hero-in">
     <div class="eyebrow">Neural quantum states · JAX</div>
-    <h1 id="headline">Variational Monte Carlo for <em>quantum lattice models</em>.</h1>
+    <h1 id="headline">Variational Monte Carlo for <em>quantum many-body systems</em>.</h1>
     <p class="lead">
       A variational Monte Carlo engine built directly on JAX. Hamiltonians are composed from
       spin and fermionic operator terms, any Flax module can serve as the ansatz, and the same
@@ -495,58 +500,74 @@ wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
   </div>
 </section>
 
-<!-- WHERE TO START -->
-<section class="sec" id="start">
-  <div class="container">
-    <div class="sec-lbl reveal">Documentation</div>
-    <h2 class="reveal" data-d="1">Further reading</h2>
-    <p class="lead-p reveal" data-d="2">The quickstart gives two complete scripts; the remaining pages cover the data types, the reference energies and the full interface.</p>
+<!-- PAPERS -->
+<section class="sec" id="papers">
+  <div class="content">
+    <div class="sec-lbl reveal">Research</div>
+    <h2 class="reveal" data-d="1">Recent work using tachys</h2>
+    <p class="lead-p reveal" data-d="2">The calculations in these papers were carried out with tachys.</p>
 
-    <div class="routes">
-      <a class="route reveal" data-d="1" href="quickstart.html">
-        <div class="route-tag">Tutorial</div>
-        <h3>Quickstart</h3>
-        <p>Two complete scripts: a frustrated Heisenberg model and the Hubbard model, on the same lattice and the same loop.</p>
-        <span class="route-go">Read the quickstart <span class="arr">→</span></span>
+    <div class="papers">
+      <a class="paper reveal" data-d="1" href="https://arxiv.org/abs/2608.12465">
+        <div class="paper-body">
+          <h3 class="paper-t">Superconductivity in the <em>t</em>-<em>t</em>′ Hubbard Model from Symmetry-Preserving Neural-Network Quantum States</h3>
+          <p class="paper-a">R. Rende, L. L. Viteritti, A. Georges</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2026</span>
+          <span class="paper-ref">arXiv:2608.12465 <span class="arr">→</span></span>
+        </span>
       </a>
-      <a class="route reveal" data-d="2" href="benchmarks.html">
-        <div class="route-tag">Reference data</div>
-        <h3>Benchmarks</h3>
-        <p>Reference variational energies for frustrated lattice models, by geometry and system size.</p>
-        <span class="route-go">View the benchmarks <span class="arr">→</span></span>
+      <a class="paper reveal" data-d="2" href="https://arxiv.org/abs/2606.23799">
+        <div class="paper-body">
+          <h3 class="paper-t">Fermi surface change and <em>d</em>-wave superconductivity in the square lattice Kondo-Heisenberg model</h3>
+          <p class="paper-a">A. Nikolaenko, R. Rende, L. L. Viteritti, S. Sachdev, Y.-H. Zhang</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2026</span>
+          <span class="paper-ref">arXiv:2606.23799 <span class="arr">→</span></span>
+        </span>
       </a>
-      <a class="route reveal" data-d="3" href="foundation_models.html">
-        <div class="route-tag">Method</div>
-        <h3>Foundation models</h3>
-        <p>How a single network is trained across a family of Hamiltonians.</p>
-        <span class="route-go">Read the method <span class="arr">→</span></span>
+      <a class="paper reveal" data-d="3" href="https://arxiv.org/abs/2606.02794">
+        <div class="paper-body">
+          <h3 class="paper-t">Scaling Laws for Neural-Network Quantum States</h3>
+          <p class="paper-a">R. Rende, A. Sinibaldi, L. L. Viteritti, R. Wiersema, A. Georges, G. Carleo</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2026</span>
+          <span class="paper-ref">arXiv:2606.02794 <span class="arr">→</span></span>
+        </span>
       </a>
-      <a class="route reveal" data-d="4" href="concepts.html">
-        <div class="route-tag">Reference</div>
-        <h3>Concepts</h3>
-        <p>States, operators, wavefunctions and samplers, and the rules by which they compose.</p>
-        <span class="route-go">Read the concepts <span class="arr">→</span></span>
+      <a class="paper reveal" data-d="4" href="https://arxiv.org/abs/2602.02665">
+        <div class="paper-body">
+          <h3 class="paper-t">Approaching the Thermodynamic Limit with Neural-Network Quantum States</h3>
+          <p class="paper-a">L. L. Viteritti, R. Rende, S. Sachdev, G. Carleo</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2026</span>
+          <span class="paper-ref">arXiv:2602.02665 <span class="arr">→</span></span>
+        </span>
       </a>
-      <a class="route reveal" data-d="5" href="api.html">
-        <div class="route-tag">Reference</div>
-        <h3>API</h3>
-        <p>Ansätze, optimizers, lattices, Hamiltonians and samplers, with full signatures.</p>
-        <span class="route-go">Browse the API <span class="arr">→</span></span>
-      </a>
-      <a class="route reveal" data-d="5" href="https://github.com/tachys-dev/tachys">
-        <div class="route-tag">Source</div>
-        <h3>GitHub</h3>
-        <p>Implementation and issue tracker.</p>
-        <span class="route-go">View the repository <span class="arr">→</span></span>
+      <a class="paper reveal" data-d="5" href="https://doi.org/10.1038/s41467-025-62098-x">
+        <div class="paper-body">
+          <h3 class="paper-t">Foundation Neural-Networks Quantum States as a Unified Ansatz for Multiple Hamiltonians</h3>
+          <p class="paper-a">R. Rende, L. L. Viteritti, F. Becca, A. Scardicchio, A. Laio, G. Carleo</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2025</span>
+          <span class="paper-ref">Nat. Commun. 16, 7213 <span class="arr">→</span></span>
+        </span>
       </a>
     </div>
+
+    <p class="papers-note reveal">Work using tachys that is missing from this list can be added by <a href="https://github.com/tachys-dev/tachys/issues">opening an issue</a>.</p>
   </div>
 </section>
 
 <!-- CTA -->
 <section class="cta">
   <h2 class="reveal">Getting started</h2>
-  <p class="reveal" data-d="1">Tachys is installed with <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install tachys</code> and requires JAX.</p>
+  <p class="reveal" data-d="1">tachys is installed with <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install tachys</code> and requires JAX.</p>
   <div class="reveal" data-d="2">
     <a href="quickstart.html" class="btn">Quickstart <span class="arr">→</span></a>
     <a href="api.html" class="btn ghost">API reference</a>
@@ -555,7 +576,7 @@ wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
 
 <!-- FOOTER -->
 <footer>
-  <p>Tachys v0.1.0 — Built on <a href="https://jax.dev">JAX</a> and <a href="https://flax.readthedocs.io">Flax</a> · <a href="https://github.com/tachys-dev/tachys">GitHub</a></p>
+  <p>tachys v0.1.0 — Built on <a href="https://jax.dev">JAX</a> and <a href="https://flax.readthedocs.io">Flax</a> · <a href="https://github.com/tachys-dev/tachys">GitHub</a></p>
   <p style="margin-top:.4rem;font-size:.75rem">MIT License</p>
 </footer>
 

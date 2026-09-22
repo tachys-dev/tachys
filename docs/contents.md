@@ -6,7 +6,7 @@ html_theme.sidebar_secondary.remove: true
 
 ```{admonition} Homepage
 :class: seealso
-Looking for the project overview? Head back to the <a href="index.html">Tachys homepage</a>.
+Looking for the project overview? Head back to the <a href="index.html">tachys homepage</a>.
 ```
 
 ```{admonition} Benchmarks
@@ -15,7 +15,7 @@ Reference variational energies for frustrated lattice models — pick a model, a
 lattice geometry and a size on the <a href="benchmarks.html">benchmarks page</a>.
 ```
 
-**Tachys** is a JAX library for finding the ground states of quantum lattice
+**tachys** is a JAX library for finding the ground states of quantum lattice
 models with neural-network wavefunctions. Build a Hamiltonian by composing
 spin and fermionic operators, use any Flax network as the wavefunction, and
 optimize it with variational Monte Carlo — the same code runs on a laptop and
@@ -31,7 +31,7 @@ pip install jax
 # GPU (CUDA 12)
 pip install "jax[cuda12]"
 
-# Tachys
+# tachys
 pip install tachys
 ```
 

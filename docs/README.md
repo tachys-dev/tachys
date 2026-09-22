@@ -1,4 +1,4 @@
-# Tachys documentation
+# tachys documentation
 
 ## Setup
 

@@ -1,4 +1,4 @@
-<title>Tachys — Neural Quantum States for JAX</title>
+<title>tachys — Neural Quantum States for JAX</title>
 <meta name="description" content="Functional NQS library for lattice quantum systems. Operators are callables, states are pytrees, physics is composable.">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -461,7 +461,7 @@ opt_state = optimizer.<span class="fn">init</span>(wf.params)
   <div class="content">
     <div class="sec-lbl">Setup</div>
     <h2>Installation</h2>
-    <p class="lead-p">Tachys requires Python ≥ 3.9. Install JAX first with the backend that matches your hardware, then install Tachys.</p>
+    <p class="lead-p">tachys requires Python ≥ 3.9. Install JAX first with the backend that matches your hardware, then install tachys.</p>
   </div>
 </section>
 
@@ -470,7 +470,7 @@ opt_state = optimizer.<span class="fn">init</span>(wf.params)
   <div class="content">
     <div class="sec-lbl">Quickstart</div>
     <h2>Ground state in ten lines</h2>
-    <p class="lead-p">Compute the ground state energy of the antiferromagnetic Heisenberg model on a 4×4 square lattice. The three steps — build an operator, generate the basis, run exact diagonalization — are the same for every model in Tachys.</p>
+    <p class="lead-p">Compute the ground state energy of the antiferromagnetic Heisenberg model on a 4×4 square lattice. The three steps — build an operator, generate the basis, run exact diagonalization — are the same for every model in tachys.</p>
   </div>
 </section>
 
@@ -478,7 +478,7 @@ opt_state = optimizer.<span class="fn">init</span>(wf.params)
 <section class="sec" id="concepts">
   <div class="content">
     <div class="sec-lbl">Core Concepts</div>
-    <h2>How Tachys works</h2>
+    <h2>How tachys works</h2>
     <p class="lead-p">Three primitives — states, operators, and the diagonalization engine — cover the full workflow. Each is independently composable.</p>
 
     <!-- States -->
@@ -508,7 +508,7 @@ opt_state = optimizer.<span class="fn">init</span>(wf.params)
     <!-- Hamiltonians -->
     <div class="cc" id="concept-hamiltonians">
       <h3>Built-in Hamiltonians</h3>
-      <p>Tachys ships Hamiltonians for two standard lattice models, both on the square lattice with periodic boundary conditions. Each factory function returns an operator that can be further composed, scaled, or perturbed.</p>
+      <p>tachys ships Hamiltonians for two standard lattice models, both on the square lattice with periodic boundary conditions. Each factory function returns an operator that can be further composed, scaled, or perturbed.</p>
     </div>
 
     <!-- Exact diag -->
@@ -841,6 +841,6 @@ opt_state = optimizer.<span class="fn">init</span>(wf.params)
 
 <!-- FOOTER -->
 <footer>
-  <p>Tachys v0.1.0 &mdash; Built on <a href="#">JAX</a> and <a href="#">Flax</a></p>
+  <p>tachys v0.1.0 &mdash; Built on <a href="#">JAX</a> and <a href="#">Flax</a></p>
   <p style="margin-top:.4rem;font-size:.75rem">MIT License</p>
 </footer>

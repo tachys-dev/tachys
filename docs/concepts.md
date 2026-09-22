@@ -1,6 +1,6 @@
 # Core Concepts
 
-Tachys is purely functional: values are immutable, and functions have no side
+tachys is purely functional: values are immutable, and functions have no side
 effects. Two kinds of object appear throughout — data, in the form of
 immutable JAX pytrees, and pure functions mapping data to data. JAX's
 transformations (`jit`, `vmap`, `grad`) presuppose this structure, so every
