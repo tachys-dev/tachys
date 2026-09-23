@@ -46,6 +46,7 @@ docs = [
 
 [project.urls]
 Homepage = "https://github.com/tachys-dev/tachys"
+Documentation = "https://tachys-dev.github.io/tachys/"
 Repository = "https://github.com/tachys-dev/tachys"
 Issues = "https://github.com/tachys-dev/tachys/issues"
 
