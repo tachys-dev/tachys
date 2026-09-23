@@ -1,0 +1,55 @@
+name: Publish to PyPI
+
+# Runs when a GitHub release is published. The version uploaded to PyPI is
+# `version` in pyproject.toml; the release tag must match it (v0.1.0 <-> 0.1.0).
+# Uses PyPI trusted publishing, so no API token is stored in the repo.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Check release tag matches pyproject.toml version
+        run: |
+          version=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::Release tag '$GITHUB_REF_NAME' does not match version '$version' in pyproject.toml"
+            exit 1
+          fi
+
+      - name: Build sdist and wheel
+        run: |
+          pip install build
+          python -m build
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/tachys
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
