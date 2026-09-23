@@ -1,63 +1,46 @@
 <p align="center">
-  <img src="docs/_static/logo.svg" width="285" height="48" alt="tachys logo">
+  <img src="https://raw.githubusercontent.com/tachys-dev/tachys/main/docs/_static/logo.svg" width="285" height="48" alt="tachys logo">
 </p>
 
 # tachys
 
+**tachys** is a JAX library for finding the ground states of quantum lattice
+models with neural-network wavefunctions. Build a Hamiltonian by composing
+spin and fermionic operators, use any Flax network as the wavefunction, and
+optimize it with variational Monte Carlo — the same code runs on a laptop and
+across a multi-GPU cluster. It also trains foundation models: a single network
+covering a whole family of Hamiltonians, rather than one run per coupling.
+
 ## Installation
-
-This is a **private repository**, so `pip` needs to authenticate to GitHub before it can fetch the code. The two supported ways to do that are SSH (recommended if you already have an SSH key registered with GitHub) or an HTTPS personal access token.
-
-### Install directly with pip (no local clone)
-
-Since the repo is private, plain `pip install git+https://...` will fail with an authentication error unless you provide credentials. Use one of the following instead.
-
-**Via SSH** (requires your SSH key to be added to your GitHub account and access to the repo):
-
-```bash
-pip install "git+ssh://git@github.com/tachys-dev/tachys.git"
-```
-
-**Via HTTPS with a personal access token** (create one under GitHub Settings → Developer settings → Personal access tokens, with at least `repo` scope):
-
-```bash
-pip install "git+https://<YOUR_TOKEN>@github.com/tachys-dev/tachys.git"
-```
-
-To install with the CUDA extra, append `#egg=tachys[cuda]` to either URL, e.g.:
-
-```bash
-pip install "git+ssh://git@github.com/tachys-dev/tachys.git#egg=tachys[cuda]"
-```
-
-### Clone and install
-
-Clone the repository and install with `pip`:
-
-```bash
-git clone git@github.com:tachys-dev/tachys.git
-cd tachys
-```
 
 **CPU:**
 ```bash
-pip install .
+pip install tachys
 ```
 
 **CUDA (GPU):**
 ```bash
-pip install ".[cuda]"
+pip install "tachys[cuda]"
 ```
 
 This installs JAX with CUDA 12 support via the `cuda` optional dependency.
+
+### Install from source
+
+```bash
+git clone https://github.com/tachys-dev/tachys.git
+cd tachys
+pip install .
+```
 
 ### Development install
 
 To install in editable mode (changes to the source are reflected immediately without reinstalling):
 
 ```bash
-pip install -e .          # CPU
-pip install -e ".[cuda]"  # CUDA
+pip install -e ".[test]"          # CPU
+pip install -e ".[cuda,test]"     # CUDA
+pytest tests/
 ```
 
 ## Developers

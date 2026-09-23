@@ -1,25 +1,41 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "tachys"
 version = "0.1.0"
-requires-python = ">=3.9"
+description = "Neural quantum states in JAX: variational Monte Carlo for quantum lattice models"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Riccardo Rende" },
+    { name = "Luciano Loris Viteritti" },
+]
+keywords = ["jax", "neural quantum states", "variational monte carlo", "quantum many-body"]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.11"
 dependencies = [
     "jax==0.7.2",
     "flax==0.12.0",
     "numpy",
     "scipy",
     "einops",
-    "pytest",
     "numba",
     "optax",
+    "orbax-checkpoint",
 ]
 
 [project.optional-dependencies]
 cuda = ["jax[cuda12]==0.7.2"]
 wandb = ["wandb", "jsonargparse"]
+test = ["pytest"]
 docs = [
     "sphinx>=7.2",
     "pydata-sphinx-theme>=0.15",
@@ -27,6 +43,11 @@ docs = [
     "sphinx-copybutton>=0.5",
     "sphinx-design>=0.5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/tachys-dev/tachys"
+Repository = "https://github.com/tachys-dev/tachys"
+Issues = "https://github.com/tachys-dev/tachys/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
