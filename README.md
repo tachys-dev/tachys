@@ -45,7 +45,13 @@ pip install -e ".[cuda,test]"     # CUDA
 pytest tests/
 ```
 
-## Developers
+## Authors
 
 - Riccardo Rende
 - Luciano Loris Viteritti
+
+## License
+
+Copyright 2026 The Simons Foundation, Inc.
+
+Licensed under the [Apache License, Version 2.0](https://github.com/tachys-dev/tachys/blob/main/LICENSE).

@@ -1,5 +1,6 @@
 project = "tachys"
-copyright = "2024, Riccardo Rende"
+# No trailing period: the theme footer renders "© Copyright {copyright}."
+copyright = "2026, The Simons Foundation, Inc"
 author = "Riccardo Rende"
 release = "0.1.0"
 
