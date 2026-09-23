@@ -27,7 +27,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
-from tachys.dynamics import TDVP, TDVPError, evolve
+from tachys.dynamics import TDVP, evolve
 from tachys.lattice.ansatz.rbm import SpinRBM
 from tachys.lattice.exact_diag import build_sparse_hamiltonian, spins_hilbert_space
 from tachys.lattice.lattice_database import chain, square
@@ -278,51 +278,52 @@ def test_static_hamiltonian_is_not_mistaken_for_a_callable():
     assert len(history["energy"]) == 2
 
 
-def test_callbacks_of_both_arities_are_supported():
-    """train()'s cb(state, wf, step) still works; cb(state, wf, step, ctx) gets
-    the time, the step's Hamiltonian, the stage-1 batch and the velocity."""
+def test_callbacks_see_the_start_of_the_step():
+    """Callbacks take train's cb(state, wf, step), handed the wavefunction
+    *before* the step and the stage-1 batch sampled from it -- the pair the
+    reported energy is measured on, so re-measuring it there must agree. The
+    post-step pair would be off by O(dt)."""
+    from tachys.experimental.fidelity import log_amplitudes
+    from tachys.lattice.operator.local_estimator import compute_expectation
+
+    state, wf, N_mc = _small_setup()
+    H = ising_transverse_field_square_pbc(2, J=1.0, h=1.0)
+    seen_steps, seen_params, energies = [], [], []
+
+    def measure(state, wf, step):
+        seen_steps.append(step)
+        seen_params.append(wf.params)
+        e_mean = compute_expectation(H, wf, state, log_amplitudes(wf, state))[1]
+        energies.append(float(jnp.real(e_mean)) / state.Ns)
+        return {"energy_cb": energies[-1]}
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        _key, _state, _wf, _opt, history = evolve(
+            jax.random.key(3), H, state, wf, TDVP(mode="complex"), SpinFlip(),
+            N_steps=3, dt=0.02, N_mc=N_mc, integrator="heun",
+            log_callback_fn=[measure, lambda state, wf, step: None])  # None is skipped
+
+    assert seen_steps == [0, 1, 2]
+    assert energies == pytest.approx(history["energy"], rel=1e-10)
+    # step 0 is handed the parameters evolve started from, not the advanced ones
+    assert all(jax.tree.leaves(jax.tree.map(jnp.array_equal, seen_params[0], wf.params)))
+
+
+def test_tdvp_error_is_measured_every_n_steps():
+    """tdvp_error_every=n measures on the steps divisible by n; the per-step
+    history repeats the last measured rate in between."""
     state, wf, N_mc = _small_setup()
     H = ising_transverse_field_square_pbc(2, J=1.0, h=1.0)
 
-    seen_three, seen_four = [], []
-
-    def three_arg(state, wf, step):
-        seen_three.append(step)
-        return {"three": step}
-
-    def four_arg(state, wf, step, ctx):
-        seen_four.append((step, ctx.t))
-        assert ctx.dt == 0.02
-        assert ctx.Ns == 4
-        assert ctx.mode == "complex"
-        assert ctx.E_L.shape[0] == N_mc
-        assert jax.tree.structure(ctx.dtheta_dt) == jax.tree.structure(wf.params)
-        assert len(ctx.stages) == 2               # heun
-        return None                                # None results are skipped
-
     with contextlib.redirect_stdout(io.StringIO()):
-        evolve(jax.random.key(3), H, state, wf, TDVP(mode="complex"), SpinFlip(),
-               N_steps=3, dt=0.02, N_mc=N_mc, integrator="heun",
-               log_callback_fn=[three_arg, four_arg])
+        _key, _state, _wf, _opt, history = evolve(
+            jax.random.key(3), H, state, wf, TDVP(mode="complex"), SpinFlip(),
+            N_steps=5, dt=0.01, N_mc=N_mc, integrator="heun", tdvp_error_every=2)
 
-    assert seen_three == [0, 1, 2]
-    assert [s for s, _ in seen_four] == [0, 1, 2]
-    assert [round(t, 6) for _, t in seen_four] == [0.0, 0.02, 0.04]
-
-
-def test_tdvp_error_callback_can_be_registered_manually():
-    """TDVPError works through log_callback_fn too, not only via
-    tdvp_error_every."""
-    state, wf, N_mc = _small_setup()
-    H = ising_transverse_field_square_pbc(2, J=1.0, h=1.0)
-    cb = TDVPError(every=2)
-
-    with contextlib.redirect_stdout(io.StringIO()):
-        evolve(jax.random.key(3), H, state, wf, TDVP(mode="complex"), SpinFlip(),
-               N_steps=5, dt=0.01, N_mc=N_mc, integrator="heun", log_callback_fn=cb)
-
-    assert cb.history["step"] == [0, 2, 4]
-    assert cb.R2 > 0.0
+    assert history["tdvp_error"]["step"] == [0, 2, 4]
+    assert history["tdvp_rate"][1] == history["tdvp_rate"][0]
+    assert history["tdvp_rate"][3] == history["tdvp_rate"][2]
+    assert history["R2"][-1] > 0.0
 
 
 def test_start_step_and_t0_offset_the_run():

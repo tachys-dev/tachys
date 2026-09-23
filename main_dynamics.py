@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from tachys.dynamics import TDVP, evolve
+from tachys.experimental.fidelity import log_amplitudes
 from tachys.ground_state_training import train
 from tachys.lattice.ansatz.rbm import SpinRBM
 from tachys.lattice.exact_diag import build_sparse_hamiltonian, spins_hilbert_space
@@ -76,13 +77,14 @@ tdvp = TDVP(mode="complex", rcond=1e-8)
 Mx = (2.0 / N) * Sx(tuple(range(N)))
 mx_vmc = []
 
-def measure_mx(state, wf, step, ctx):
+def measure_mx(state, wf, step):
     """Measure m_x on stage 1's batch, so it costs no extra sampling.
 
-    ``ctx`` carries the wavefunction, configurations and log-amplitudes from the
-    start of the step, i.e. the ones that belong with ``ctx.t``.
+    ``evolve`` hands callbacks the wavefunction at the start of the step and the
+    configurations sampled from it, i.e. the ones that belong with
+    ``history["t"][step]``.
     """
-    mx = compute_expectation(Mx, ctx.wf, ctx.state, ctx.log_amps)[1]
+    mx = compute_expectation(Mx, wf, state, log_amplitudes(wf, state))[1]
     mx_vmc.append(float(mx.real))
     return {"mx": mx_vmc[-1]}
 

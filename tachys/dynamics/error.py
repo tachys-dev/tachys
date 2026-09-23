@@ -125,14 +125,10 @@ def tdvp_error_rate(wf, state, E_L, dtheta_dt, mode="complex"):
 
 
 class TDVPError:
-    """Callback that measures the TDVP residual every ``every`` steps and
-    accumulates ``R^2``.
+    """Accumulates the integrated TDVP error ``R^2`` from ``tdvp_error_rate``
+    measurements.
 
-    Register it with ``evolve(..., log_callback_fn=TDVPError(every=10))``, or let
-    ``evolve(..., tdvp_error_every=10)`` build one for you (which also gets it an
-    ``R^2`` column in the live table). Either way it is called on every rank in
-    lockstep, as the whole callback protocol requires.
-
+    ``evolve(..., tdvp_error_every=10)`` builds one and feeds it every 10 steps.
     The measurement uses the **first stage** of the step: the velocity ``k_1``,
     the batch and the local energies all evaluated at ``(t_n, theta_n)``, the only
     stage that sits on the trajectory and the only one whose three terms share a
@@ -142,14 +138,13 @@ class TDVPError:
 
     Parameters
     ----------
-    every : int — measure every this many steps (1 = every step).
-    rule  : ``"rect"`` (default) or ``"trapezoid"``. With ``every > 1`` each
-            measurement has to stand in for the steps between measurements.
-            ``"rect"`` is the literal reading of (12) -- a left-endpoint Riemann
-            sum of width ``every * dt``; ``"trapezoid"`` averages consecutive
-            measurements over the same interval, which costs nothing and is
-            strictly more accurate, but is not what the definition says. Both
-            coincide as ``every -> 1``.
+    rule  : ``"rect"`` (default) or ``"trapezoid"``. With measurements every
+            ``n > 1`` steps each one has to stand in for the steps between
+            measurements. ``"rect"`` is the literal reading of (12) -- a
+            left-endpoint Riemann sum of width ``n * dt``; ``"trapezoid"``
+            averages consecutive measurements over the same interval, which
+            costs nothing and is strictly more accurate, but is not what the
+            definition says. Both coincide as ``n -> 1``.
     prefix : str — key prefix for the returned metrics dict.
 
     Attributes
@@ -161,12 +156,9 @@ class TDVPError:
 
     RULES = ("rect", "trapezoid")
 
-    def __init__(self, every=1, rule="rect", prefix="tdvp"):
-        if every < 1:
-            raise ValueError(f"every must be >= 1, got {every}")
+    def __init__(self, rule="rect", prefix="tdvp"):
         if rule not in self.RULES:
             raise ValueError(f"rule must be one of {self.RULES}, got {rule!r}")
-        self.every = int(every)
         self.rule = rule
         self.prefix = prefix
         self.reset()
@@ -178,21 +170,8 @@ class TDVPError:
         self.history = {k: [] for k in
                         ("step", "t", "rate", "R2", "var_H", "quad", "force", "ratio")}
 
-    def __call__(self, state, wf, step, ctx):
-        """Dynamics callback: ``(state, wf, step, ctx) -> dict | None``.
-
-        ``state``/``wf`` are the post-step objects (matching ``train``'s
-        convention); everything this estimator needs is taken from ``ctx``, which
-        carries the *pre-step* wavefunction and the stage-1 batch.
-        """
-        if step % self.every:
-            return None
-
-        est = tdvp_error_rate(ctx.wf, ctx.state, ctx.E_L, ctx.dtheta_dt, mode=ctx.mode)
-        return self.accumulate(step, ctx.t, ctx.Ns, est)
-
     def accumulate(self, step, t, Ns, est):
-        """Fold one measurement into ``R^2``. Exposed for use outside ``evolve``."""
+        """Fold one ``TDVPErrorEstimate`` into ``R^2``; returns the metrics to log."""
         # jnp.maximum guards only against a -1e-19 from rounding; the fused
         # estimator cannot produce a genuinely negative rate.
         s = float(jnp.sqrt(jnp.maximum(est.rate, 0.0)))

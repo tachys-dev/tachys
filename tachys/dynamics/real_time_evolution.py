@@ -1,5 +1,4 @@
 import dataclasses
-import inspect
 import sys
 import time
 from typing import Any, Callable, Optional
@@ -13,7 +12,7 @@ from tachys.checkpoint import (
     resolve_checkpoint_settings,
     save_training_checkpoint,
 )
-from tachys.dynamics.error import TDVPError
+from tachys.dynamics.error import TDVPError, tdvp_error_rate
 from tachys.dynamics.integrators import get_integrator
 from tachys.dynamics.tdvp import TDVP
 from tachys.ground_state_training import Timer, _format_fields
@@ -90,13 +89,13 @@ def _check_hamiltonian_fn(H_fn, t0, dt):
 class StageAux:
     """Everything one Runge-Kutta stage produced, for diagnostics.
 
-    ``state``/``log_amps``/``E_L`` are references to arrays the stage already
-    built, not copies, so keeping them costs nothing and lets the TDVP-error
-    callback reuse stage 1's batch instead of drawing its own.
+    ``wf``/``state``/``E_L`` are references to objects the stage already built,
+    not copies, so keeping them costs nothing and lets ``evolve`` measure the
+    TDVP error and run its callbacks on stage 1's wavefunction and batch instead
+    of drawing its own.
     """
-    t: float
+    wf: Any
     state: Any
-    log_amps: Any
     E_L: Any
     e_mean: Any
     e2_mean: Any
@@ -104,34 +103,6 @@ class StageAux:
     t_mc: float
     t_expect: float
     t_solve: float
-
-
-@dataclasses.dataclass
-class DynamicsContext:
-    """Argument passed to 4-argument dynamics callbacks.
-
-    All of it describes the step that has just been taken, evaluated at its
-    *start*: ``wf``/``state``/``E_L``/``dtheta_dt`` are the stage-1 quantities at
-    ``(t, theta_n)``, the only mutually consistent set (same parameters, same
-    batch, same Hamiltonian). That is what the TDVP error needs -- taking the JVP
-    at the post-step parameters would put an O(dt) inconsistency straight into
-    the small residual being measured.
-    """
-    step: int
-    t: float
-    dt: float
-    H: Any
-    wf: Any               # WaveFunction BEFORE the step
-    state: Any            # stage-1 Monte Carlo batch
-    log_amps: Any
-    E_L: Any
-    e_mean: Any
-    e2_mean: Any
-    dtheta_dt: Any        # stage-1 velocity k1
-    acceptance: Any
-    mode: str
-    Ns: int
-    stages: tuple         # tuple[StageAux], one per RK stage
 
 
 class _TDVPRhs:
@@ -169,33 +140,13 @@ class _TDVPRhs:
             dtheta_dt, self.opt_state = self.tdvp(E_L, self.opt_state, state, wf)
             jax.block_until_ready(dtheta_dt)
 
-        aux = StageAux(t=t, state=state, log_amps=log_amps, E_L=E_L, e_mean=e_mean,
-                       e2_mean=e2_mean, acceptance=acceptance, t_mc=t_mc.elapsed,
+        aux = StageAux(wf=wf, state=state, E_L=E_L, e_mean=e_mean, e2_mean=e2_mean,
+                       acceptance=acceptance, t_mc=t_mc.elapsed,
                        t_expect=t_expect.elapsed, t_solve=t_solve.elapsed)
         return key, state, dtheta_dt, aux
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
-
-def _callback_takes_ctx(cb):
-    """True if ``cb`` accepts a 4th positional argument (the DynamicsContext).
-
-    Lets ``evolve`` accept both the dynamics protocol ``cb(state, wf, step, ctx)``
-    and ``train``'s 3-argument ``cb(state, wf, step)``, so observable-measuring
-    callbacks written for ground-state runs work here unchanged.
-    """
-    try:
-        params = inspect.signature(cb).parameters.values()
-    except (TypeError, ValueError):
-        return False
-    n = 0
-    for p in params:
-        if p.kind is p.VAR_POSITIONAL:
-            return True
-        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD):
-            n += 1
-    return n >= 4
-
 
 def _dynamics_metrics(e_mean, e2_mean, Ns):
     """Energy per site and variance per site, in the complex-E_L convention.
@@ -301,13 +252,12 @@ def evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
                       ``tachys.checkpoint``). Caller owns its lifecycle; expected
                       non-None only on MASTER, though every rank still
                       participates in the collective checkpoint calls.
-    log_callback_fn : optional callable, or list of callables, invoked once per
-                      step with either ``(state, wf, step)`` (``train``'s
-                      protocol, for observables that only need the current state)
-                      or ``(state, wf, step, ctx)``, where ``ctx`` is a
-                      ``DynamicsContext`` carrying the time, the step's
-                      Hamiltonian, the stage-1 batch, its local energies and the
-                      stage-1 velocity. The arity is detected per callable.
+    log_callback_fn : optional callable(state, wf, step) -> dict | None, or list
+                      of such callables -- ``train``'s protocol. Called once per
+                      step with the wavefunction at the *start* of the step (time
+                      ``t0 + (step - start_step) * dt``) and the stage-1 batch
+                      sampled from it: the pair the reported energy is measured
+                      on, so observables computed from it cost no extra sampling.
                       Results that are not None are merged into the wandb log.
                       Called on *every* rank regardless of ``wandb_run``, since
                       callbacks are typically jitted and may touch mesh-sharded
@@ -325,9 +275,7 @@ def evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
     tdvp_error_every: int — if > 0, measure the TDVP error every this many steps
                       with ``tachys.dynamics.error.TDVPError`` and show the
                       accumulated ``R^2`` in the live table. 0 (default) disables
-                      it. Equivalent to passing a ``TDVPError`` yourself in
-                      ``log_callback_fn``, except that this route also gets the
-                      column and the ``history["R2"]`` entries.
+                      it.
     tdvp_error_rule : ``"rect"`` (default) or ``"trapezoid"`` — how a measurement
                       taken every ``n`` steps is extended over the steps between
                       measurements. See ``TDVPError``.
@@ -366,9 +314,8 @@ def evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
 
     if callable(log_callback_fn):
         log_callback_fn = [log_callback_fn]
-    callbacks = [(cb, _callback_takes_ctx(cb)) for cb in (log_callback_fn or [])]
 
-    error_cb = TDVPError(every=tdvp_error_every, rule=tdvp_error_rule) if tdvp_error_every else None
+    tdvp_error = TDVPError(rule=tdvp_error_rule) if tdvp_error_every else None
 
     if wandb_run is not None:
         devices = jax.devices()
@@ -384,16 +331,16 @@ def evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
 
     history = {"t": [], "energy": [], "energy_real": [], "variance_per_site": [],
                "acceptance": []}
-    if error_cb is not None:
+    if tdvp_error is not None:
         history["R2"] = []
         history["tdvp_rate"] = []
-        history["tdvp_error"] = error_cb.history
+        history["tdvp_error"] = tdvp_error.history
 
     ckpt_dir, checkpoint_every, checkpoint_keep = resolve_checkpoint_settings(
         wandb_run, N_steps, rank, MASTER)
     manager = build_checkpoint_manager(ckpt_dir, checkpoint_every, checkpoint_keep) if ckpt_dir else None
 
-    r2_col = f" {'R²':>9} │" if error_cb is not None else ""
+    r2_col = f" {'R²':>9} │" if tdvp_error is not None else ""
     header = (
         f"{'step':>5} │ {'t':>9} │ {'E/N':>20} │ {'var/N':>10} │ {'dE/N':>10} │"
         f"{r2_col} {'accept':>7} │ "
@@ -412,7 +359,6 @@ def evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
         t = t0 + local_step * dt
         t_step0 = time.perf_counter()
 
-        wf_before = wf
         key, wf, state, ks, auxes = integrator.step(rhs, key, t, wf, state, dt)
 
         # Physics is reported from stage 1: the only stage evaluated at a point
@@ -432,28 +378,29 @@ def evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
         history["variance_per_site"].append(variance_per_site)
         history["acceptance"].append(acc)
 
-        ctx = DynamicsContext(
-            step=step, t=t, dt=dt, H=H_fn(t), wf=wf_before, state=s0.state,
-            log_amps=s0.log_amps, E_L=s0.E_L, e_mean=s0.e_mean, e2_mean=s0.e2_mean,
-            dtheta_dt=ks[0], acceptance=s0.acceptance, mode=tdvp.mode, Ns=Ns,
-            stages=tuple(auxes),
-        )
-
-        # Callbacks run on every rank, in lockstep, even though only MASTER logs:
-        # they are typically jitted and may touch mesh-sharded arrays, so a rank
-        # that skipped one would leave the others blocked on a collective forever.
+        # The TDVP error and the callbacks see the step at its start as well:
+        # stage 1's wavefunction (the one before the step), the batch sampled
+        # from it, its local energies and the velocity k1 are the only mutually
+        # consistent set (same parameters, same batch, same Hamiltonian). Taking
+        # the JVP at the post-step parameters would put an O(dt) inconsistency
+        # straight into the small residual being measured.
+        #
+        # Both run on every rank, in lockstep, even though only MASTER logs: they
+        # are typically jitted and may touch mesh-sharded arrays, so a rank that
+        # skipped one would leave the others blocked on a collective forever.
         callback_metrics = {}
-        if error_cb is not None:
-            result = error_cb(state, wf, step, ctx)
-            if result is not None:
-                callback_metrics.update(result)
-            history["R2"].append(error_cb.R2)
+        if tdvp_error is not None:
+            if step % tdvp_error_every == 0:
+                est = tdvp_error_rate(s0.wf, s0.state, s0.E_L, ks[0], mode=tdvp.mode)
+                callback_metrics.update(tdvp_error.accumulate(step, t, Ns, est))
+            history["R2"].append(tdvp_error.R2)
             history["tdvp_rate"].append(
-                error_cb.history["rate"][-1] if error_cb.history["rate"] else float("nan"))
-        for cb, takes_ctx in callbacks:
-            result = cb(state, wf, step, ctx) if takes_ctx else cb(state, wf, step)
-            if result is not None:
-                callback_metrics.update(result)
+                tdvp_error.history["rate"][-1] if tdvp_error.history["rate"] else float("nan"))
+        if log_callback_fn is not None:
+            for cb in log_callback_fn:
+                result = cb(s0.state, s0.wf, step)
+                if result is not None:
+                    callback_metrics.update(result)
 
         if wandb_run is not None:
             wandb_run.log({
@@ -478,7 +425,7 @@ def evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
         t_step = time.perf_counter() - t_step0
         eta_hours = t_step * (N_steps - local_step - 1) / 3600.0
 
-        r2_val = f" {error_cb.R2:9.3e} │" if error_cb is not None else ""
+        r2_val = f" {tdvp_error.R2:9.3e} │" if tdvp_error is not None else ""
         print(
             f"{step:5d} │ {t:9.4f} │ "
             f"{e_per_site:20.12f} │ {variance_per_site:10.2e} │ {drift_per_site:10.2e} │"
@@ -500,18 +447,18 @@ def evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
         e_drift = history["energy_real"][-1] - history["energy_real"][0]
         print(f"Energy drift over the run: {e_drift / Ns:+.3e} per site "
               f"({'conserved for time-independent H' if not time_dependent else 'H is time dependent'})")
-    if error_cb is not None:
-        print(f"TDVP error   : R² = {error_cb.R2:.4e}   "
-              f"(last rate = {error_cb.history['rate'][-1]:.4e}, "
-              f"Var(H) = {error_cb.history['var_H'][-1]:.4e})")
+    if tdvp_error is not None:
+        print(f"TDVP error   : R² = {tdvp_error.R2:.4e}   "
+              f"(last rate = {tdvp_error.history['rate'][-1]:.4e}, "
+              f"Var(H) = {tdvp_error.history['var_H'][-1]:.4e})")
 
     if wandb_run is not None:
         wandb_run.summary["t_end"] = t_end
         if history["energy_real"]:
             wandb_run.summary["energy_drift_per_site"] = (
                 history["energy_real"][-1] - history["energy_real"][0]) / Ns
-        if error_cb is not None:
-            wandb_run.summary["R2"] = error_cb.R2
+        if tdvp_error is not None:
+            wandb_run.summary["R2"] = tdvp_error.R2
 
     if manager is not None:
         manager.wait_until_finished()

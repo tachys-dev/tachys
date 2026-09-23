@@ -2495,7 +2495,7 @@ wandb / checkpoint / callback discipline. At every step the integrator performs
 | `integrator` | `str` or `ExplicitRK` | `"rk4"` (default), `"heun"`, or an `ExplicitRK` instance. |
 | `t0` | `float` | Physical time at `start_step`. Default `0.0`. |
 | `wandb_run` | optional wandb run | Logs energy, variance, acceptance, TDVP-error metrics and callback metrics every step, and checkpoints exactly as `train` does. Expected non-`None` only on `MASTER`; every rank still participates in the collective checkpoint calls. |
-| `log_callback_fn` | optional callable, or list | Invoked once per step with either `(state, wf, step)` (`train`'s protocol) or `(state, wf, step, ctx)` with a `DynamicsContext`. The arity is detected per callable. Non-`None` results are merged into the wandb log. Called on *every* rank. |
+| `log_callback_fn` | optional `callable(state, wf, step) -> dict \| None`, or list thereof | `train`'s protocol, called once per step with the wavefunction at the **start** of the step (time `t0 + (step - start_step) * dt`) and the stage-1 batch sampled from it — the pair the reported energy is measured on, so observables computed from it cost no extra sampling. Non-`None` results are merged into the wandb log. Called on *every* rank. |
 | `nsweeps` | `int` | MC sweeps per stage, passed to `sample`. Default `1`. The main lever against the warm-start lag bias, which shows up as a slow energy drift. |
 | `opt_state` | optional | Pre-initialized `TDVPState` (matters only for checkpoint symmetry with `train`). |
 | `start_step` | `int` | Absolute step number to resume at; offsets the printed step column, the wandb log step and the checkpoint numbering. Combine with `t0` to resume the physical time. |
@@ -2505,32 +2505,8 @@ wandb / checkpoint / callback discipline. At every step the integrator performs
 **Returns** `(key, state, wf, opt_state, history)`. `history` is a
 `dict[str, list]` with keys `"t"`, `"energy"` (per site), `"energy_real"`,
 `"variance_per_site"`, `"acceptance"`, and — when `tdvp_error_every` is set —
-`"R2"`, `"tdvp_rate"` and `"tdvp_error"` (the callback's own per-measurement
-history).
-
----
-
-### `DynamicsContext`
-
-*`tachys.dynamics.real_time_evolution`*
-
-The object passed as the 4th argument to a dynamics callback. Every field
-describes the step just taken, evaluated at its **start**: `wf`, `state`, `E_L`
-and `dtheta_dt` are the stage-1 quantities at `(t, theta_n)` — the only mutually
-consistent set (same parameters, same batch, same Hamiltonian), and the only
-stage that lies on the trajectory.
-
-| Field | Description |
-|-------|-------------|
-| `step`, `t`, `dt` | Absolute step number, physical time at the start of the step, step size. |
-| `H` | The Hamiltonian at `t`. |
-| `wf` | The `WaveFunction` **before** the step. |
-| `state`, `log_amps`, `E_L` | The stage-1 Monte Carlo batch and its local energies. |
-| `e_mean`, `e2_mean` | `⟨E_L⟩` and `⟨|E_L|²⟩` on that batch. |
-| `dtheta_dt` | The stage-1 velocity `k₁`. |
-| `acceptance` | Per-action acceptance rate of the stage-1 sampling. |
-| `mode`, `Ns` | The TDVP mode and the site count. |
-| `stages` | `tuple[StageAux]`, one per RK stage, each carrying that stage's `t`, batch, local energies, moments, acceptance and timings. |
+`"R2"`, `"tdvp_rate"` and `"tdvp_error"` (the `TDVPError` accumulator's
+per-measurement history).
 
 ---
 
@@ -2609,11 +2585,10 @@ free cancellation/consistency check).
 *`tachys.dynamics.error`* (also exported from `tachys.dynamics`)
 
 ```python
-class TDVPError(every=1, rule="rect", prefix="tdvp")
+class TDVPError(rule="rect", prefix="tdvp")
 ```
 
-Callback that measures the TDVP residual every `every` steps and accumulates the
-integrated error
+Accumulator for the integrated TDVP error
 
 $$
 \mathcal{R}^2(t) = \frac{1}{\sqrt{N}}\int_0^t \sqrt{\delta s^2}, \qquad
@@ -2628,19 +2603,18 @@ instead — the same cost and strictly more accurate, but not what the definitio
 says). Intervals are keyed on elapsed time, so a changed stride, a skipped
 measurement or a short final block are all handled.
 
-Register it with `evolve(..., log_callback_fn=TDVPError(every=10))`, or let
-`evolve(..., tdvp_error_every=10)` build one (which also gets it an `R²` column
-in the live table and `history["R2"]` entries).
-
-The measurement uses the **first stage** of the step — the velocity `k₁`, the
-batch and the local energies all at `(t_n, theta_n)`.
+`evolve(..., tdvp_error_every=10)` builds one and feeds it a
+`tdvp_error_rate` measurement every 10 steps (shown as the `R²` column of the
+live table and as `history["R2"]`). The measurement uses the **first stage** of
+the step — the velocity `k₁`, the batch and the local energies all at
+`(t_n, theta_n)`.
 
 | Attribute / method | Description |
 |--------------------|-------------|
 | `R2` | The accumulated error at the last measured step. |
 | `history` | `dict[str, list]` — per-measurement `step`, `t`, `rate`, `R2`, `var_H`, `quad`, `force`, `ratio`. |
 | `reset()` | Clear the accumulator and history (call before reusing the object for a second run). |
-| `accumulate(step, t, Ns, est)` | Fold one `TDVPErrorEstimate` in by hand, for use outside `evolve`. |
+| `accumulate(step, t, Ns, est)` | Fold one `TDVPErrorEstimate` in and return the metrics to log; this is what `evolve` calls, and it works the same outside it. |
 
 Interpretation: `δs²` is the squared Fubini–Study distance between
 `exp(-iH δt)|psi(theta)>` and `|psi(theta + δt θ̇)>` to `O(δt²)` — the per-step

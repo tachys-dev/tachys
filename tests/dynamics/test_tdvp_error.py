@@ -186,7 +186,7 @@ class _Est:
 def test_accumulator_is_a_riemann_sum_of_the_definition():
     """R^2(t) = (1/sqrt(N)) sum sqrt(delta s^2), with sqrt(delta s^2) = dt sqrt(rate)."""
     Ns, dt = 9, 0.1
-    acc = TDVPError(every=1, rule="rect")
+    acc = TDVPError(rule="rect")
 
     # constant rate r over 4 measured steps: R^2 = (1/sqrt(N)) * 3*dt*sqrt(r)
     # (three intervals between four measurements; nothing is added at the first)
@@ -204,7 +204,7 @@ def test_accumulator_uses_elapsed_time_not_a_fixed_stride():
     """Measuring every n steps is the rectangle rule of width n*dt, and a changed
     stride or a skipped measurement must still integrate the right interval."""
     Ns = 1
-    acc = TDVPError(every=1, rule="rect")
+    acc = TDVPError(rule="rect")
     acc.accumulate(0, 0.0, Ns, _Est(1.0))     # sqrt(rate) = 1
     acc.accumulate(5, 0.5, Ns, _Est(4.0))     # interval [0.0, 0.5), left value 1
     assert acc.R2 == pytest.approx(0.5 * 1.0)
@@ -214,25 +214,12 @@ def test_accumulator_uses_elapsed_time_not_a_fixed_stride():
 
 def test_accumulator_trapezoid_rule():
     Ns = 1
-    acc = TDVPError(every=1, rule="trapezoid")
+    acc = TDVPError(rule="trapezoid")
     acc.accumulate(0, 0.0, Ns, _Est(1.0))     # sqrt = 1
     acc.accumulate(1, 0.5, Ns, _Est(9.0))     # sqrt = 3
     assert acc.R2 == pytest.approx(0.5 * 0.5 * (1.0 + 3.0))
 
 
 def test_accumulator_validates_its_arguments():
-    with pytest.raises(ValueError, match="every must be"):
-        TDVPError(every=0)
     with pytest.raises(ValueError, match="rule must be"):
         TDVPError(rule="simpson")
-
-
-def test_accumulator_skips_steps_between_measurements():
-    """A callback registered with every=3 must return None on the other steps."""
-    cb = TDVPError(every=3)
-
-    class _Ctx:
-        pass
-
-    assert cb(None, None, 1, _Ctx()) is None
-    assert cb(None, None, 2, _Ctx()) is None
