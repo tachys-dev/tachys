@@ -297,10 +297,13 @@ def evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
             "equation and would evolve the state towards the ground state instead of "
             "propagating it in real time."
         )
-    n_local = get_n_mc_local(state)
-    if n_local * n_devices != N_mc:
+    # Outside shard_map a jax.Array's shape is already the global one, so
+    # get_n_mc_local (a plain shape[0]) is the global chain count here;
+    # get_n_mc would multiply by n_devices a second time.
+    n_chains = get_n_mc_local(state)
+    if n_chains != N_mc:
         raise ValueError(
-            f"state carries {n_local * n_devices} chains but N_mc={N_mc}; "
+            f"state carries {n_chains} chains but N_mc={N_mc}; "
             "montecarlo.sample draws one key per chain, so they must agree."
         )
 
