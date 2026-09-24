@@ -50,7 +50,8 @@ def _reference_mean(x, y, K, axis):
 
 def _run(fn, x, y, K, axis):
     """Drive `fn` (grouped_sum or grouped_mean) through shard_map over the
-    real mesh, sharding x/y along `axis`/0 exactly like main_foundation.py."""
+    real mesh, sharding x/y along `axis`/0 exactly like
+    examples/hubbard_foundation_model/main.py."""
     return shard_map(
         partial(fn, K=K, axis=axis),
         mesh=mesh,

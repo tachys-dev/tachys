@@ -95,10 +95,10 @@ def test_combine_systems_matches_per_system_application(systems):
 
 
 def _hubbard_square_pbc(L, t=1.0, U=0.0):
-    """Local copy of main_foundation.py's Hubbard builder -- hopping is
-    written as four separate Cdag*C leaves (not the generic HoppingUp/
-    HoppingDown leaf from hubbard_hamiltonian), so combining systems
-    produces genuine cross-leaf redundancy: one U-carrying leaf (Nup)
+    """Local copy of examples/hubbard_foundation_model/main.py's Hubbard
+    builder -- hopping is written as four separate Cdag*C leaves (not the
+    generic HoppingUp/HoppingDown leaf from hubbard_hamiltonian), so combining
+    systems produces genuine cross-leaf redundancy: one U-carrying leaf (Nup)
     alongside four -t leaves with identical, batch-constant values.
     """
     H = None

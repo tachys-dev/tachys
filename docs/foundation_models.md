@@ -16,9 +16,7 @@ Communications* (2025).
 
 The wavefunction is $\psi_\theta(\sigma|\gamma)$: one network with parameters
 $\theta$, taking a configuration $\sigma$ and a coupling vector $\gamma$ (for
-instance $\gamma = J$ or $\gamma = U$). In tachys this is
-`apply_fn(params, state)`, with `state.system_couplings` supplying $\gamma$ for
-every sample in the batch.
+instance $\gamma = J$ or $\gamma = U$).
 
 Training minimizes the energy averaged over an ensemble of Hamiltonians, drawn
 from some distribution $P(\gamma)$ over coupling space:
@@ -32,19 +30,30 @@ $$
 E_L(\sigma,\gamma)
 $$
 
-A training step estimates this by Monte Carlo: $\mathcal{R}$ = `n_systems`
-values of $\gamma$ discretize $P(\gamma)$, $M/\mathcal{R}$ =
-`n_mc_per_system` configurations are sampled for each, and the local energy
-$E_L$ is averaged over the mixed batch of $M$ = `N_mc` samples. That average is
-the `e_mean` returned by `compute_expectation`.
+A training step estimates this by Monte Carlo: $\mathcal{R}$ values
+$\gamma_1, \dots, \gamma_\mathcal{R}$ discretize $P(\gamma)$,
+$M_k = M/\mathcal{R}$ configurations are sampled from
+$|\psi_\theta(\sigma|\gamma_k)|^2$ for each, and the local energy $E_L$ is
+averaged over the mixed batch of $M$ samples.
 
 The gradient requires *per-system* averages rather than a single average over
-the mixed batch, for instance the per-system observable average $\bar A_k = \frac{1}{M_k}\sum_j \langle\sigma_j|\hat A_{\gamma_k}|
-\psi_\theta(\gamma_k)\rangle / \langle\sigma_j|\psi_\theta(\gamma_k)\rangle$.
-`tachys.lattice.foundation.collectives.grouped_mean(x, state.system_ids,
-state.n_systems)` computes them. The SR-family optimizers call it whenever
-`state` is a `FoundationState`, so energies are centered system by system
-rather than across the mixed batch.
+the mixed batch, for instance the per-system observable average
+$\bar A_k = \frac{1}{M_k}\sum_{j \in k} \langle\sigma_j|\hat A_{\gamma_k}|\psi_\theta(\gamma_k)\rangle / \langle\sigma_j|\psi_\theta(\gamma_k)\rangle$,
+the sum running over the samples of system $k$. Each Hamiltonian's energy is
+normalized by its own $\langle\psi_\theta(\gamma_k)|\psi_\theta(\gamma_k)\rangle$,
+so its gradient is a covariance over that system's samples alone. For real
+parameters, with $O(\sigma,\gamma) = \nabla_\theta \log\psi_\theta(\sigma|\gamma)$,
+
+$$
+\nabla_\theta \mathcal{L} \approx \frac{1}{\mathcal{R}} \sum_{k=1}^{\mathcal{R}}
+\frac{2}{M_k} \sum_{j \in k}
+\mathrm{Re}\Big[\big(E_L(\sigma_j,\gamma_k) - \bar E_k\big)
+\big(O(\sigma_j,\gamma_k) - \bar O_k\big)^*\Big]
+$$
+
+The local energies and the log-derivatives are therefore centered about the
+mean of their own system, not about the mean of the mixed batch, and the
+metric used by stochastic reconfiguration is centered the same way.
 
 ## The data: two extra fields
 

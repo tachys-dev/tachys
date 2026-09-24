@@ -2,10 +2,10 @@
 # tachys — distributed JAX initialisation
 #
 # Supports three launch modes:
-#   python3 main.py              (single process, no MPI)
-#   mpirun -np N python3 main.py (OpenMPI → OMPI_COMM_WORLD_SIZE,
-#                                  MPICH/PMI  → PMI_SIZE)
-#   srun python3 main.py         (Slurm     → SLURM_NTASKS)
+#   python3 script.py              (single process, no MPI)
+#   mpirun -np N python3 script.py (OpenMPI → OMPI_COMM_WORLD_SIZE,
+#                                    MPICH/PMI  → PMI_SIZE)
+#   srun python3 script.py         (Slurm     → SLURM_NTASKS)
 #
 # jax.distributed.initialize() raises ValueError when called outside an
 # MPI/Slurm context, so we skip it for single-process runs.

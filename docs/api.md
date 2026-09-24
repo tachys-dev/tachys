@@ -2324,7 +2324,7 @@ a caller-supplied `wandb` run and checkpoints via `tachys.checkpoint`.
 | `nsweeps` | `int` | MC sweeps per step, passed to `sample`. Default `1`. |
 | `opt_state` | optional optimizer state | Pre-initialized optimizer state (e.g. restored via `tachys.checkpoint.load_checkpoint`) to resume from. Defaults to a fresh `optimizer.init(wf.params)`. |
 | `start_step` | `int` | Absolute step number to resume at. Offsets `lr_schedule`, the wandb log step, the printed step column, and checkpoint numbering. `N_steps` still counts iterations run by *this* call — pass the remaining steps, not the original total. |
-| `estimator` | optional callable | Replaces the default `\|ψ\|²` expectation value with an importance-weighted one (e.g. `BlurredEstimator`, see [Reweighted estimators](#reweighted-estimators)). `None` (default) calls `compute_expectation` directly and leaves the loop bit-identical. |
+| `estimator` | optional callable | Replaces the default `\|ψ\|²` expectation value with an importance-weighted one (see [Reweighted estimators](#reweighted-estimators)). `None` (default) calls `compute_expectation` directly and leaves the loop bit-identical. |
 
 **Returns** `(key, state, wf, opt_state, history)`. `history` is a
 `dict[str, list]` with keys `"energy"`, `"variance_per_site"`, `"vscore"`,
@@ -2357,13 +2357,6 @@ what the energy and the gradient are computed from, never what is sampled.
 centering and `sqrt(w)` scaling in `tachys.optimizer._kernels`. That path raises
 `NotImplementedError` for a `FoundationState`, so reweighted estimators do not
 currently work with foundation models.
-
-`tachys.experimental.blurred_sampling.BlurredEstimator(q=...)` is the
-implementation shipped with tachys ([Wan, Wiersema & Zhang, *Phys. Rev. X* **16**, 031059 (2026)](https://doi.org/10.1103/jrn5-gv19)): it moves each walker, with probability `q`,
-to a uniformly chosen configuration connected to it by `H`'s off-diagonal part,
-which thins the tails of `E_L` at configurations where `|ψ|` is small, and
-reweights exactly. It reports `ess` (effective sample size as a fraction of
-`N_mc`) and `mean_weight` in `metrics`.
 
 ---
 

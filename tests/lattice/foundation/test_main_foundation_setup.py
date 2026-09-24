@@ -97,7 +97,8 @@ EXPECTED_LOG_AMPS_AFTER_SAMPLING = jnp.array([
 
 def test_foundation_log_amps_after_sampling():
     """Regression test: log-amplitudes returned by sample() after one sweep,
-    keys matching main_foundation.py's first training-loop iteration."""
+    keys matching the first training-loop iteration of
+    examples/hubbard_foundation_model/main.py."""
     lattice = square(shape=(L, L))
 
     Hs = [hubbard_square_pbc(L, U=U) for U in Us]
@@ -137,7 +138,8 @@ EXPECTED_MARCH_ORBITALS      = jnp.asarray(_MARCH_FIXTURE["orbitals"])
 
 def test_march_updates_first_step():
     """Regression test: MARCH optimizer updates on the first training-loop
-    iteration (after one sampling sweep), keys matching main_foundation.py."""
+    iteration (after one sampling sweep), keys matching
+    examples/hubbard_foundation_model/main.py."""
     lattice = square(shape=(L, L))
 
     Hs = [hubbard_square_pbc(L, U=U) for U in Us]
@@ -187,9 +189,9 @@ EXPECTED_PARAMS_5_ORBITALS      = jnp.asarray(_PARAMS_AFTER_5_STEPS_FIXTURE["orb
 def test_wf_params_after_5_training_steps():
     """Regression test: wf.params after 5 full training-loop iterations
     (sample -> compute_expectation -> MARCH update -> apply_gradients),
-    keys matching main_foundation.py. Note mc_keys is re-derived from
-    jax.random.key(2) on every iteration -- the same MC proposal keys are
-    reused at every step, matching the script as written."""
+    keys matching examples/hubbard_foundation_model/main.py. Note mc_keys is
+    re-derived from jax.random.key(2) on every iteration -- the same MC
+    proposal keys are reused at every step, matching the script as written."""
     lattice = square(shape=(L, L))
 
     Hs = [hubbard_square_pbc(L, U=U) for U in Us]
