@@ -1,0 +1,378 @@
+{% raw %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Papers — tachys</title>
+<meta name="description" content="Papers whose calculations were carried out with tachys.">
+<link rel="icon" href="_static/logo.svg" type="image/svg+xml">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#F7F9FD;
+  --surface:#FFFFFF;
+  --hero:#081525;
+  --navy:#0D1B2E;
+  --blue:#1A5FEB;
+  --blue-dim:#1550C8;
+  --blue-lt:#4F8EF7;
+  --violet:#7C3AED;
+  --green:#10B981;
+  --orange:#D97706;
+  --muted:#5B6E8A;
+  --border:#D4DCEB;
+  --code:#0D1B2E;
+  --text:#111827;
+  --text2:#374151;
+  --font:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,monospace;
+  --r:6px;--rl:10px;
+}
+
+html{scroll-behavior:smooth}
+body{font-family:var(--font);font-size:1rem;line-height:1.7;color:var(--text);background:var(--bg);overflow-x:hidden}
+
+h1,h2,h3,h4{color:var(--navy);line-height:1.2;text-wrap:balance;font-weight:700}
+h2{font-size:1.875rem;letter-spacing:-.02em;margin-bottom:.75rem}
+p{max-width:65ch;color:var(--text2)}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* the hero and the list share this column, so their left edges line up */
+.container{max-width:860px;margin:0 auto;padding:0 2rem}
+
+/* ── nav ── */
+nav.top{
+  position:sticky;top:0;z-index:100;
+  background:rgba(247,249,253,.85);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid transparent;
+  height:56px;display:flex;align-items:center;
+  justify-content:space-between;padding:0 2rem;
+  transition:border-color .25s,box-shadow .25s,background .25s;
+}
+nav.top.scrolled{border-bottom-color:var(--border);box-shadow:0 4px 24px -12px rgba(13,27,46,.25)}
+.n-logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:1.05rem;color:var(--navy);letter-spacing:-.03em}
+.n-logo:hover{text-decoration:none}
+.n-logo .lm{
+  width:26px;height:26px;background:var(--blue);border-radius:5px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:5px;
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+.n-logo:hover .lm{transform:rotate(90deg)}
+.n-logo .dot{background:#fff;border-radius:50%}
+.n-links{display:flex;align-items:center;gap:1.5rem}
+.n-links a{font-size:.875rem;color:var(--muted);font-weight:500;position:relative}
+.n-links a.active{color:var(--blue)}
+.n-links a:not(.n-ver)::after{content:'';position:absolute;left:0;bottom:-4px;height:2px;width:0;background:var(--blue);transition:width .22s ease}
+.n-links a.active::after{width:100%}
+.n-links a:not(.n-ver):hover{color:var(--blue);text-decoration:none}
+.n-links a:not(.n-ver):hover::after{width:100%}
+.n-ver{font-family:var(--mono);font-size:.7rem;background:var(--border);color:var(--muted);padding:2px 8px;border-radius:100px}
+
+/* ── hero ── */
+.hero{background:var(--hero);padding:4.25rem 0 3.5rem;position:relative;overflow:hidden}
+#lattice{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.9}
+.hero::after{
+  content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 75% 70% at 50% -10%,rgba(26,95,235,.22) 0%,transparent 62%);
+}
+.hero-in{position:relative;z-index:2}
+.eyebrow{
+  font-size:.75rem;font-family:var(--mono);color:var(--blue-lt);
+  letter-spacing:.1em;text-transform:uppercase;
+  margin-bottom:1rem;display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:'';width:0;height:1px;background:var(--blue-lt);animation:lineGrow .8s .1s ease forwards}
+@keyframes lineGrow{to{width:18px}}
+.hero h1{font-size:clamp(2rem,4.6vw,3rem);color:#E8EDF7;letter-spacing:-.04em;margin-bottom:.9rem;line-height:1.08}
+.hero h1 em{
+  font-style:normal;
+  background:linear-gradient(100deg,var(--blue-lt) 0%,#9Fc4ff 30%,#E8EDF7 50%,#9Fc4ff 70%,var(--blue-lt) 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:shimmer 5s linear infinite;
+}
+@keyframes shimmer{to{background-position:-220% 0}}
+.hero .lead{
+  font-size:1.05rem;color:#8B96B0;max-width:62ch;line-height:1.65;
+  opacity:0;transform:translateY(14px);animation:fadeUp .7s .35s ease forwards;
+}
+@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+
+/* ── papers ── */
+.list-sec{background:var(--surface);border-bottom:1px solid var(--border);padding:3rem 0 3.5rem}
+.papers{border-top:1px solid var(--border)}
+.paper{
+  display:grid;grid-template-columns:3.25rem minmax(0,1fr) auto;
+  column-gap:1.5rem;align-items:baseline;
+  padding:.9rem .4rem .95rem;color:inherit;
+  border-bottom:1px solid var(--border);
+  transition:background .2s;
+}
+.paper:hover{text-decoration:none;background:rgba(26,95,235,.035)}
+.paper-meta{display:contents}
+.paper-yr{
+  grid-column:1;grid-row:1;
+  font-family:var(--mono);font-size:.75rem;color:var(--muted);
+  font-variant-numeric:tabular-nums;
+}
+.paper-body{grid-column:2;grid-row:1}
+/* an h2 here, directly under the page's h1: keep the h3 tracking it had on the landing page */
+.paper-t{font-size:.95rem;font-weight:600;line-height:1.45;letter-spacing:-.01em;margin:0;transition:color .2s}
+.paper:hover .paper-t{color:var(--blue)}
+.paper-a{font-size:.8rem;line-height:1.6;color:var(--muted);max-width:none;margin-top:.15rem}
+.paper-ref{
+  grid-column:3;grid-row:1;
+  font-family:var(--mono);font-size:.72rem;color:var(--blue);white-space:nowrap;
+}
+.paper-ref .arr{display:inline-block;transition:transform .2s}
+.paper:hover .paper-ref .arr{transform:translateX(3px)}
+
+/* ── contribute ── */
+.cta{
+  background:var(--hero);text-align:center;padding:4rem 2rem;
+  background-image:radial-gradient(circle,rgba(26,95,235,.10) 1px,transparent 1px);
+  background-size:26px 26px;
+}
+.cta h2{color:#E8EDF7}
+.cta p{color:#8B96B0;margin:0 auto 1.75rem;max-width:52ch}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  background:var(--blue);color:#fff;padding:11px 24px;border-radius:var(--r);
+  font-size:.875rem;font-weight:600;
+  transition:background .15s,transform .15s,box-shadow .2s;
+  box-shadow:0 6px 20px -8px rgba(26,95,235,.8);margin:0 6px 10px;
+}
+.btn:hover{background:var(--blue-dim);text-decoration:none;transform:translateY(-2px)}
+.btn .arr{transition:transform .2s}
+.btn:hover .arr{transform:translateX(4px)}
+
+footer{background:var(--navy);color:#4A5E7A;padding:2.5rem 2rem;text-align:center;font-size:.875rem}
+footer a{color:#6B7FA0}
+
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
+.reveal.in{opacity:1;transform:none}
+.reveal[data-d="1"]{transition-delay:.08s}
+.reveal[data-d="2"]{transition-delay:.16s}
+.reveal[data-d="3"]{transition-delay:.24s}
+.reveal[data-d="4"]{transition-delay:.32s}
+.reveal[data-d="5"]{transition-delay:.40s}
+
+@media(max-width:768px){
+  .n-links a:not(.n-ver){display:none}
+  .hero{padding:3rem 0 2.5rem}
+  .container{padding:0 1.25rem}
+  .paper{display:block;padding:1rem .25rem}
+  .paper-meta{display:flex;align-items:center;gap:.7rem;margin-top:.5rem}
+}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+  #lattice{display:none}
+  .hero .lead{opacity:1;transform:none}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="top" id="nav">
+  <a href="index.html" class="n-logo">
+    <span class="lm">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </span>
+    tachys
+  </a>
+  <div class="n-links">
+    <a href="quickstart.html">Quickstart</a>
+    <a href="benchmarks.html">Benchmarks</a>
+    <a href="papers.html" class="active">Papers</a>
+    <a href="https://github.com/tachys-dev/tachys">GitHub</a>
+    <span class="n-ver">v0.1.0</span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas id="lattice"></canvas>
+  <div class="hero-in container">
+    <div class="eyebrow">Research</div>
+    <h1>Recent work <em>using tachys.</em></h1>
+    <p class="lead">The calculations in these papers were carried out with tachys.</p>
+  </div>
+</section>
+
+<!-- PAPERS -->
+<section class="list-sec">
+  <div class="container">
+    <div class="papers">
+      <a class="paper reveal" data-d="1" href="https://arxiv.org/abs/2608.12465">
+        <div class="paper-body">
+          <h2 class="paper-t">Superconductivity in the <em>t</em>-<em>t</em>′ Hubbard Model from Symmetry-Preserving Neural-Network Quantum States</h2>
+          <p class="paper-a">R. Rende, L. L. Viteritti, A. Georges</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2026</span>
+          <span class="paper-ref">arXiv:2608.12465 <span class="arr">→</span></span>
+        </span>
+      </a>
+      <a class="paper reveal" data-d="2" href="https://arxiv.org/abs/2606.23799">
+        <div class="paper-body">
+          <h2 class="paper-t">Fermi surface change and <em>d</em>-wave superconductivity in the square lattice Kondo-Heisenberg model</h2>
+          <p class="paper-a">A. Nikolaenko, R. Rende, L. L. Viteritti, S. Sachdev, Y.-H. Zhang</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2026</span>
+          <span class="paper-ref">arXiv:2606.23799 <span class="arr">→</span></span>
+        </span>
+      </a>
+      <a class="paper reveal" data-d="3" href="https://arxiv.org/abs/2606.02794">
+        <div class="paper-body">
+          <h2 class="paper-t">Scaling Laws for Neural-Network Quantum States</h2>
+          <p class="paper-a">R. Rende, A. Sinibaldi, L. L. Viteritti, R. Wiersema, A. Georges, G. Carleo</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2026</span>
+          <span class="paper-ref">arXiv:2606.02794 <span class="arr">→</span></span>
+        </span>
+      </a>
+      <a class="paper reveal" data-d="4" href="https://arxiv.org/abs/2602.02665">
+        <div class="paper-body">
+          <h2 class="paper-t">Approaching the Thermodynamic Limit with Neural-Network Quantum States</h2>
+          <p class="paper-a">L. L. Viteritti, R. Rende, S. Sachdev, G. Carleo</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2026</span>
+          <span class="paper-ref">arXiv:2602.02665 <span class="arr">→</span></span>
+        </span>
+      </a>
+      <a class="paper reveal" data-d="5" href="https://doi.org/10.1038/s41467-025-62098-x">
+        <div class="paper-body">
+          <h2 class="paper-t">Foundation Neural-Networks Quantum States as a Unified Ansatz for Multiple Hamiltonians</h2>
+          <p class="paper-a">R. Rende, L. L. Viteritti, F. Becca, A. Scardicchio, A. Laio, G. Carleo</p>
+        </div>
+        <span class="paper-meta">
+          <span class="paper-yr">2025</span>
+          <span class="paper-ref">Nat. Commun. 16, 7213 <span class="arr">→</span></span>
+        </span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <h2>Missing a paper?</h2>
+  <p>Work using tachys that is missing from this list can be added by opening an issue.</p>
+  <a href="https://github.com/tachys-dev/tachys/issues" class="btn">Open an issue <span class="arr">→</span></a>
+</section>
+
+<footer>
+  <p>tachys v0.1.0 — Built on <a href="https://jax.dev">JAX</a> · <a href="https://github.com/tachys-dev/tachys">GitHub</a></p>
+</footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  /* ── nav elevation ── */
+  var nav = document.getElementById('nav');
+  function onScroll(){ nav.classList.toggle('scrolled', window.scrollY > 8); }
+  onScroll(); window.addEventListener('scroll', onScroll, {passive:true});
+
+  /* ── scroll reveal ── */
+  var revs = document.querySelectorAll('.reveal');
+  if(reduce || !('IntersectionObserver' in window)){
+    revs.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, {threshold:0.12, rootMargin:'0px 0px -8% 0px'});
+    revs.forEach(function(el){ io.observe(el); });
+  }
+
+  /* ── hero quantum-lattice canvas (shared with the landing page) ── */
+  var canvas = document.getElementById('lattice');
+  if(canvas && !reduce){
+    var ctx = canvas.getContext('2d');
+    var W, H, DPR, cols, rows, gap, nodes, offX, offY, t = 0, raf;
+    var C_UP = [79,142,247], C_DN = [124,58,237], C_BASE = [40,64,104];
+
+    function build(){
+      DPR = Math.min(window.devicePixelRatio || 1, 2);
+      var rect = canvas.getBoundingClientRect();
+      W = rect.width; H = rect.height;
+      canvas.width = W*DPR; canvas.height = H*DPR;
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+      gap = Math.max(38, Math.min(56, W/22));
+      cols = Math.ceil(W/gap)+2;
+      rows = Math.ceil(H/gap)+2;
+      offX = (W - (cols-1)*gap)/2;
+      offY = (H - (rows-1)*gap)/2;
+      nodes = [];
+      for(var i=0;i<cols;i++){
+        for(var j=0;j<rows;j++){
+          nodes.push({x: offX + i*gap, y: offY + j*gap, phase: Math.random()*Math.PI*2,
+                      speed: 0.2 + Math.random()*0.5, up: Math.random() > 0.5});
+        }
+      }
+    }
+    function rgba(c,a){ return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')'; }
+
+    function draw(){
+      t += 0.01;
+      ctx.clearRect(0,0,W,H);
+      var e1x = W*(0.5 + 0.42*Math.sin(t*0.35)), e1y = H*(0.4 + 0.35*Math.cos(t*0.27));
+      var e2x = W*(0.5 + 0.40*Math.cos(t*0.22+2)), e2y = H*(0.55 + 0.30*Math.sin(t*0.31+1));
+
+      ctx.lineWidth = 1;
+      for(var i=0;i<cols;i++){
+        for(var j=0;j<rows;j++){
+          var n = nodes[i*rows + j];
+          if(i < cols-1) link(n, nodes[(i+1)*rows + j]);
+          if(j < rows-1) link(n, nodes[i*rows + (j+1)]);
+        }
+      }
+      for(var k=0;k<nodes.length;k++){
+        var p = nodes[k];
+        var d1 = Math.hypot(p.x-e1x, p.y-e1y), d2 = Math.hypot(p.x-e2x, p.y-e2y);
+        var glow = Math.min(Math.max(0, 1 - d1/210) + Math.max(0, 1 - d2/210), 1);
+        var pulse = 0.5 + 0.5*Math.sin(t*p.speed + p.phase);
+        var col = p.up ? C_UP : C_DN;
+        var a = 0.18 + 0.12*pulse + glow*0.75;
+        var r = 1.6 + glow*2.4 + pulse*0.5;
+        if(glow > 0.02){
+          ctx.beginPath(); ctx.fillStyle = rgba(col, glow*0.12);
+          ctx.arc(p.x, p.y, r*3.4, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.beginPath(); ctx.fillStyle = rgba(glow>0.15 ? col : C_BASE, a);
+        ctx.arc(p.x, p.y, r, 0, Math.PI*2); ctx.fill();
+      }
+      raf = requestAnimationFrame(draw);
+
+      function link(a,b){
+        var mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+        var d1=Math.hypot(mx-e1x,my-e1y), d2=Math.hypot(mx-e2x,my-e2y);
+        var g=Math.max(0,1-d1/200)+Math.max(0,1-d2/200);
+        ctx.strokeStyle = g<0.04 ? rgba(C_BASE,0.05) : rgba(C_UP, Math.min(g,1)*0.28);
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      }
+    }
+    var rt;
+    window.addEventListener('resize', function(){ clearTimeout(rt); rt=setTimeout(build, 150); }, {passive:true});
+    build(); draw();
+    document.addEventListener('visibilitychange', function(){
+      if(document.hidden){ cancelAnimationFrame(raf); } else { raf = requestAnimationFrame(draw); }
+    });
+  }
+})();
+</script>
+
+</body>
+</html>{% endraw %}

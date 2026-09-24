@@ -299,35 +299,6 @@ p code,li code,.ic{
 .more .arr{display:inline-block;transition:transform .2s}
 .more:hover .arr{transform:translateX(4px)}
 
-/* ── papers ── */
-#papers{padding:3.5rem 0}
-.papers{margin-top:1.5rem;border-top:1px solid var(--border)}
-.paper{
-  display:grid;grid-template-columns:3.25rem minmax(0,1fr) auto;
-  column-gap:1.5rem;align-items:baseline;
-  padding:.9rem .4rem .95rem;color:inherit;
-  border-bottom:1px solid var(--border);
-  transition:background .2s;
-}
-.paper:hover{text-decoration:none;background:rgba(26,95,235,.035)}
-.paper-meta{display:contents}
-.paper-yr{
-  grid-column:1;grid-row:1;
-  font-family:var(--mono);font-size:.75rem;color:var(--muted);
-  font-variant-numeric:tabular-nums;
-}
-.paper-body{grid-column:2;grid-row:1}
-.paper-t{font-size:.95rem;font-weight:600;line-height:1.45;margin:0;transition:color .2s}
-.paper:hover .paper-t{color:var(--blue)}
-.paper-a{font-size:.8rem;line-height:1.6;color:var(--muted);max-width:none;margin-top:.15rem}
-.paper-ref{
-  grid-column:3;grid-row:1;
-  font-family:var(--mono);font-size:.72rem;color:var(--blue);white-space:nowrap;
-}
-.paper-ref .arr{display:inline-block;transition:transform .2s}
-.paper:hover .paper-ref .arr{transform:translateX(3px)}
-.papers-note{font-size:.8rem;color:var(--muted);margin-top:1.15rem}
-
 /* CTA */
 .cta{
   background:var(--hero);text-align:center;padding:5rem 2rem;
@@ -353,8 +324,6 @@ footer a{color:#6B7FA0}
 .reveal[data-d="1"]{transition-delay:.08s}
 .reveal[data-d="2"]{transition-delay:.16s}
 .reveal[data-d="3"]{transition-delay:.24s}
-.reveal[data-d="4"]{transition-delay:.32s}
-.reveal[data-d="5"]{transition-delay:.40s}
 
 @media(max-width:768px){
   .feat-grid{grid-template-columns:1fr}
@@ -364,8 +333,6 @@ footer a{color:#6B7FA0}
   .n-links a:not(.n-ver){display:none}
   .hero h1{font-size:2.1rem}
   .hero{padding:4.5rem 1.5rem 4rem}
-  .paper{display:block;padding:1rem .25rem}
-  .paper-meta{display:flex;align-items:center;gap:.7rem;margin-top:.5rem}
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -391,10 +358,8 @@ footer a{color:#6B7FA0}
   </a>
   <div class="n-links">
     <a href="quickstart.html">Quickstart</a>
-    <a href="concepts.html">Concepts</a>
-    <a href="foundation_models.html">Foundation Models</a>
     <a href="benchmarks.html">Benchmarks</a>
-    <a href="api.html">API</a>
+    <a href="papers.html">Papers</a>
     <a href="https://github.com/tachys-dev/tachys">GitHub</a>
     <span class="n-ver">v0.1.0</span>
   </div>
@@ -500,70 +465,6 @@ wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
   </div>
 </section>
 
-<!-- PAPERS -->
-<section class="sec" id="papers">
-  <div class="content">
-    <div class="sec-lbl reveal">Research</div>
-    <h2 class="reveal" data-d="1">Recent work using tachys</h2>
-    <p class="lead-p reveal" data-d="2">The calculations in these papers were carried out with tachys.</p>
-
-    <div class="papers">
-      <a class="paper reveal" data-d="1" href="https://arxiv.org/abs/2608.12465">
-        <div class="paper-body">
-          <h3 class="paper-t">Superconductivity in the <em>t</em>-<em>t</em>′ Hubbard Model from Symmetry-Preserving Neural-Network Quantum States</h3>
-          <p class="paper-a">R. Rende, L. L. Viteritti, A. Georges</p>
-        </div>
-        <span class="paper-meta">
-          <span class="paper-yr">2026</span>
-          <span class="paper-ref">arXiv:2608.12465 <span class="arr">→</span></span>
-        </span>
-      </a>
-      <a class="paper reveal" data-d="2" href="https://arxiv.org/abs/2606.23799">
-        <div class="paper-body">
-          <h3 class="paper-t">Fermi surface change and <em>d</em>-wave superconductivity in the square lattice Kondo-Heisenberg model</h3>
-          <p class="paper-a">A. Nikolaenko, R. Rende, L. L. Viteritti, S. Sachdev, Y.-H. Zhang</p>
-        </div>
-        <span class="paper-meta">
-          <span class="paper-yr">2026</span>
-          <span class="paper-ref">arXiv:2606.23799 <span class="arr">→</span></span>
-        </span>
-      </a>
-      <a class="paper reveal" data-d="3" href="https://arxiv.org/abs/2606.02794">
-        <div class="paper-body">
-          <h3 class="paper-t">Scaling Laws for Neural-Network Quantum States</h3>
-          <p class="paper-a">R. Rende, A. Sinibaldi, L. L. Viteritti, R. Wiersema, A. Georges, G. Carleo</p>
-        </div>
-        <span class="paper-meta">
-          <span class="paper-yr">2026</span>
-          <span class="paper-ref">arXiv:2606.02794 <span class="arr">→</span></span>
-        </span>
-      </a>
-      <a class="paper reveal" data-d="4" href="https://arxiv.org/abs/2602.02665">
-        <div class="paper-body">
-          <h3 class="paper-t">Approaching the Thermodynamic Limit with Neural-Network Quantum States</h3>
-          <p class="paper-a">L. L. Viteritti, R. Rende, S. Sachdev, G. Carleo</p>
-        </div>
-        <span class="paper-meta">
-          <span class="paper-yr">2026</span>
-          <span class="paper-ref">arXiv:2602.02665 <span class="arr">→</span></span>
-        </span>
-      </a>
-      <a class="paper reveal" data-d="5" href="https://doi.org/10.1038/s41467-025-62098-x">
-        <div class="paper-body">
-          <h3 class="paper-t">Foundation Neural-Networks Quantum States as a Unified Ansatz for Multiple Hamiltonians</h3>
-          <p class="paper-a">R. Rende, L. L. Viteritti, F. Becca, A. Scardicchio, A. Laio, G. Carleo</p>
-        </div>
-        <span class="paper-meta">
-          <span class="paper-yr">2025</span>
-          <span class="paper-ref">Nat. Commun. 16, 7213 <span class="arr">→</span></span>
-        </span>
-      </a>
-    </div>
-
-    <p class="papers-note reveal">Work using tachys that is missing from this list can be added by <a href="https://github.com/tachys-dev/tachys/issues">opening an issue</a>.</p>
-  </div>
-</section>
-
 <!-- CTA -->
 <section class="cta">
   <h2 class="reveal">Getting started</h2>
@@ -576,8 +477,8 @@ wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
 
 <!-- FOOTER -->
 <footer>
-  <p>tachys v0.1.0 — Built on <a href="https://jax.dev">JAX</a> and <a href="https://flax.readthedocs.io">Flax</a> · <a href="https://github.com/tachys-dev/tachys">GitHub</a></p>
-  <p style="margin-top:.4rem;font-size:.75rem">MIT License</p>
+  <p>tachys v0.1.0 — Built on <a href="https://jax.dev">JAX</a> · <a href="https://github.com/tachys-dev/tachys">GitHub</a></p>
+  <p style="margin-top:.4rem;font-size:.75rem">Apache License 2.0</p>
 </footer>
 
 <script>

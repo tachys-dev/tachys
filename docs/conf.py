@@ -34,9 +34,11 @@ root_doc = "contents"
 templates_path = ["_templates"]
 # benchmarks.html is likewise standalone: it reads its whole dataset from
 # _static/benchmarks-data.js at runtime, so new systems are a data-only edit.
+# papers.html is standalone too; its list is plain HTML in the template.
 html_additional_pages = {
     "index": "landing.html",
     "benchmarks": "benchmarks.html",
+    "papers": "papers.html",
 }
 
 html_theme = "pydata_sphinx_theme"
