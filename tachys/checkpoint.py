@@ -75,7 +75,8 @@ def build_checkpoint_manager(directory, save_interval_steps, max_to_keep):
         max_to_keep=max_to_keep,
         save_decision_policy=ocp.checkpoint_managers.FixedIntervalPolicy(save_interval_steps),
     )
-    return ocp.CheckpointManager(directory, options=options)
+    # Orbax's OCDBT storage only accepts absolute paths
+    return ocp.CheckpointManager(os.path.abspath(directory), options=options)
 
 
 def get_last_step(checkpoint_dir):
