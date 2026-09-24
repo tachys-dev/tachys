@@ -1,3 +1,45 @@
+"""Local estimators and expectation values.
+
+Conventions
+-----------
+The basis, the wavefunction and the operators are defined together, so that
+``compute_expectation`` returns <psi|O|psi> / <psi|psi> for any operator O,
+Hermitian or not.
+
+Basis. A configuration x labels a basis state |x>:
+
+- SpinState: x = (s_0, ..., s_{Ns-1}), with s_i = +1 for up (S^z_i = +1/2)
+  and -1 for down, and |x> = |s_0> (x) |s_1> (x) ... (x) |s_{Ns-1}>.
+- FermionState: x = (n_0, ..., n_{M-1}), the occupations of the modes
+  m = band * Ns + site (band 0 = up, 1 = down), and
+  |x> = (c_0^dag)^{n_0} (c_1^dag)^{n_1} ... (c_{M-1}^dag)^{n_{M-1}} |0>,
+  lowest mode leftmost. The Jordan-Wigner sign of every fermionic operator
+  counts the occupied modes of lower index accordingly.
+
+Wavefunction. ``wf.apply_fn(wf.params, state)`` returns log psi(x) for every
+configuration x of the batch, with psi(x) = <x|psi>: the real part is
+log|psi(x)|, the imaginary part the phase (a real output is a positive
+wavefunction). psi need not be normalized. ``sample`` draws x with probability
+|psi(x)|^2 / <psi|psi>.
+
+Operators. ``operator(state)`` returns, for every configuration x, the row of
+O at x: the configurations x' with <x|O|x'> != 0, and those matrix elements
+(see ``tachys.lattice.operator.base._Operator``).
+
+Estimators. ``local_estimator`` returns
+
+    O_L(x) = sum_x' <x|O|x'> psi(x') / psi(x) = <x|O|psi> / <x|psi>,
+
+and ``compute_expectation`` returns O_L together with its mean over the sample,
+which estimates
+
+    sum_x |psi(x)|^2 / <psi|psi> * <x|O|psi> / <x|psi> = <psi|O|psi> / <psi|psi>,
+
+and the mean of |O_L(x)|^2. For the Hamiltonian, mean |E_L|^2 - |mean E_L|^2 is
+the energy variance, zero on an eigenstate. For a Hermitian O the exact value is
+real, but the sample mean is complex in general: its imaginary part is
+statistical noise.
+"""
 import dataclasses
 from functools import partial
 
@@ -198,8 +240,9 @@ def compute_expectation(operator, wf, state, log_amps, optimize_mask=True, batch
     Returns
     -------
     O_L     : jax.Array, shape (N_mc_local,) — local estimator, sharded
-    O_mean  : scalar — global mean <O>
-    O2_mean : scalar — global mean <|O|^2>
+    O_mean  : scalar — mean of O_L over all chains, the estimate of
+              <psi|O|psi> / <psi|psi> (see the module docstring)
+    O2_mean : scalar — mean of |O_L|^2 over all chains
     """
     wf, state = _cast_floating_to((wf, state), wf.dtype)
 

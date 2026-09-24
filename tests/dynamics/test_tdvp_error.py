@@ -1,7 +1,7 @@
 """The integrated TDVP error R^2 and its per-step rate.
 
 The rate is checked against the definition written out literally --
-``Var(H) + thetadot^T S thetadot - 2 Re(F)^T thetadot`` with ``S`` and ``F``
+``Var(H) + thetadot^T S thetadot - 2 Im(F)^T thetadot`` with ``S`` and ``F``
 assembled densely from ``jax.jacobian`` -- rather than against the fused form the
 implementation actually evaluates, so the two routes are genuinely independent.
 Then the three limits that fix the normalization: zero velocity gives ``Var(H)``,
@@ -80,7 +80,7 @@ def _dense_rate(wf, state, E_L, dtheta):
     v = np.asarray(v)
     var_H = float(np.mean(np.abs(dE) ** 2))
     quad = float(v @ S @ v)
-    force = float(2 * v @ np.imag(F))        # Re(F)_k == Im <DeltaO_k* DeltaE_L>
+    force = float(2 * v @ np.imag(F))        # 2 Im(F)^T thetadot, F_k = <DeltaO_k* DeltaE_L>
     return var_H + quad - force, var_H, quad, force
 
 

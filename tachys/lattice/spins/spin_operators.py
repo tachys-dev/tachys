@@ -15,8 +15,10 @@ class Splus(_OnSiteOperator):
     def apply(self, state):
         spins = state.spins
         assert spins.ndim == 2
-        
-        mask = spins[:, self.site] == -1
+
+        # Row x of S+: <x|S+|x'> = 1 for x' = x with spin `site` lowered, so
+        # it is nonzero only where that spin is up in x.
+        mask = spins[:, self.site] == 1
 
         connected_spins = spins.at[:, self.site].set(-spins[:, self.site])
         connected_states = state.replace(spins=connected_spins)
@@ -32,7 +34,9 @@ class Sminus(_OnSiteOperator):
         spins = state.spins
         assert spins.ndim == 2
 
-        mask = spins[:, self.site] == 1
+        # Row x of S-: <x|S-|x'> = 1 for x' = x with spin `site` raised, so
+        # it is nonzero only where that spin is down in x.
+        mask = spins[:, self.site] == -1
 
         connected_spins = spins.at[..., self.site].set(-spins[..., self.site])
         connected_states = state.replace(spins=connected_spins)
@@ -67,9 +71,10 @@ class Sy(_OnSiteOperator):
         mask = jnp.ones(spins.shape[0], dtype=bool)
         connected_spins = spins.at[:, self.site].set(-spins[:, self.site])
         connected_states = state.replace(spins=connected_spins)
-        # <up|Sy|down> = -i/2, <down|Sy|up> = +i/2 (S+ = Sx+iSy, S- = Sx-iSy
-        # => Sy = -i/2 (S+ - S-)); both cases collapse to 1j * 0.5 * spins[site].
-        matrix_element = 1j * 0.5 * spins[:, self.site] * self.coupling
+        # Row x of Sy: <up|Sy|down> = -i/2, <down|Sy|up> = +i/2 (S+ = Sx+iSy,
+        # S- = Sx-iSy => Sy = -i/2 (S+ - S-)); with spins[site] the spin of x,
+        # both cases collapse to -1j * 0.5 * spins[site].
+        matrix_element = -1j * 0.5 * spins[:, self.site] * self.coupling
 
         return OffdiagonalResult(connected_states=connected_states,
                                  mask=mask,

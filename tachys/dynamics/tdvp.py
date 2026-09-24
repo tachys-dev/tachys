@@ -28,10 +28,16 @@ class TDVPState(NamedTuple):
 def _rt_eps(eloc: jax.Array, N_mc: int) -> jax.Array:
     """Real-time force vector eps_i = i * conj(E_Li - Ebar_L) / sqrt(M).
 
-    The real-time counterpart of ``tachys.optimizer.optimizers._eps``; see this
-    module's docstring for why the factor of 2 is absent and the ``1j`` present.
-    Feeding this to ``_parameter_updates`` returns ``thetadot = S^-1 Im F``
-    directly, as the physical velocity, sign included.
+    The real-time counterpart of ``tachys.optimizer.optimizers._eps``. With the
+    row-based local energy E_L = (H psi) / psi (see the conventions in
+    ``tachys.lattice.operator.local_estimator``), projecting i d/dt psi = H psi
+    onto the tangent space gives S thetadot = Im F, with
+    F_k = mean[conj(DeltaO_k) DeltaE_L], while the energy gradient used by SR
+    is 2 Re F. ``_parameter_updates`` solves S x = Re mean[conj(DeltaO) conj(eps)]
+    (up to the sqrt(M) normalization): SR's eps = 2 conj(DeltaE_L) / sqrt(M)
+    gives 2 Re F, and this eps gives Re(-i F) = Im F -- hence the ``1j`` and
+    no factor of 2. The result is ``thetadot = S^-1 Im F`` directly, as the
+    physical velocity, sign included.
     """
     return 1j * eloc.conj() / N_mc ** 0.5
 

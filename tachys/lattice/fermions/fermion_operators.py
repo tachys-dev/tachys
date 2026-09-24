@@ -5,7 +5,10 @@ import jax.numpy as jnp
 from tachys.lattice.operator.base import _Operator, _OnSiteOperator, DiagonalResult, OffdiagonalResult
 
 
-def _create_fermion_fn(state, site):
+def _fill_mode(state, site):
+        """x' = x with mode `site` occupied, valid where it is empty in x, and
+        the Jordan-Wigner sign (-1)^(occupied modes before `site`), which is
+        the same in x and x'."""
         size = state.occupations.shape[-1]
 
         new_occupations = state.occupations
@@ -17,7 +20,9 @@ def _create_fermion_fn(state, site):
 
         return state.replace(occupations=new_occupations), mask, fermionic_sign
 
-def _destroy_fermion_fn(state, site):
+def _empty_mode(state, site):
+        """x' = x with mode `site` empty, valid where it is occupied in x, and
+        the same Jordan-Wigner sign as _fill_mode."""
         size = state.occupations.shape[-1]
 
         new_occupations = state.occupations
@@ -34,8 +39,10 @@ class C(_OnSiteOperator):
 
     def apply(self, state):
         assert state.occupations.ndim == 2
-        
-        connected_states, mask, fermionic_sign = _destroy_fermion_fn(state, self.band * state.Ns + self.site)
+
+        # Row x of c: <x|c|x'> is nonzero for x' = x with the mode filled --
+        # c removes from x' the electron that x lacks.
+        connected_states, mask, fermionic_sign = _fill_mode(state, self.band * state.Ns + self.site)
         matrix_element = fermionic_sign * self.coupling
 
         return OffdiagonalResult(connected_states=connected_states,
@@ -48,7 +55,9 @@ class C_dag(_OnSiteOperator):
     def apply(self, state):
         assert state.occupations.ndim == 2
 
-        connected_states, mask, fermionic_sign = _create_fermion_fn(state, self.band * state.Ns + self.site)
+        # Row x of c_dag: <x|c_dag|x'> is nonzero for x' = x with the mode
+        # emptied -- c_dag adds to x' the electron that x has.
+        connected_states, mask, fermionic_sign = _empty_mode(state, self.band * state.Ns + self.site)
         matrix_element = fermionic_sign * self.coupling
 
         return OffdiagonalResult(connected_states=connected_states,
@@ -119,7 +128,9 @@ class Hopping(_Operator):
         mask = occ[..., i] != occ[..., j]
         connected_states = state.replace(occupations=new_occ)
 
-        matrix_element = sign * jnp.where(occ[..., j] == 1, self.coupling, jnp.conj(self.coupling))
+        # Row x: alpha * c_dag(i) c(j) connects x, electron on i, to x',
+        # electron on j; conj(alpha) * c_dag(j) c(i) the other way round.
+        matrix_element = sign * jnp.where(occ[..., i] == 1, self.coupling, jnp.conj(self.coupling))
 
         return OffdiagonalResult(connected_states=connected_states,
                                  mask=mask,

@@ -43,6 +43,14 @@ class _OperatorBase(struct.PyTreeNode):
         return NotImplemented
 
 class _Operator(_OperatorBase):
+    """Leaf operator O. ``apply(state)`` returns, for every configuration x of
+    the batch, the row of O at x: the configurations x' with <x|O|x'> != 0 and
+    those matrix elements. The local estimator
+    sum_x' <x|O|x'> psi(x') / psi(x) then averages to <psi|O|psi> over
+    |psi|^2, for any O, Hermitian or not. The full conventions -- basis
+    ordering, wavefunction, estimators -- are stated in
+    ``tachys.lattice.operator.local_estimator``.
+    """
     coupling: float = struct.field(default=1.0, kw_only=True)
 
     def _coupling_size(self):
@@ -185,7 +193,10 @@ class _OperatorMul(_OperatorBase):
         combined_matrix_element = jnp.array([1.0]) # brodcasting will happen
         all_diagonal = True
 
-        for op in reversed(self.operators):
+        # Rows compose left to right, <x|A B|x''> = sum_x' <x|A|x'> <x'|B|x''>:
+        # take the row of the leftmost factor at x, then the row of the next
+        # factor at the configuration x' it connects to, and so on.
+        for op in self.operators:
             if all_diagonal: #* this takes into account also the first offdiagonal application
                 result = op(state)
             else:

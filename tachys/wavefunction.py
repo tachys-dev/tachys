@@ -7,6 +7,12 @@ from jax.flatten_util import ravel_pytree
 
 
 class WaveFunction(struct.PyTreeNode):
+    """Parameters paired with the function that evaluates them:
+    ``apply_fn(params, state)`` returns log psi(x), with psi(x) = <x|psi>, for
+    every configuration x of the batch. The full conventions -- basis
+    ordering, what operators return, what ``compute_expectation`` computes --
+    are stated in ``tachys.lattice.operator.local_estimator``.
+    """
     params: Any
     apply_fn: Callable = struct.field(pytree_node=False)
     unravel_params_fn: Callable = struct.field(pytree_node=False, default=None)

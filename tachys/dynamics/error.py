@@ -23,7 +23,8 @@ class TDVPErrorEstimate(struct.PyTreeNode):
     var_H : ``Var(H) = mean |DeltaE_L|^2``. The ``thetadot = 0`` baseline: the rate
             a frozen ansatz would accumulate.
     quad  : ``thetadot^T S thetadot = mean |t|^2``.
-    force : ``2 Re(F)^T thetadot = 2 Im mean[conj(t) DeltaE_L]``.
+    force : ``2 Im(F)^T thetadot = 2 Im mean[conj(t) DeltaE_L]``, with
+            ``F_k = mean[conj(DeltaO_k) DeltaE_L]``.
     ratio : ``force / (2 * quad)``. Exactly 1 when ``thetadot`` solves the TDVP
             equation, so it is a direct check on the *normalization* of the
             velocity: 0.5 means ``thetadot`` is twice too large, 2.0 twice too
