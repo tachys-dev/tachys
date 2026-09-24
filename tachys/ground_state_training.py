@@ -67,7 +67,9 @@ def _compute_metrics(mean_e, mean_E2, Ns):
 def _print_setup_summary(H, wf, optimizer, action, state, N_steps, lr_schedule, N_mc,
                          start_step=0, estimator=None):
     lattice = state.lattice
-    model = getattr(wf.apply_fn, "__self__", None)
+    # WaveFunction wraps apply_fn; the module is the __self__ of the model.apply
+    # it wraps (one level only: flax's apply carries a __wrapped__ of its own).
+    model = getattr(getattr(wf.apply_fn, "__wrapped__", None), "__self__", None)
 
     print("\n--- Simulation setup ---")
     if lattice is not None:

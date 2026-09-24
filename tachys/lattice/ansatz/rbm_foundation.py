@@ -55,9 +55,9 @@ class FermionFoundationRBM(nn.Module):
 
     @nn.compact
     def __call__(self, lattice):
-        occupations = jnp.atleast_2d(lattice.occupations)
+        occupations = lattice.occupations
         Ns = occupations.shape[-1]
-        couplings = jnp.atleast_2d(lattice.system_couplings)
+        couplings = lattice.system_couplings
 
         #Bare Slater Determinant orbitals, shared across the batch
         orbitals = self.param('orbitals', nn.initializers.xavier_uniform(), (lattice.Ne, Ns,), jnp.float64)

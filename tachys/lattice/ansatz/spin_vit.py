@@ -94,7 +94,6 @@ class SpinViT(nn.Module):
 
     @nn.remat
     def __call__(self, lattice):
-        lattice = jax.tree.map(jnp.atleast_2d, lattice)
         s = lattice.spins
         
         x = self.patches_and_embed(s)

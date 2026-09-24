@@ -183,7 +183,9 @@ def _check_finite(e_per_site, t, wandb_run):
 def _print_setup_summary(H, wf, tdvp, integrator, action, state, N_steps, dt, N_mc,
                          t0, nsweeps, time_dependent, tdvp_error_every, start_step):
     lattice = state.lattice
-    model = getattr(wf.apply_fn, "__self__", None)
+    # WaveFunction wraps apply_fn; the module is the __self__ of the model.apply
+    # it wraps (one level only: flax's apply carries a __wrapped__ of its own).
+    model = getattr(getattr(wf.apply_fn, "__wrapped__", None), "__self__", None)
 
     print("\n--- Real-time evolution setup ---")
     if lattice is not None:

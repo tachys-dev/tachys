@@ -70,7 +70,6 @@ class FermionicTransformer(nn.Module):
                                            Nbands=self.Nbands)
 
     def __call__(self, state):
-        state = jax.tree.map(jnp.atleast_2d, state)
         n = state.occupations
 
         # Embedding

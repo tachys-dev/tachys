@@ -44,7 +44,6 @@ class FermionRBM(nn.Module):
 
     @nn.compact
     def __call__(self, lattice):
-        lattice = jax.tree.map(jnp.atleast_2d, lattice)
         occupations = lattice.occupations
         Ns = occupations.shape[-1]
 
