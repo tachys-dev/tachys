@@ -65,9 +65,14 @@ html_theme_options = {
 }
 
 # pydata-sphinx-theme's default primary sidebar ("Section Navigation") only ever
-# lists pages *nested below* the current top-level toctree entry. Our toctree
-# (see contents.md) is flat -- quickstart/concepts/foundation_models/api are
-# all siblings -- so that panel is structurally always empty; top-level navigation
-# already lives in the navbar (navbar_align/navbar_end above). Drop the sidebar
-# entirely rather than ship an empty "Section Navigation" box on every page.
-html_sidebars = {"**": []}
+# lists pages *nested below* the current top-level toctree entry. The top-level
+# pages (see contents.md) have nothing nested below them, so the panel would be
+# empty there; top-level navigation already lives in the navbar
+# (navbar_align/navbar_end above). Drop the sidebar on those pages rather than
+# ship an empty "Section Navigation" box. The user guide is the one nested
+# section: keep the theme's default sidebar on its pages, where it lists the
+# guide's pages. "*" does not cross "/", so the two patterns never overlap.
+html_sidebars = {
+    "*": [],
+    "guide/*": ["sidebar-collapse", "sidebar-nav-bs"],
+}

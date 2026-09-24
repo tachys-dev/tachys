@@ -11,23 +11,27 @@ identical. Each step prints the energy per site.
 
 ## Structure of a VMC script
 
-Both scripts are built from the same five components:
+Both scripts are built from the same five components, each covered in full on
+its own page of the {doc}`guide/index`:
 
-1. **Lattice and Hamiltonian.** A lattice factory and an operator factory; the
-   Hamiltonian is a Python callable.
-2. **Initial configurations.** One per Markov chain, drawn at random within
-   the conserved sector — total magnetization for spins, particle number for
-   fermions.
-3. **Wavefunction.** Any Flax module; the examples use the transformer
-   ansätze included in the library. `WaveFunction` pairs the parameters with
-   the module's `apply` function, which makes the rest of tachys independent
-   of the architecture.
-4. **Monte Carlo move.** A rule for proposing a new configuration from the
-   current one, here the exchange of two sites, defining a Markov chain that
-   samples configurations with probability $|\psi|^2$.
-5. **Optimization step.** A map from the sampled energies to a parameter
-   update. Both examples use stochastic reconfiguration (`SR`), which takes a
-   natural-gradient step in place of a plain gradient step.
+1. **{doc}`Lattice <guide/lattices>` and
+   {doc}`Hamiltonian <guide/hamiltonians>`.** A lattice factory and an
+   operator factory; the Hamiltonian is a Python callable.
+2. **{doc}`Initial configurations <guide/configurations>`.** One per Markov
+   chain, drawn at random within the conserved sector — total magnetization
+   for spins, particle number for fermions.
+3. **{doc}`Wavefunction <guide/wavefunctions>`.** Any Flax module; the
+   examples use the transformer ansätze included in the library.
+   `WaveFunction` pairs the parameters with the module's `apply` function,
+   which makes the rest of tachys independent of the architecture.
+4. **{doc}`Monte Carlo move <guide/sampling>`.** A rule for proposing a new
+   configuration from the current one, here the exchange of two sites,
+   defining a Markov chain that samples configurations with probability
+   $|\psi|^2$.
+5. **{doc}`Optimization step <guide/optimization>`.** A map from the sampled
+   energies to a parameter update. Both examples use stochastic
+   reconfiguration (`SR`), which takes a natural-gradient step in place of a
+   plain gradient step.
 
 One step of the loop is four lines: advance the chain, estimate the energy,
 solve for the update, apply it.
@@ -164,6 +168,8 @@ for step in range(N_steps):
 
 ## Next steps
 
+- {doc}`guide/index` — each of the five components in depth: custom lattices
+  and Hamiltonians, other ansätze and moves, optimizer settings.
 - {doc}`concepts` — the data types and functions used above.
 - {doc}`foundation_models` — one wavefunction trained across many Hamiltonians.
 - {doc}`api` — full reference: ansätze, optimizers, and the lower-level

@@ -55,7 +55,8 @@ class FermionState(occupations, Ne, Nbands=2, *, lattice=None)
 
 Batched fermionic occupation-number configurations. Extends `State` (see
 below), which extends `flax.struct.PyTreeNode`.
-Modes are ordered as (site 0 ↑, site 0 ↓, site 1 ↑, site 1 ↓, …).
+Modes are ordered band by band: (site 0 ↑, site 1 ↑, …, site Ns−1 ↑, site 0 ↓, …, site Ns−1 ↓),
+i.e. mode `band * Ns + site`.
 `Ne` and `Nbands` are static (non-pytree) fields.
 
 | Field | Type | Description |
@@ -276,14 +277,17 @@ Inherits fields from both `FermionState` and `FoundationState`.
 class _Operator(coupling=1.0)
 ```
 
-Abstract base for all operators. Subclass it and implement `apply(state)`.
-Calling an instance automatically wraps `apply` in `jax.vmap` over the batch axis.
+Abstract base for all operators. Subclass it and implement `apply(state)`, which
+returns, for every configuration x of the batch, the row of the operator at x:
+the configurations x' with ⟨x|O|x'⟩ ≠ 0 and those matrix elements. With this
+convention the local estimator averages to ⟨ψ|O|ψ⟩ for any operator, Hermitian
+or not. Calling an instance wraps `apply` in `jax.vmap` over the terms.
 
 | Member | Type | Description |
 |--------|------|-------------|
 | `coupling` | `float` | Scalar prefactor applied to all matrix elements. |
-| `__call__(state)` | `State → result` | Vectorized application over the batch axis. |
-| `apply(state)` | `State → result` | Per-sample application. Override in subclasses. |
+| `__call__(state)` | `State → result` | Applies every term to the batch (vmap over the terms). |
+| `apply(state)` | `State → result` | Row of one term at every configuration of the batch. Override in subclasses. |
 | `__add__(other)` | `_Operator` | Merges into one batched operator when the type *and* all static (`pytree_node=False`) fields match; otherwise returns `_OperatorSum`. |
 | `__mul__(other)` | scalar or `_Operator` | Scalar: rescales coupling. Operator: returns `_OperatorMul`. |
 
@@ -314,8 +318,9 @@ Diagonal spin-z operator. Returns `DiagonalResult` with element `0.5 · coupling
 class Splus(site, coupling=1.0)
 ```
 
-Raising operator S⁺ = (σ_x + iσ_y)/2. Flips the spin at `site` from ↓ to ↑.
-Returns `OffdiagonalResult`; `mask=False` when the spin is already ↑.
+Raising operator S⁺ = (σ_x + iσ_y)/2. Returns `OffdiagonalResult` with the row
+⟨x|S⁺|x'⟩ = 1, where x' is x with the spin at `site` lowered; `mask=False` where
+that spin is ↓ in x.
 
 ---
 
@@ -327,8 +332,9 @@ Returns `OffdiagonalResult`; `mask=False` when the spin is already ↑.
 class Sminus(site, coupling=1.0)
 ```
 
-Lowering operator S⁻ = (σ_x − iσ_y)/2. Flips the spin at `site` from ↑ to ↓.
-Returns `OffdiagonalResult`; `mask=False` when the spin is already ↓.
+Lowering operator S⁻ = (σ_x − iσ_y)/2. Returns `OffdiagonalResult` with the row
+⟨x|S⁻|x'⟩ = 1, where x' is x with the spin at `site` raised; `mask=False` where
+that spin is ↑ in x.
 
 ---
 
@@ -359,9 +365,10 @@ are antiparallel. Returns `OffdiagonalResult`.
 class C(site, band, coupling=1.0)
 ```
 
-Fermionic annihilation operator c_{i,σ}. Removes an electron at `site` in `band`
-(0 = ↑, 1 = ↓), including the Jordan-Wigner fermionic sign.
-Returns `OffdiagonalResult`.
+Fermionic annihilation operator c_{i,σ}, with the Jordan-Wigner sign. Returns
+`OffdiagonalResult` with the row ⟨x|c_{i,σ}|x'⟩, where x' is x with an electron
+added at `site` in `band` (0 = ↑, 1 = ↓); `mask=False` where that mode is
+occupied in x.
 
 Convenience subclasses: `Cup(site)` sets `band=0`; `Cdn(site)` sets `band=1`.
 
@@ -378,11 +385,12 @@ Convenience subclasses: `Cup(site)` sets `band=0`; `Cdn(site)` sets `band=1`.
 *`tachys.lattice.fermions.fermion_operators`*
 
 ```python
-class C_dag(site, band=1, coupling=1.0)
+class C_dag(site, band, coupling=1.0)
 ```
 
-Fermionic creation operator c†_{i,σ}. Adds an electron at `site` in `band`,
-including Jordan-Wigner sign. Returns `OffdiagonalResult`.
+Fermionic creation operator c†_{i,σ}, with the Jordan-Wigner sign. Returns
+`OffdiagonalResult` with the row ⟨x|c†_{i,σ}|x'⟩, where x' is x with the
+electron at `site` in `band` removed; `mask=False` where that mode is empty in x.
 
 Convenience subclasses: `Cup_dag(site)` and `Cdn_dag(site)`.
 
@@ -393,7 +401,7 @@ Convenience subclasses: `Cup_dag(site)` and `Cdn_dag(site)`.
 *`tachys.lattice.fermions.fermion_operators`*
 
 ```python
-class N(site, band=1, coupling=1.0)
+class N(site, band, coupling=1.0)
 ```
 
 Number operator n_{i,σ} = c†_{i,σ} c_{i,σ}. Returns `DiagonalResult`.
@@ -1874,7 +1882,7 @@ FermionSpinExchange.create(lattice, max_dist=1)
 All classes below are `flax.linen.Module` subclasses representing variational wavefunctions for Monte Carlo sampling. They follow the standard Flax lifecycle and a shared calling convention used throughout `tachys`:
 
 - **Init**: `params = model.init(key, state)`, where `state` is a representative `SpinState`, `FermionState`, or a foundation-model variant carrying an extra `system_couplings` field.
-- **Apply**: `log_psi = model.apply(params, state)` evaluates the log-wavefunction. `state` may be batched (leading batch axis) or a single unbatched sample — most modules internally call `jax.tree.map(jnp.atleast_2d, state)` so both work. The result has shape `(batch,)`.
+- **Apply**: `log_psi = model.apply(params, state)` evaluates the log-wavefunction on a batch of configurations (leading batch axis); the result has shape `(batch,)`. Modules only ever receive batches: when tachys evaluates a single configuration (the per-sample Jacobians of the optimizers), `WaveFunction` adds the batch axis (see below). `model.init` is not wrapped, so call it with a batch.
 - **Complex vs. real output**: whenever the architecture derives its output from `jnp.linalg.slogdet` (all fermionic/determinant ansätze), or is explicitly constructed with `complex=True` (RBM/ViT ansätze), `log_psi` is complex: `Re[log_psi] = log|ψ|` is the log-amplitude and `Im[log_psi]` is the phase, so `ψ = exp(log_psi)`. With `complex=False`, RBM-style ansätze return a real log-amplitude only (a sign/phase-free wavefunction).
 - To drive sampling/optimization (`tachys.montecarlo`, `tachys.optimizer`), wrap `(params, model.apply)` in a `tachys.wavefunction.WaveFunction`.
 
@@ -1893,7 +1901,7 @@ Immutable container pairing a parameter pytree with its apply function. Extends 
 | Member | Type | Description |
 |--------|------|-------------|
 | `params` | pytree | Model parameters (a pytree node, tracked by JAX transformations). |
-| `apply_fn` | `Callable` | Static (non-pytree) field. Typically `model.apply` for some `nn.Module`. Called as `apply_fn(params, state) -> log_psi`. |
+| `apply_fn` | `Callable` | Static (non-pytree) field. Typically `model.apply` for some `nn.Module`. Called as `apply_fn(params, state) -> log_psi`. Wrapped in `__post_init__` so that the function always receives a batch: a single configuration (no batch axis) gets a leading axis of size one on every data leaf and returns a single log-amplitude. The wrapping is done once; the original function is `wf.apply_fn.__wrapped__`. |
 | `unravel_params_fn` | `Callable` | Static field. Maps a flat parameter vector back to the `params` pytree structure. If not supplied, computed automatically in `__post_init__` via `jax.flatten_util.ravel_pytree(params)`. |
 | `dtype` | `Any` | Static field. Default `jnp.float64`. |
 | `apply_gradients(grads, eta)` | `(pytree, float) → WaveFunction` | `jax.jit`-compiled plain gradient-descent step: `new_params = params - eta * grads`, returned as a new `WaveFunction` via `.replace(...)`. |
@@ -2555,7 +2563,7 @@ Writing `t_i = sum_k ΔO_ik θ̇_k` (one JVP of the ansatz with tangent `θ̇`) 
 `ΔE_Li = E_Li - ⟨E_L⟩`, the three terms of
 
 $$
-\frac{\delta s^2}{\delta t^2} = \mathrm{Var}(H) + \dot\theta^T S \dot\theta - 2\,\mathrm{Re}(F)^T\dot\theta
+\frac{\delta s^2}{\delta t^2} = \mathrm{Var}(H) + \dot\theta^T S \dot\theta - 2\,\mathrm{Im}(F)^T\dot\theta
 $$
 
 are `mean|ΔE_L|²`, `mean|t|²` and `2 Im mean[conj(t) ΔE_L]` — no `P×P` matrix
@@ -2585,7 +2593,7 @@ Accumulator for the integrated TDVP error
 
 $$
 \mathcal{R}^2(t) = \frac{1}{\sqrt{N}}\int_0^t \sqrt{\delta s^2}, \qquad
-\delta s^2 = \delta t^2\left[\mathrm{Var}(\hat H) + \dot\theta^T S \dot\theta - 2\,\mathrm{Re}(F)^T\dot\theta\right]
+\delta s^2 = \delta t^2\left[\mathrm{Var}(\hat H) + \dot\theta^T S \dot\theta - 2\,\mathrm{Im}(F)^T\dot\theta\right]
 $$
 
 with `N = state.Ns`. Since `δs²` already carries `δt²`,
@@ -2844,7 +2852,7 @@ dispatch (`__call__`) so subclasses only need to implement per-shard logic.
 | Field | Type | Description |
 |-------|------|-------------|
 | `diag_shift` | `float` | Diagonal (Tikhonov) regularization added to the NTK before solving. |
-| `mode` | `str` | `"real"` or `"complex"`, depending on whether `wf`'s parameters are real- or complex-valued. Static (non-pytree) field. |
+| `mode` | `str` | `"complex"`: the real and imaginary parts of `log ψ` enter the kernel as separate rows, so a parameter-dependent phase is optimized too. `"real"`: only `Re log ψ = log|ψ|` enters, which is exact when the phase does not depend on the parameters. The parameters themselves must be real in both modes (complex-dtype parameters give a zero update). Static (non-pytree) field. |
 | `nbatches` | `int` | Number of sub-batches the NTK assembly splits the Monte Carlo batch into (trades memory for extra compute). Static field, default `1`. |
 
 | Member | Type | Description |

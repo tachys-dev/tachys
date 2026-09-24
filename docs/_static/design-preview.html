@@ -655,14 +655,14 @@ opt_state = optimizer.<span class="fn">init</span>(wf.params)
     <div class="ai">
       <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">Splus(site, coupling=1.0)</span></div>
       <div class="ai-body">
-        <p class="ai-desc">Raising operator S<sup>+</sup> = (σ<sub>x</sub> + iσ<sub>y</sub>)/2. Flips the spin at <code>site</code> from ↓ to ↑. Returns <code>OffdiagonalResult</code>; <code>mask=False</code> when the spin is already ↑.</p>
+        <p class="ai-desc">Raising operator S<sup>+</sup> = (σ<sub>x</sub> + iσ<sub>y</sub>)/2. Returns <code>OffdiagonalResult</code> with the row ⟨x|S<sup>+</sup>|x'⟩ = 1, where x' is x with the spin at <code>site</code> lowered; <code>mask=False</code> where that spin is ↓ in x.</p>
       </div>
     </div>
 
     <div class="ai">
       <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">Sminus(site, coupling=1.0)</span></div>
       <div class="ai-body">
-        <p class="ai-desc">Lowering operator S<sup>−</sup> = (σ<sub>x</sub> − iσ<sub>y</sub>)/2. Flips the spin at <code>site</code> from ↑ to ↓. Returns <code>OffdiagonalResult</code>; <code>mask=False</code> when the spin is already ↓.</p>
+        <p class="ai-desc">Lowering operator S<sup>−</sup> = (σ<sub>x</sub> − iσ<sub>y</sub>)/2. Returns <code>OffdiagonalResult</code> with the row ⟨x|S<sup>−</sup>|x'⟩ = 1, where x' is x with the spin at <code>site</code> raised; <code>mask=False</code> where that spin is ↑ in x.</p>
       </div>
     </div>
 
@@ -684,9 +684,9 @@ opt_state = optimizer.<span class="fn">init</span>(wf.params)
     <div class="mp" style="margin-top:1.5rem">tachys.lattice.fermions.fermion_operators</div>
 
     <div class="ai">
-      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">C(site, band=1, coupling=1.0)</span></div>
+      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">C(site, band, coupling=1.0)</span></div>
       <div class="ai-body">
-        <p class="ai-desc">Fermionic annihilation operator c<sub>i,σ</sub>. Removes an electron at <code>site</code> in <code>band</code> (0 = ↑, 1 = ↓), including the Jordan-Wigner fermionic sign. Returns <code>OffdiagonalResult</code>.</p>
+        <p class="ai-desc">Fermionic annihilation operator c<sub>i,σ</sub>, with the Jordan-Wigner sign. Returns <code>OffdiagonalResult</code> with the row ⟨x|c<sub>i,σ</sub>|x'⟩, where x' is x with an electron added at <code>site</code> in <code>band</code> (0 = ↑, 1 = ↓); <code>mask=False</code> where that mode is occupied in x.</p>
         <div class="note" style="margin-top:.75rem;margin-bottom:0">
           <p>Convenience subclasses: <code>Cup(site)</code> sets band=0; <code>Cdn(site)</code> sets band=1.</p>
         </div>
@@ -694,9 +694,9 @@ opt_state = optimizer.<span class="fn">init</span>(wf.params)
     </div>
 
     <div class="ai">
-      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">C_dag(site, band=1, coupling=1.0)</span></div>
+      <div class="ai-head"><span class="ak cl">class</span><span class="ai-sig">C_dag(site, band, coupling=1.0)</span></div>
       <div class="ai-body">
-        <p class="ai-desc">Fermionic creation operator c<sup>†</sup><sub>i,σ</sub>. Adds an electron at <code>site</code> in <code>band</code>, including Jordan-Wigner sign. Returns <code>OffdiagonalResult</code>.</p>
+        <p class="ai-desc">Fermionic creation operator c<sup>†</sup><sub>i,σ</sub>, with the Jordan-Wigner sign. Returns <code>OffdiagonalResult</code> with the row ⟨x|c<sup>†</sup><sub>i,σ</sub>|x'⟩, where x' is x with the electron at <code>site</code> in <code>band</code> removed; <code>mask=False</code> where that mode is empty in x.</p>
         <div class="note" style="margin-top:.75rem;margin-bottom:0">
           <p>Convenience subclasses: <code>Cup_dag(site)</code> and <code>Cdn_dag(site)</code>.</p>
         </div>

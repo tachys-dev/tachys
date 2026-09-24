@@ -46,6 +46,7 @@ quickstart
 :maxdepth: 1
 :caption: Documentation
 
+guide/index
 concepts
 foundation_models
 api
