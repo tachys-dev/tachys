@@ -54,7 +54,7 @@ class _Operator(_OperatorBase):
             if not f.metadata.get('pytree_node', True):
                 continue
             val = getattr(self, f.name)
-            if isinstance(val, jax.core.Tracer) or not isinstance(val, (int, float, jax.Array, np.ndarray, list, tuple)):
+            if isinstance(val, jax.core.Tracer) or not isinstance(val, (int, float, complex, np.generic, jax.Array, np.ndarray, list, tuple)):
                 continue
             if isinstance(val, tuple) and val and isinstance(val[0], _OperatorBase):
                 continue
