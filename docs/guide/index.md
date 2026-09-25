@@ -13,8 +13,9 @@ own.
 | Monte Carlo move | {doc}`sampling` | `sample`, `BondExchange`, `SpinFlip` |
 | Optimization step | {doc}`optimization` | `SR`, `MARCH`, `train` |
 
-Code on these pages continues from the quickstart scripts: names such as
-`lattice`, `key`, `N_mc`, `state` and `wf` refer to the objects defined there.
+Each code cell on these pages can be read on its own: it defines every name it
+uses, except those of the quickstart scripts, such as `lattice`, `key`, `N_mc`,
+`state` and `wf`, which refer to the objects defined there.
 
 ```{toctree}
 :hidden:

@@ -2340,6 +2340,8 @@ a caller-supplied `wandb` run and checkpoints via `tachys.checkpoint`.
 
 ---
 
+(reweighted-estimators)=
+
 #### Reweighted estimators
 
 `estimator` is the seam for sampling from a density other than `|ψ|²` and

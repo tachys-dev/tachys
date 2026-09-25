@@ -55,44 +55,32 @@ H = \sum_{\langle i,j\rangle} J_{ij} \Big[ S^z_iS^z_j + \tfrac12\,\big(S^+_iS^-_
 $$
 
 has $J_{ij} = J_1$ between nearest neighbours and $J_{ij} = J_2$ across the
-diagonals. A bond is a pair of site indices. On an $L \times L$ square lattice,
-the site in column $x$ and row $y$ has index $x + L\,y$, with $x$ and $y$ taken
-modulo $L$ for periodic boundaries. Pairing each site with its neighbours to
-the right and above lists every nearest-neighbour bond once, and pairing it
-with its two diagonal neighbours to the right lists every diagonal bond once:
+diagonals. On an $L \times L$ square lattice, the site in column $x$ and row
+$y$ has index $x + L\,y$: this is the numbering of `square(shape=(L, L))`
+({doc}`lattices`), used by the states of the quickstart. With periodic
+boundaries, the coordinates are taken modulo $L$. Pairing every site with its
+neighbours to the right and above, and with its two diagonal neighbours on the
+right, counts each bond once:
 
 ```python
-L = 4
-N = L * L
+from tachys.lattice.spins.spin_operators import Sz, Splus, Sminus
 
-def site(x, y):                         # column x, row y
-    return (x % L) + L * (y % L)        # % L: periodic boundaries
-
-nn, diag = [], []
-for x in range(L):
-    for y in range(L):
-        i = site(x, y)
-        nn.append((i, site(x + 1, y)))          # right
-        nn.append((i, site(x, y + 1)))          # up
-        diag.append((i, site(x + 1, y + 1)))    # up and right
-        diag.append((i, site(x + 1, y - 1)))    # down and right
-```
-
-The numbering runs row by row, as in `square(shape=(L, L))` ({doc}`lattices`),
-so a Hamiltonian built on these indices acts on the states of the quickstart.
-The $J_1$-$J_2$ model sums the bond term over both lists, each with its
-coupling:
-
-```python
+L = 4                                   # L × L sites, periodic boundaries
 J1, J2 = 1.0, 0.5
-bonds = [(i, j, J1) for i, j in nn] + [(i, j, J2) for i, j in diag]
 
 H = None
-for i, j, J in bonds:
-    term = (J * Sz(i) * Sz(j)
-            + (J / 2) * Splus(i) * Sminus(j)
-            + (J / 2) * Sminus(i) * Splus(j))
-    H = term if H is None else H + term
+for x in range(L):
+    for y in range(L):
+        i          = x + L * y                          # site (x, y)
+        right      = (x + 1) % L + L * y                # site (x + 1, y)
+        up         = x + L * ((y + 1) % L)              # site (x, y + 1)
+        up_right   = (x + 1) % L + L * ((y + 1) % L)    # site (x + 1, y + 1)
+        down_right = (x + 1) % L + L * ((y - 1) % L)    # site (x + 1, y - 1)
+        for j, J in [(right, J1), (up, J1), (up_right, J2), (down_right, J2)]:
+            term = (J * Sz(i) * Sz(j)
+                    + (J / 2) * Splus(i) * Sminus(j)
+                    + (J / 2) * Sminus(i) * Splus(j))
+            H = term if H is None else H + term
 ```
 
 The sum starts from `None` because an operator cannot be added to the number 0.
@@ -102,17 +90,19 @@ the lattice. Writing a Hamiltonian term by term therefore costs nothing at run
 time.
 
 On a cluster this small, exact diagonalization checks the construction. The
-basis is a `SpinState` holding all $2^N$ configurations, on the `lattice` of
-the quickstart, and `pack` labels each configuration with a distinct integer:
+basis holds all $2^{16}$ configurations of the 16 spins, and `pack` labels each
+of them with a distinct integer:
 
 ```python
 import numpy as np
 import jax.numpy as jnp
+from tachys.lattice.lattice_database import square
 from tachys.lattice.exact_diag import exact_diag, spins_hilbert_space
 from tachys.lattice.spins.spin_state import SpinState
 
-all_spins = jnp.asarray(spins_hilbert_space(N), dtype=jnp.int8)
-basis = SpinState(spins=all_spins, lattice=lattice)
+N = 16                                  # 4 × 4 spins
+all_spins = jnp.asarray(spins_hilbert_space(N), dtype=jnp.int8)   # (2**N, N)
+basis = SpinState(spins=all_spins, lattice=square(shape=(4, 4)))
 
 def pack(state):
     bits = (np.asarray(state.spins) + 1) // 2
@@ -134,15 +124,21 @@ is written with Pauli matrices, $\sigma^\alpha = 2S^\alpha$, and its field is a
 single-site term, added once for each site:
 
 ```python
-from tachys.lattice.spins.spin_operators import Sx
+from tachys.lattice.spins.spin_operators import Sz, Sx
 
+L = 4                                   # L × L sites, periodic boundaries
 J, h = 1.0, 2.0
+
 H = None
-for i, j in nn:
-    term = (-4 * J) * Sz(i) * Sz(j)             # -J σ^z_i σ^z_j
-    H = term if H is None else H + term
-for i in range(N):
-    H = H + (-2 * h) * Sx(i)                    # -h σ^x_i
+for x in range(L):
+    for y in range(L):
+        i     = x + L * y               # site (x, y)
+        right = (x + 1) % L + L * y     # site (x + 1, y)
+        up    = x + L * ((y + 1) % L)   # site (x, y + 1)
+        for j in [right, up]:
+            term = (-4 * J) * Sz(i) * Sz(j)         # -J σ^z_i σ^z_j
+            H = term if H is None else H + term
+        H = H + (-2 * h) * Sx(i)                    # -h σ^x_i
 ```
 
 `Sx` flips one spin at a time, so this model does not conserve $S^z$; it is
@@ -161,15 +157,21 @@ from tachys.lattice.fermions.fermion_operators import (
     Cup, Cup_dag, Cdn, Cdn_dag, Nup, Ndn,
 )
 
+L = 4                                   # L × L sites, periodic boundaries
 t, U = 1.0, 8.0
+
 H = None
-for i, j in nn:
-    hop_up = (-t) * Cup_dag(i) * Cup(j) + (-t) * Cup_dag(j) * Cup(i)
-    hop_dn = (-t) * Cdn_dag(i) * Cdn(j) + (-t) * Cdn_dag(j) * Cdn(i)
-    term = hop_up + hop_dn
-    H = term if H is None else H + term
-for i in range(N):
-    H = H + U * Nup(i) * Ndn(i)
+for x in range(L):
+    for y in range(L):
+        i     = x + L * y               # site (x, y)
+        right = (x + 1) % L + L * y     # site (x + 1, y)
+        up    = x + L * ((y + 1) % L)   # site (x, y + 1)
+        for j in [right, up]:
+            hop_up = (-t) * Cup_dag(i) * Cup(j) + (-t) * Cup_dag(j) * Cup(i)
+            hop_dn = (-t) * Cdn_dag(i) * Cdn(j) + (-t) * Cdn_dag(j) * Cdn(i)
+            term = hop_up + hop_dn
+            H = term if H is None else H + term
+        H = H + U * Nup(i) * Ndn(i)
 ```
 
 `Cup_dag(i) * Cup(j)` is $c^\dagger_{i\uparrow}c_{j\uparrow}$, in the same
@@ -178,20 +180,30 @@ ordered as in {doc}`configurations`.
 
 A repulsion $V$ between electrons on neighbouring sites,
 $V\sum_{\langle i,j\rangle} n_i n_j$ with $n_i = n_{i\uparrow} + n_{i\downarrow}$,
-is a product of two sums, so it is expanded into four products:
+is a product of two sums, so it is expanded into four products, added bond by
+bond to the Hubbard Hamiltonian `H` above:
 
 ```python
+from tachys.lattice.fermions.fermion_operators import Nup, Ndn
+
+L = 4                                   # L × L sites, periodic boundaries
 V = 1.0
-for i, j in nn:
-    H = H + (V * Nup(i) * Nup(j) + V * Nup(i) * Ndn(j)
-             + V * Ndn(i) * Nup(j) + V * Ndn(i) * Ndn(j))
+
+for x in range(L):
+    for y in range(L):
+        i     = x + L * y               # site (x, y)
+        right = (x + 1) % L + L * y     # site (x + 1, y)
+        up    = x + L * ((y + 1) % L)   # site (x, y + 1)
+        for j in [right, up]:
+            H = H + (V * Nup(i) * Nup(j) + V * Nup(i) * Ndn(j)
+                     + V * Ndn(i) * Nup(j) + V * Ndn(i) * Ndn(j))
 ```
 
 ## Built-in models
 
 The three models above are also provided as factories, on any lattice and with
 any list of bonds. They take a `Lattice` ({doc}`lattices`) in place of the
-bond lists, and build the same operators with index arrays:
+explicit indices, and build the same operators with index arrays:
 
 | Factory | Hamiltonian |
 |---|---|
@@ -203,22 +215,22 @@ They live in `tachys.lattice.spins.hamiltonians.heisenberg`,
 `tachys.lattice.spins.hamiltonians.ising_transverse_field` and
 `tachys.lattice.fermions.hamiltonians.hubbard`. The argument `nn` gives the
 bonds by direction, one `((d1, d2), J)` entry per direction, where
-$(d_1, d_2)$ is the displacement between the unit cells of the two sites:
-`((1, 0), J1)` stands for the bonds `(site(x, y), site(x + 1, y))` with
-coupling $J_1$, and `((1, -1), J2)` for the bonds
-`(site(x, y), site(x + 1, y - 1))` with coupling $J_2$. On a lattice with
-several sites per cell, `((d1, d2), J, b_from, b_to)` connects sublattice
-`b_from` to sublattice `b_to`, and `((d1, d2), J, b)` connects sublattice `b`
-to itself.
+$(d_1, d_2)$ is the displacement between the unit cells of the two sites: on
+the square lattice, `((1, 0), J)` couples every site $(x, y)$ to $(x + 1, y)$,
+and `((1, -1), J)` couples it to $(x + 1, y - 1)$. On a lattice with several
+sites per cell, `((d1, d2), J, b_from, b_to)` connects sublattice `b_from` to
+sublattice `b_to`, and `((d1, d2), J, b)` connects sublattice `b` to itself.
 
 ```python
 from tachys.lattice.lattice_database import square, honeycomb
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_hamiltonian
 from tachys.lattice.fermions.hamiltonians.hubbard import hubbard_hamiltonian
 
-lattice = square(shape=(L, L))
-H = heisenberg_hamiltonian(lattice, nn=[         # the J1-J2 model above
-    ((1, 0), J1), ((0, 1), J1), ((1, 1), J2), ((1, -1), J2),
+# the J1-J2 model above
+J1, J2 = 1.0, 0.5
+H = heisenberg_hamiltonian(square(shape=(4, 4)), nn=[
+    ((1, 0), J1), ((0, 1), J1),         # right, up
+    ((1, 1), J2), ((1, -1), J2),        # up and right, down and right
 ])
 
 # honeycomb lattice: every bond joins sublattice 0 (A) to sublattice 1 (B)
@@ -226,7 +238,9 @@ H = heisenberg_hamiltonian(honeycomb(shape=(4, 4)), nn=[
     ((0, 0), 1.0, 0, 1), ((-1, 0), 1.0, 0, 1), ((0, -1), 1.0, 0, 1),
 ])
 
-H = hubbard_hamiltonian(lattice, nn=[((1, 0), t), ((0, 1), t)], U=U)
+# the Hubbard model above
+t, U = 1.0, 8.0
+H = hubbard_hamiltonian(square(shape=(4, 4)), nn=[((1, 0), t), ((0, 1), t)], U=U)
 ```
 
 (operators-in-tachys)=

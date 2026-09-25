@@ -112,7 +112,10 @@ the timings:
 
 ```python
 from tachys.ground_state_training import train
+from tachys.optimizer import shifted_cosine_decay
 
+N_steps = 30
+lr_schedule = shifted_cosine_decay(init_value=0.03, decay_steps=N_steps)
 key, state, wf, opt_state, history = train(
     key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
 )

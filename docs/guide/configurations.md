@@ -69,13 +69,19 @@ state = FermionState(occupations=occupations, Ne=Ne, lattice=lattice)
 
 Any integer array of the right shape can seed the chains, which covers the
 cases the helpers do not, such as an odd number of electrons. To start every
-chain from the Néel state:
+chain from the Néel state of the $4 \times 4$ lattice, whose site in column $x$
+and row $y$ has index $x + 4y$ ({doc}`lattices`):
 
 ```python
+import numpy as np
 import jax.numpy as jnp
 
-i, j, _ = lattice.site_coords.T         # row and column of every site
-neel = jnp.where((i + j) % 2 == 0, 1, -1).astype(jnp.int8)
+L = 4
+neel = np.empty(L * L, dtype=np.int8)
+for x in range(L):
+    for y in range(L):
+        neel[x + L * y] = 1 if (x + y) % 2 == 0 else -1     # spin of site (x, y)
+
 state = SpinState(spins=jnp.tile(neel, (N_mc, 1)), lattice=lattice)
 ```
 

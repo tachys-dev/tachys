@@ -81,12 +81,19 @@ the quickest check that a custom lattice is the intended one.
 ## Bonds
 
 Hamiltonians are built from bonds, and `lattice.bonds` generates them from a
-displacement between unit cells:
+displacement between unit cells. On a $3 \times 3$ square lattice, where sites
+0, 1 and 2 form the first row:
 
 ```python
+from tachys.lattice.lattice_database import square
+
+lattice = square(shape=(3, 3))
 src, dst = lattice.bonds((1, 0))      # every site and its neighbour along a1
+src                                   # [0, 1, 2, 3, 4, 5, 6, 7, 8]
+dst                                   # [1, 2, 0, 4, 5, 3, 7, 8, 6]
 ```
 
+The bond from site 2 to site 0 crosses the periodic boundary.
 `lattice.bonds(delta, b_from=0, b_to=None)` connects sublattice `b_from` in
 every cell $C$ to sublattice `b_to` (by default `b_from`) in the cell
 $C + \delta$, where $\delta = (d_1, d_2)$ counts whole cells along
@@ -104,6 +111,13 @@ the two edge sites of its own cell, and one edge site in each of the cells to
 its left and below.
 
 ```python
+from tachys.lattice.lattice import Lattice
+
+lieb = Lattice.create(a1=[1.0, 0.0], a2=[0.0, 1.0], shape=(4, 4),
+                      basis=[[0.0, 0.0],      # b = 0: corner
+                             [0.5, 0.0],      # b = 1: middle of the horizontal edge
+                             [0.0, 0.5]])     # b = 2: middle of the vertical edge
+
 lieb_bonds = [
     ((0, 0), 0, 1), ((-1, 0), 0, 1),     # corner – horizontal-edge site
     ((0, 0), 0, 2), ((0, -1), 0, 2),     # corner – vertical-edge site
@@ -120,9 +134,13 @@ factories take, see {doc}`hamiltonians`.
 `lattice.shells(n)` groups the pairs of sites by distance and returns the `n`
 closest shells as `(distance, src, dst)` tuples, each pair counted once. It is
 a useful check on a list of bonds — the four displacements above must produce
-exactly the first shell:
+exactly the first shell, four bonds for each of the 16 corners:
 
 ```python
+from tachys.lattice.lattice import Lattice
+
+lieb = Lattice.create(a1=[1.0, 0.0], a2=[0.0, 1.0], shape=(4, 4),
+                      basis=[[0.0, 0.0], [0.5, 0.0], [0.0, 0.5]])
 distance, src, dst = lieb.shells(1)[0]    # distance 0.5, 64 pairs
 ```
 
