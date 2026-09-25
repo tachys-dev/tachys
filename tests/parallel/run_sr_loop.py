@@ -1,7 +1,9 @@
 """Runner script for parallel SR regression tests.
 
 Runs the same 5-step SR loops as test_sr_loop_5_steps and test_sr_real_loop_5_steps
-(both complex and real modes) under the current JAX device configuration.  Results
+(both complex and real modes) under the current JAX device configuration, once
+with the default optimizer and once with ``dtype=float64``, whose Jacobian shift
+must be identical on every process for the two to agree.  Results
 are written as JSON to the path given as the first command-line argument; only
 rank 0 writes the file.
 
@@ -54,7 +56,7 @@ N = L * L
 N_mc = 16
 
 
-def _run_loop(complex_mode: bool) -> dict:
+def _run_loop(complex_mode: bool, dtype=None) -> dict:
     mode = "complex" if complex_mode else "real"
     H = ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
     model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=complex_mode)
@@ -68,7 +70,7 @@ def _run_loop(complex_mode: bool) -> dict:
 
     action = SpinFlip()
     eta = 0.01
-    optimizer = SR(diag_shift=1e-4, mode=mode)
+    optimizer = SR(diag_shift=1e-4, mode=mode, dtype=dtype)
     opt_state = optimizer.init(wf.params)
 
     energies = []
@@ -102,6 +104,8 @@ output_path = sys.argv[1]
 results = {
     "complex": _run_loop(complex_mode=True),
     "real":    _run_loop(complex_mode=False),
+    "complex_float64": _run_loop(complex_mode=True, dtype=jnp.float64),
+    "real_float64":    _run_loop(complex_mode=False, dtype=jnp.float64),
 }
 
 if rank == 0:

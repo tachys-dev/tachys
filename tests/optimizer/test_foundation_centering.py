@@ -129,6 +129,25 @@ def test_center_ntk_foundation_state_matches_reference():
         assert np.max(np.abs(block.sum(axis=1))) < 1e-6
 
 
+def test_center_ntk_foundation_state_removes_the_dtype_shift():
+    """With an optimizer dtype, ntk_parallel_fn shifts every Jacobian by one
+    global constant before contracting. The per-system centering has to remove
+    it exactly, as it removes any constant shared within a system."""
+    _, state, wf = _make_foundation_state_and_wf()
+
+    def _raw_and_centered(dtype):
+        def fn(state, wf):
+            raw = ntk_parallel_fn(state, wf, 1, "real", dtype=dtype)
+            return raw, center_ntk(raw, None, state)
+        return shard_map(fn, mesh=mesh, in_specs=(P('i'), P()), out_specs=(P(), P()),
+                         check_vma=False)(state, wf)
+
+    raw, centered = _raw_and_centered(None)
+    raw_shifted, centered_shifted = _raw_and_centered(jnp.float64)
+    assert not jnp.allclose(raw_shifted, raw, atol=1e-3)
+    assert jnp.allclose(centered_shifted, centered, atol=1e-10)
+
+
 def test_center_ntk_weights_with_foundation_state_raises():
     _, state, wf = _make_foundation_state_and_wf()
     weights = jnp.ones(state.occupations.shape[0])

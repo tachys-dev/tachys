@@ -1903,7 +1903,7 @@ Immutable container pairing a parameter pytree with its apply function. Extends 
 | `params` | pytree | Model parameters (a pytree node, tracked by JAX transformations). |
 | `apply_fn` | `Callable` | Static (non-pytree) field. Typically `model.apply` for some `nn.Module`. Called as `apply_fn(params, state) -> log_psi`. Wrapped in `__post_init__` so that the function always receives a batch: a single configuration (no batch axis) gets a leading axis of size one on every data leaf and returns a single log-amplitude. The wrapping is done once; the original function is `wf.apply_fn.__wrapped__`. |
 | `unravel_params_fn` | `Callable` | Static field. Maps a flat parameter vector back to the `params` pytree structure. If not supplied, computed automatically in `__post_init__` via `jax.flatten_util.ravel_pytree(params)`. |
-| `dtype` | `Any` | Static field. Default `jnp.float64`. |
+| `dtype` | `Any` | Static field. Default `jnp.float64`. Precision of sampling and of the local estimators: `sample`, `compute_expectation`, the TDVP error and the experimental estimators cast the parameters and the state's floating leaves to it before evaluating `apply_fn`. Its matmuls run at JAX's default precision, which for float32 on recent NVIDIA GPUs is TF32. The optimizers ignore it; their precision is `_BaseOptimizer.dtype`. |
 | `apply_gradients(grads, eta)` | `(pytree, float) → WaveFunction` | `jax.jit`-compiled plain gradient-descent step: `new_params = params - eta * grads`, returned as a new `WaveFunction` via `.replace(...)`. |
 | `num_params` | `int` (property) | Total number of scalar parameters, computed as the flattened size of `params` via `ravel_pytree`. |
 
@@ -2444,7 +2444,7 @@ a real log-amplitude has no parameter that can carry it.
 *`tachys.dynamics.tdvp`* (also exported from `tachys.dynamics`)
 
 ```python
-class TDVP(*, diag_shift=0.0, mode, nbatches=1, rcond=1e-8, atol=0.0)
+class TDVP(*, diag_shift=0.0, mode, nbatches=1, dtype=None, rcond=1e-8, atol=0.0)
 ```
 
 Real-time TDVP velocity. Extends `_BaseOptimizer` and is called exactly like an
@@ -2459,6 +2459,7 @@ direction of time.
 | `diag_shift` | `float` | Tikhonov shift applied to the **kept** eigenvalues, `1 / (lambda + diag_shift)`. Default `0.0`: with the spectral truncation the solve is already well posed, and a shift biases the directions that survive. |
 | `mode` | `str` | Must be `"complex"`; `"real"` raises. Static field. |
 | `nbatches` | `int` | NTK sub-batching, as for the SR-family optimizers. Static field. |
+| `dtype` | `Any` | Precision of the Jacobian, NTK contraction and VJP, as for the SR-family optimizers. Static field, default `None` (the parameters' own dtype). |
 | `rcond` | `float` | Relative eigenvalue cutoff — eigenvalues at or below `rcond * lambda_max` are discarded, capping the condition number of the retained subspace at `1 / rcond`. The single most important knob of a t-VMC run. |
 | `atol` | `float` | Absolute floor on that cutoff. Default `0.0` (purely relative). |
 
@@ -2843,7 +2844,7 @@ divisible by `n_devices`.
 *`tachys.optimizer.optimizers`*
 
 ```python
-class _BaseOptimizer(diag_shift, mode, nbatches=1)
+class _BaseOptimizer(diag_shift, mode, nbatches=1, dtype=None)
 ```
 
 Abstract base for all natural-gradient (SR-family) optimizers. Extends
@@ -2856,6 +2857,7 @@ dispatch (`__call__`) so subclasses only need to implement per-shard logic.
 | `diag_shift` | `float` | Diagonal (Tikhonov) regularization added to the NTK before solving. |
 | `mode` | `str` | `"complex"`: the real and imaginary parts of `log ψ` enter the kernel as separate rows, so a parameter-dependent phase is optimized too. `"real"`: only `Re log ψ = log|ψ|` enters, which is exact when the phase does not depend on the parameters. The parameters themselves must be real in both modes (complex-dtype parameters give a zero update). Static (non-pytree) field. |
 | `nbatches` | `int` | Number of sub-batches the NTK assembly splits the Monte Carlo batch into (trades memory for extra compute). Static field, default `1`. |
+| `dtype` | `Any` | Precision of the network evaluations inside the update: the per-sample Jacobians, their contraction into the NTK, the VJP and the SPRING/MARCH JVP. Static field, default `None`, which evaluates in the dtype the parameters are stored in. A dtype (e.g. `jnp.float32`, or `"float32"` from a config) casts the parameters and the state's floating leaves to it for those evaluations, runs their matmuls at full precision (JAX's default for float32 on recent NVIDIA GPUs is TF32), and shifts every Jacobian by one estimate of its mean before the contraction, which the centering cancels exactly but which keeps a float32 contraction from losing `(mean/std)^2` in precision. The NTK and its solve stay in float64; the updates come back in the parameters' own dtypes. float32 rounding moves the NTK's eigenvalues by about `1e-8` of the largest one. A smaller `diag_shift` can leave the shifted NTK indefinite, and the Cholesky solve then fails. As for any failed solve, the SR step is then silently zero, and SPRING/MARCH keep only their momentum term. Independent of `WaveFunction.dtype`. |
 
 | Member | Type | Description |
 |--------|------|-------------|
@@ -2873,7 +2875,7 @@ pytree matching `wf.params`, meant to be passed to `wf.apply_gradients`.
 *`tachys.optimizer.optimizers`* (also exported from `tachys.optimizer`)
 
 ```python
-class SR(diag_shift, mode, nbatches=1)
+class SR(diag_shift, mode, nbatches=1, dtype=None)
 ```
 
 Stochastic Reconfiguration: the natural-gradient update obtained from the
@@ -2910,7 +2912,7 @@ Empty `NamedTuple` — `SR` carries no state between steps.
 *`tachys.optimizer.optimizers`* (also exported from `tachys.optimizer`)
 
 ```python
-class SPRING(diag_shift, mode, nbatches=1, *, mu=0.9)
+class SPRING(diag_shift, mode, nbatches=1, dtype=None, *, mu=0.9)
 ```
 
 SR with Projected Nesterov-style momentum. Folds a JVP-based momentum
@@ -2925,7 +2927,7 @@ $$
 |-------|------|-------------|
 | `mu` | `float` | Momentum coefficient. Default `0.9`. |
 
-(Inherits `diag_shift`, `mode`, `nbatches` from `_BaseOptimizer`.)
+(Inherits `diag_shift`, `mode`, `nbatches`, `dtype` from `_BaseOptimizer`.)
 
 `init(params)` returns `SPRINGState(old_updates=zeros_like(params))`.
 
@@ -2950,7 +2952,7 @@ class SPRINGState(old_updates)
 *`tachys.optimizer.optimizers`* (also exported from `tachys.optimizer`)
 
 ```python
-class MARCH(diag_shift, mode, nbatches=1, *, mu=0.95, beta=0.995)
+class MARCH(diag_shift, mode, nbatches=1, dtype=None, *, mu=0.95, beta=0.995)
 ```
 
 SPRING augmented with an adaptive second-moment preconditioner (analogous to
@@ -2969,7 +2971,7 @@ $$
 | `mu` | `float` | Momentum coefficient. Default `0.95`. |
 | `beta` | `float` | Exponential-moving-average decay for the second moment `V`. Default `0.995`. |
 
-(Inherits `diag_shift`, `mode`, `nbatches` from `_BaseOptimizer`.)
+(Inherits `diag_shift`, `mode`, `nbatches`, `dtype` from `_BaseOptimizer`.)
 
 `init(params)` returns `MARCHState(old_updates=zeros_like(params), V=ones_like(params), t=0)`.
 
@@ -3114,7 +3116,7 @@ control.
 #### `ntk_parallel_fn`
 
 ```python
-ntk_parallel_fn(state, wf, nbatches, mode, V=None)
+ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None)
 ```
 
 Assemble the full `(N_mc × N_mc)` neural tangent kernel matrix by distributing
@@ -3128,6 +3130,7 @@ pairwise per-batch Jacobian contractions across devices and reducing with
 | `nbatches` | `int` | Number of sub-batches to split the local batch into. |
 | `mode` | `str` | `"real"` or `"complex"`. |
 | `V` | optional pytree matching `wf.params` | MARCH's bias-corrected second-moment preconditioner. |
+| `dtype` | optional dtype | The optimizers' `dtype`: compute the Jacobians and their contraction in it, at full matmul precision, each Jacobian shifted by the pmean'd mean of every device's first sub-batch (invisible after `center_ntk`). The NTK is accumulated in float64 either way. Default `None`, the parameters' own dtype. |
 
 **Returns** the full NTK: shape `(N_mc, N_mc)` (real) or `(N_mc, N_mc, 2, 2)`
 (complex).
@@ -3157,7 +3160,7 @@ means when `state` is a `FoundationState`.
 #### `compute_ntk`
 
 ```python
-compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1)
+compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1, dtype=None)
 ```
 
 Full NTK pipeline: `ntk_parallel_fn` → `center_ntk` → optional `sqrt(weights)`
@@ -3171,6 +3174,7 @@ row/column scaling.
 | `weights` | optional `jax.Array` | Per-sample reweighting. |
 | `V` | optional pytree matching `wf.params` | MARCH preconditioner. |
 | `nbatches` | `int` | Sub-batch count for the pairwise Jacobian assembly. Default `1`. |
+| `dtype` | optional dtype | Passed to `ntk_parallel_fn`. Default `None`. |
 
 **Returns** the centered (and optionally reweighted) NTK.
 

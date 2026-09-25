@@ -60,6 +60,9 @@ class TDVP(_BaseOptimizer, kw_only=True):
                  the solve well-posed, and it biases the directions that survive.
     mode       : must be ``"complex"``. Static field.
     nbatches   : NTK sub-batching, as for the SR-family optimizers. Static field.
+    dtype      : precision of the Jacobian, NTK contraction and VJP, as for the
+                 SR-family optimizers. Static field; ``None`` keeps the
+                 parameters' own dtype.
     rcond      : relative eigenvalue cutoff -- eigenvalues at or below
                  ``rcond * lambda_max`` are discarded, capping the condition
                  number of the retained subspace at ``1 / rcond``. The single
@@ -99,9 +102,10 @@ class TDVP(_BaseOptimizer, kw_only=True):
             eps = jnp.sqrt(weights) * eps
         eps = jax.lax.all_gather(eps, 'i', tiled=True)
 
-        ntk = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local)
+        ntk = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, dtype=self.dtype)
         dtheta_dt = _parameter_updates(
             apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
             solver=partial(linear_solver_eigh, rcond=self.rcond, atol=self.atol),
+            dtype=self.dtype,
         )
         return dtheta_dt, TDVPState()

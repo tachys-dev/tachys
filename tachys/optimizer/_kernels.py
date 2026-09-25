@@ -4,6 +4,7 @@ Ported from the jaxvmc reference implementation; adapted for tachys naming
 conventions (state / wf instead of lattice / vstate).
 """
 
+import contextlib
 import operator
 from itertools import combinations_with_replacement
 
@@ -16,6 +17,20 @@ from tachys.parallel import n_devices, rank
 from tachys.lattice.foundation.foundation_state import FoundationState
 from tachys.lattice.foundation.collectives import grouped_mean
 from tachys.lattice.state_array import get_n_mc, get_n_mc_local
+from tachys.utils import _cast_floating_to
+
+
+def _matmul_precision(dtype):
+    """Context for the network evaluations of an update run in ``dtype``.
+
+    A no-op for ``dtype=None``; otherwise every matmul traced inside runs at full
+    precision. JAX's default float32 matmul on Ampere/Hopper GPUs is TF32 (a
+    10-bit mantissa): on an RTX A6000 it put a 4e-4 relative error on an
+    NTK-sized contraction, against 3e-6 at full precision.
+    """
+    if dtype is None:
+        return contextlib.nullcontext()
+    return jax.default_matmul_precision("highest")
 
 # ─── Linear solver ────────────────────────────────────────────────────────────
 
@@ -231,12 +246,21 @@ def _ntk_contraction(J1, J2, mode, V=None):
     return jax.tree.reduce(operator.add, pairs)
 
 
-def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
+def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
     """Assemble the full NTK matrix using distributed pair-wise Jacobian contractions.
 
     Each device computes a subset of (batch_i, batch_j) pairs; contributions
     are summed via psum to yield the (N_mc × N_mc) NTK.
+
+    ``dtype`` (the optimizers' field of that name) computes the Jacobians and
+    their contraction in that dtype, at full matmul precision; the NTK itself
+    is accumulated in float64 either way. ``None`` evaluates in the dtype the
+    parameters are stored in.
     """
+    params = wf.params
+    if dtype is not None:
+        params, state, V = _cast_floating_to((params, state, V), dtype)
+
     global_state = jax.lax.all_gather(state, 'i')  # array: (n_devices, N_mc_local, N)
 
     if nbatches > 1:
@@ -261,6 +285,25 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
     # vmap over samples: leaves become (N_mc, 2, *leaf_shape) or (N_mc, *leaf_shape).
     jacobian_fn = jax.vmap(jax.jacobian(_f), in_axes=(None, 0))
 
+    # With a reduced-precision dtype, every Jacobian is shifted by one constant,
+    # an estimate of its mean, before the contraction. center_ntk's centering
+    # (plain, weighted or per-system) is blind to a constant shift, so in exact
+    # arithmetic the NTK is unchanged. In float32 it is not: centering the
+    # contracted NTK cancels the Jacobian's common part only after rounding,
+    # losing (|mean|/std)^2 in relative precision -- 1.4e-3 on the centered NTK
+    # at mean/std = 30. The estimate is the first batch of every device,
+    # pmean'd so that every device shifts by the same constant.
+    shift = None
+    if dtype is not None:
+        first_batch = jax.tree.map(lambda x: x[:N_mc_per_batch], state)
+        with _matmul_precision(dtype):
+            J0 = jacobian_fn(params, first_batch)
+        shift = jax.tree.map(lambda x: jax.lax.pmean(jnp.mean(x, axis=0), 'i'), J0)
+
+    def jacobian(s):
+        J = jacobian_fn(params, s)
+        return J if shift is None else jax.tree.map(jnp.subtract, J, shift)
+
     # Distribute upper-triangular pairs across devices.
     pairs = list(combinations_with_replacement(range(N_batches), 2))
     n_pairs = len(pairs)
@@ -279,9 +322,10 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None):
         i, j    = device_pairs[k, 0], device_pairs[k, 1]
         state_i = jax.tree.map(lambda x: x[i], global_state)
         state_j = jax.tree.map(lambda x: x[j], global_state)
-        J1      = jacobian_fn(wf.params, state_i)
-        J2      = jacobian_fn(wf.params, state_j)
-        ntk_ij  = _ntk_contraction(J1, J2, mode, V=V)
+        with _matmul_precision(dtype):
+            J1     = jacobian(state_i)
+            J2     = jacobian(state_j)
+            ntk_ij = _ntk_contraction(J1, J2, mode, V=V)
         ntk = ntk.at[i, :, j].set(ntk_ij)
         if mode == "complex":
             ntk = ntk.at[j, :, i].set(ntk_ij.transpose(1, 0, 3, 2))
@@ -331,9 +375,9 @@ def center_ntk(ntk, weights, state):
     return ntk - row_mean - col_mean + global_mean
 
 
-def compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1):
+def compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1, dtype=None):
     """Full NTK pipeline: parallel assembly → centering → optional weight scaling."""
-    ntk = ntk_parallel_fn(state, wf, nbatches, mode, V=V)
+    ntk = ntk_parallel_fn(state, wf, nbatches, mode, V=V, dtype=dtype)
     ntk = center_ntk(ntk, weights, state)
 
     if weights is not None:

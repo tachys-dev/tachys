@@ -9,7 +9,8 @@ which launches
 once for the whole module and parses the JSON written by rank 0.
 The expected energies and final parameters are identical to those used in
 tests/optimizer/test_sr.py, confirming that the 4-process distributed run
-is numerically equivalent to the serial run.
+is numerically equivalent to the serial run. The same loops rerun with the
+optimizer's ``dtype=float64`` must match the default ones.
 
 The entire module is skipped automatically when ``mpirun`` is not found on PATH.
 """
@@ -161,3 +162,22 @@ def test_real_mode_final_params(parallel_results):
         assert jnp.allclose(got, expected, atol=1e-7), (
             f"real {key}: max deviation {float(jnp.max(jnp.abs(got - expected))):.2e}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Optimizer dtype (tachys.optimizer: the shifted-Jacobian path)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("mode", ["complex", "real"])
+def test_float64_dtype_matches_the_default_loop(parallel_results, mode):
+    """With an optimizer dtype, every Jacobian is shifted by a pmean'd mean
+    before the contraction. The centering removes the shift only if all
+    processes use the same one: with per-process means instead, these loops
+    part by 0.1 in energy within the 5 steps."""
+    ref, got = parallel_results[mode], parallel_results[f"{mode}_float64"]
+    for step, (e, e_ref) in enumerate(zip(got["energies"], ref["energies"])):
+        assert abs(e - e_ref) < 1e-12, f"{mode} step {step}: {e:.14f} vs {e_ref:.14f}"
+    for key, expected in ref["final_params"].items():
+        diff = jnp.max(jnp.abs(jnp.array(got["final_params"][key]) - jnp.array(expected)))
+        assert diff < 1e-10, f"{mode} {key}: max deviation {float(diff):.2e}"
