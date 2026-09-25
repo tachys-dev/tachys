@@ -34,7 +34,14 @@ $$
 
 tachys evaluates the right-hand side, which inverts the $N_{mc} \times N_{mc}$
 neural tangent kernel $\bar O \bar O^T$ instead of the $P \times P$ matrix $S$:
-the cost is set by the number of samples, not the number of parameters.
+the cost is set by the number of samples, not the number of parameters. This
+formulation follows Rende, Viteritti, Bardone, Becca & Goldt, ["A simple linear
+algebra identity to optimize large-scale neural network quantum
+states"](https://www.nature.com/articles/s42005-024-01732-4), *Communications
+Physics* (2024). A similar procedure, with a different regularization, was
+developed by Chen & Heyl, ["Empowering deep neural quantum states through
+efficient optimization"](https://www.nature.com/articles/s41567-024-02566-1),
+*Nature Physics* (2024).
 
 The parameters of `SR` are
 
@@ -58,6 +65,13 @@ The parameters of `SR` are
 `SPRING` adds momentum to SR, with coefficient `mu`. `MARCH` also rescales each
 parameter by a running average, with decay rate `beta`, of the squared change
 of its update from one step to the next, in the spirit of Adam's second moment.
+SPRING was introduced by Goldshlager, Abrahamsen & Lin, ["A Kaczmarz-inspired
+approach to accelerate the optimization of neural network
+wavefunctions"](https://doi.org/10.1016/j.jcp.2024.113351), *Journal of
+Computational Physics* (2024), and MARCH by Gu et al., ["Solving the Hubbard
+model with neural quantum states"](https://doi.org/10.1038/s41467-026-74028-6),
+*Nature Communications* (2026).
+
 Both keep their history in `opt_state` and replace `SR` without other changes
 to the loop:
 
