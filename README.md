@@ -2,7 +2,9 @@
   <img src="https://raw.githubusercontent.com/tachys-dev/tachys/main/docs/_static/logo.svg" width="285" height="48" alt="tachys logo">
 </p>
 
-# tachys
+# Variational Monte Carlo for quantum many-body systems
+
+[![PyPI version](https://img.shields.io/pypi/v/tachys)](https://pypi.org/project/tachys/)
 
 **tachys** is a JAX library for finding the ground states of quantum lattice
 models with neural-network wavefunctions. Build a Hamiltonian by composing
