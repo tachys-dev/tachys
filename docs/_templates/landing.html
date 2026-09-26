@@ -361,7 +361,7 @@ footer a{color:#6B7FA0}
     <a href="benchmarks.html">Benchmarks</a>
     <a href="papers.html">Papers</a>
     <a href="https://github.com/tachys-dev/tachys">GitHub</a>
-    <span class="n-ver">v0.1.0</span>
+    <span class="n-ver">v{% endraw %}{{ release }}{% raw %}</span>
   </div>
 </nav>
 
@@ -417,7 +417,7 @@ footer a{color:#6B7FA0}
   <div class="content">
     <div class="sec-lbl reveal">Method</div>
     <h2 class="reveal" data-d="1">Structure of a calculation</h2>
-    <p class="lead-p reveal" data-d="2">A ground-state calculation consists of three function calls in an explicit Python loop: configurations are sampled, the energy is estimated on that sample, and the parameters are updated. Each call returns new values rather than modifying its arguments; there is no driver object and no callback mechanism.</p>
+    <p class="lead-p reveal" data-d="2">A ground-state calculation consists of three function calls in an explicit Python loop: configurations are sampled, the energy is estimated on that sample, and the parameters are updated. Each call returns new values rather than modifying its arguments.</p>
 
     <div class="flow">
       <article class="fstep reveal">
@@ -436,7 +436,7 @@ footer a{color:#6B7FA0}
         <div class="fstep-n">2</div>
         <div class="fstep-body">
           <h3>Energy estimation</h3>
-          <p>A Hamiltonian is a Python callable assembled from operator terms. <code>compute_expectation</code> applies it to the sampled configurations and returns the local energies together with ⟨E⟩ and ⟨E²⟩.</p>
+          <p>A Hamiltonian is a sum of spin or fermionic operator terms. <code>compute_expectation</code> applies it to the sampled configurations and returns the local energies together with ⟨E⟩ and ⟨E²⟩.</p>
           <div class="cb">
             <pre>E_L, e_mean, e2_mean = <span class="fn">compute_expectation</span>(H, wf, state, log_amps)</pre>
           </div>
@@ -459,7 +459,7 @@ wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
     </div>
 
     <div class="closer reveal">
-      <p>Each of these is a pure function over JAX pytrees. Any Flax module can be used as the ansatz, and the loop can be passed to <code>jit</code> or <code>vmap</code> without further wrapping.</p>
+      <p>Each of these is a pure function over JAX pytrees, compiled with <code>jit</code>. Any Flax module can be used as the ansatz.</p>
       <a class="more" href="quickstart.html">Complete example <span class="arr">→</span></a>
     </div>
   </div>
@@ -468,7 +468,7 @@ wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
 <!-- CTA -->
 <section class="cta">
   <h2 class="reveal">Getting started</h2>
-  <p class="reveal" data-d="1">tachys is installed with <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install tachys</code> and requires JAX.</p>
+  <p class="reveal" data-d="1">tachys is installed with <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install tachys</code>, which also installs JAX.</p>
   <div class="reveal" data-d="2">
     <a href="quickstart.html" class="btn">Quickstart <span class="arr">→</span></a>
     <a href="api.html" class="btn ghost">API reference</a>
@@ -477,7 +477,7 @@ wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
 
 <!-- FOOTER -->
 <footer>
-  <p>tachys v0.1.0 — Built on <a href="https://jax.dev">JAX</a> · <a href="https://github.com/tachys-dev/tachys">GitHub</a></p>
+  <p>tachys v{% endraw %}{{ release }}{% raw %} — Built on <a href="https://jax.dev">JAX</a> · <a href="https://github.com/tachys-dev/tachys">GitHub</a></p>
   <p style="margin-top:.4rem;font-size:.75rem">Apache License 2.0</p>
 </footer>
 

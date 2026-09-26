@@ -1,8 +1,13 @@
+import tomllib
+from pathlib import Path
+
 project = "tachys"
 # No trailing period: the theme footer renders "© Copyright {copyright}."
 copyright = "2026, The Simons Foundation, Inc"
 author = "Riccardo Rende"
-release = "0.1.0"
+# The version of the package; the templates show it as {{ release }}.
+with open(Path(__file__).parents[1] / "pyproject.toml", "rb") as f:
+    release = tomllib.load(f)["project"]["version"]
 
 extensions = [
     "myst_parser",

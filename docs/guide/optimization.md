@@ -61,19 +61,16 @@ The parameters of `SR` are
   memory.
 - `dtype`, the precision of the network evaluations inside the update: the
   Jacobian, its contraction into the kernel, and the map back to parameter
-  space. The default, `None`, uses the dtype the parameters are stored in.
-  `jnp.float32` (or the string `"float32"`) runs them in single precision,
-  with full-precision matmuls rather than the TF32 that JAX uses for float32
-  on recent NVIDIA GPUs. The kernel, its inversion and the returned update
-  stay in double precision. Workstation GPUs have a small fraction of their
-  single-precision throughput in double precision, so the saving is largest
-  there. Single precision moves the kernel's eigenvalues by about
-  $10^{-8}\lambda_{\max}$, with $\lambda_{\max}$ its largest eigenvalue. With a
-  smaller `diag_shift`, the shifted kernel can stop being positive definite, and
-  the solve fails. A failed solve gives a zero SR
-  step, or only the momentum term for SPRING and MARCH. `dtype` is independent
-  of `WaveFunction.dtype`, which sets the precision of sampling and of the
-  local energies.
+  space. The default, `None`, keeps the dtype of the parameters; `jnp.float32`
+  (or `"float32"`) runs them in single precision, which is much faster on GPUs
+  with low double-precision throughput, such as workstation GPUs. The kernel,
+  its solve and the update stay in double precision. Single precision shifts
+  the eigenvalues of the kernel by about $10^{-8}\lambda_{\max}$, with
+  $\lambda_{\max}$ the largest one. With a `diag_shift` below that, the shifted
+  kernel can stop being positive definite and the solve fails, which gives a
+  zero step (only the momentum term for SPRING and MARCH). The precision of
+  sampling and of the local energies is set separately, by the `dtype` of
+  `WaveFunction`.
 
 ## Momentum: SPRING and MARCH
 

@@ -25,14 +25,8 @@ covering a whole family of Hamiltonians, rather than one run per coupling.
 ## Installation
 
 ```bash
-# CPU-only JAX
-pip install jax
-
-# GPU (CUDA 12)
-pip install "jax[cuda12]"
-
-# tachys
-pip install tachys
+pip install tachys            # CPU
+pip install "tachys[cuda]"    # GPU, with JAX for CUDA 12
 ```
 
 ```{toctree}

@@ -1,6 +1,413 @@
 # API Reference
 
+The first sections follow the order of the {doc}`guide/index`. Each entry
+gives the module it is imported from. Names that start with an underscore are
+base classes, to subclass rather than call.
+
+## Lattices
+
+### `Lattice`
+
+*`tachys.lattice.lattice`*
+
+```python
+class Lattice(lattice_vectors, basis, basis_frac, points, site_coords,
+              cell_to_site, dist_matrix, L, Ns, nb, pbc)
+```
+
+The geometry of a finite two-dimensional cluster, stored as NumPy arrays.
+Build it with `Lattice.create` or one of the
+{ref}`built-in lattices <built-in-lattices>`, not from raw arrays.
+
+Site `s` is sublattice `b` of the cell in row `i` (along `a2`) and column `j`
+(along `a1`), with `s = (i * Lx + j) * nb + b`.
+
+Build a lattice once and reuse it. Two lattices are equal only if they are the
+same object, so states that carry two distinct copies have different pytree
+structures: JAX compiles its functions again for each, and cannot combine
+them. A lattice reaches jitted code as the static `lattice` field of a
+`State`; do not pass it to a jitted function as an argument.
+
+| Field | Description |
+|---|---|
+| `lattice_vectors` | `(2, 2)`: the rows are `a1` and `a2`. |
+| `basis` | `(nb, 2)`: Cartesian positions of the basis sites in one cell. |
+| `basis_frac` | `(nb, 2)`: the same positions in units of `a1` and `a2`. |
+| `points` | `(Ns, 2)`: Cartesian position of every site. |
+| `site_coords` | `(Ns, 3)`: `(i, j, b)` of every site. |
+| `cell_to_site` | `(Ly, Lx, nb)`: the index of the site `(i, j, b)`. |
+| `dist_matrix` | `(Ns, Ns)`: distances between sites, minimum image. |
+| `L` | `(Lx, Ly)`: number of cells along `a1` and `a2`. |
+| `Ns` | Number of sites. |
+| `nb` | Number of sites per cell. |
+| `pbc` | `(pbc_x, pbc_y)`: periodic boundaries along `a1` and `a2`. |
+
+---
+
+### `Lattice.create`
+
+```python
+Lattice.create(a1, a2, basis, shape, pbc_x=True, pbc_y=True)
+```
+
+A lattice from its primitive vectors, the positions of the basis sites in one
+cell, and the number of cells.
+
+| Parameter | Description |
+|---|---|
+| `a1`, `a2` | Primitive vectors, as 2-vectors. |
+| `basis` | `(nb, 2)`: Cartesian positions of the basis sites. |
+| `shape` | `(Lx, Ly)`: number of cells along `a1` and `a2`. |
+| `pbc_x`, `pbc_y` | Periodic boundaries along `a1` and `a2`. Default `True`. |
+
+**Returns** `Lattice`.
+
+---
+
+### `Lattice.bonds`
+
+```python
+lattice.bonds(delta, b_from=0, b_to=None)
+```
+
+The bonds from sublattice `b_from` in every cell $C$ to sublattice `b_to` in
+the cell $C + \delta$, with $\delta = (d_1, d_2)$ counted in whole cells along
+`a1` and `a2`; the offset within the cell comes from the sublattices only.
+With open boundaries, the bonds that leave the cluster are dropped.
+
+| Parameter | Description |
+|---|---|
+| `delta` | `(d1, d2)`: displacement between the cells of the two sites. |
+| `b_from` | Sublattice of the first site. Default `0`. |
+| `b_to` | Sublattice of the second site. Default: `b_from`. |
+
+**Returns** `(src, dst)`: two `int64` arrays, with one entry per bond.
+
+---
+
+### `Lattice.bond_arrays`
+
+```python
+lattice.bond_arrays(deltas, b_from=0, b_to=None)
+```
+
+The bonds of several displacements: `bonds(delta, b_from, b_to)` for every
+`delta` in `deltas`, concatenated.
+
+**Returns** `(src, dst)`: two `jnp` integer arrays.
+
+---
+
+### `Lattice.neighbour_of`
+
+```python
+lattice.neighbour_of(site, delta, b_to=None)
+```
+
+The site reached from the cell of `site` by the displacement `delta`, on
+sublattice `b_to` (default: that of `site`). Same convention as `bonds`.
+
+**Returns** `int`: the site index, or `-1` if there is none.
+
+---
+
+### `Lattice.shells`
+
+```python
+lattice.shells(n_shells=None)
+```
+
+The pairs of sites grouped by distance, minimum image. Moves such as
+`BondExchange` draw their pairs from these shells; Hamiltonians are built from
+`bonds`, which distinguish the directions of the lattice.
+
+| Parameter | Description |
+|---|---|
+| `n_shells` | Number of shells, closest first. Default `None`: all of them. |
+
+**Returns** a list of `(distance, src, dst)`, one per shell, with every pair of
+sites once (`src < dst`).
+
+---
+
+### `Lattice.retrieve_index`
+
+```python
+lattice.retrieve_index(c1, c2)
+```
+
+The site at the point $c_1\mathbf{a}_1 + c_2\mathbf{a}_2$, with `(c1, c2)`
+including the offset of the basis site. Most code uses `bonds` or
+`neighbour_of` instead.
+
+**Returns** `int`: the site index, or `-1` if no site is there.
+
+---
+
+### `Lattice.plot`
+
+```python
+lattice.plot(filename=None)
+```
+
+Draws the sites with matplotlib, coloured by sublattice and labelled by index.
+With `filename`, saves the figure there instead of showing it.
+
+---
+
+(built-in-lattices)=
+
+### Built-in lattices
+
+*`tachys.lattice.lattice_database`*
+
+Every factory except `chain` takes `shape=(Lx, Ly)`, the number of cells along
+`a1` and `a2`, and the periodic-boundary flags `pbc_x` and `pbc_y`.
+
+| Factory | Geometry | `nb` |
+|---|---|---|
+| `chain(L, pbc=True)` | chain of `L` sites | 1 |
+| `square(shape, pbc_x=True, pbc_y=True)` | square | 1 |
+| `cylinder(shape, pbc_x=False, pbc_y=True)` | square, open along `a1` by default | 1 |
+| `triangular(shape, pbc_x=True, pbc_y=True)` | triangular: `a1 = (1, 0)`, `a2` at 60° | 1 |
+| `honeycomb(shape, pbc_x=True, pbc_y=True)` | triangular Bravais lattice, site B at `(a1 + a2) / 3` | 2 |
+| `kagome(shape, pbc_x=True, pbc_y=True)` | triangular Bravais lattice | 3 |
+| `shastry_sutherland(shape, pbc_x=True, pbc_y=True)` | square Bravais lattice, basis tilted by 10° | 4 |
+| `plaquette(shape, pbc_x=True, pbc_y=True)` | square Bravais lattice, one 2 × 2 plaquette per cell | 4 |
+
+On the honeycomb lattice, the three neighbours of an A site (sublattice 0) are
+the B sites (sublattice 1) at the cell displacements `(0, 0)`, `(-1, 0)` and
+`(0, -1)`.
+
+## Operators
+
+### `_Operator`
+
+*`tachys.lattice.operator.base`*
+
+```python
+class _Operator(*, coupling=1.0)
+```
+
+The base class of the elementary operators. A subclass declares the fields of
+one term, such as its sites, and implements `apply`. Operators combine into
+Hamiltonians like the symbols of a formula ({doc}`guide/hamiltonians`).
+
+| Member | Description |
+|---|---|
+| `coupling` | Prefactor of the matrix elements, keyword-only. Default `1.0`. |
+| `apply(state)` | For every configuration $x$ of the batch, the row of one term at $x$, as a `DiagonalResult` or an `OffdiagonalResult`. Implemented by the subclasses. |
+| `op(state)` | Applies every term of `op` to the batch; the result has a leading axis over the terms. |
+| `A + B` | The sum. Terms of the same type and with the same static fields merge into one operator with array fields. |
+| `c * A`, `A * c` | Multiplies the coupling by the Python number `c`. |
+| `A * B` | The product $AB$. Both factors must have the same number of terms. |
+
+The fields can be arrays with one entry per term; every field, the coupling
+included, then needs one entry per term. Subtraction and negation are not
+defined: write `A + (-1) * B`. Products of sums are not defined either: expand
+them by hand.
+
+With rows, the local estimator of any operator, Hermitian or not, averages to
+$\langle\psi|O|\psi\rangle / \langle\psi|\psi\rangle$
+(see `compute_expectation`).
+
+---
+
+### Results of `apply`
+
+*`tachys.lattice.operator.base`*
+
+```python
+class DiagonalResult(matrix_element)
+class OffdiagonalResult(connected_states, mask, matrix_element)
+class DiagOffdiagResult(diagonal, offdiagonal)
+```
+
+The row of a term at every configuration $x$ of the batch:
+
+| Field | Description |
+|---|---|
+| `matrix_element` | `(N_mc,)`: $\langle x \vert O \vert x\rangle$ for a `DiagonalResult`, $\langle x \vert O \vert x'\rangle$ for an `OffdiagonalResult`. |
+| `connected_states` | A `State` holding the configuration $x'$ connected to each $x$. |
+| `mask` | `(N_mc,)`, boolean: `False` where the row of $x$ is empty. |
+
+Applying a sum of diagonal and off-diagonal terms gives a `DiagOffdiagResult`,
+which holds one result of each kind.
+
+---
+
+### Spin operators
+
+*`tachys.lattice.spins.spin_operators`*
+
+They act on a `SpinState`, where $s_i = \pm 1$ is $S^z_i = \pm\tfrac12$.
+
+| Operator | Definition |
+|---|---|
+| `Sz(site)` | $S^z_i$ (diagonal) |
+| `Sx(site)` | $S^x_i$ |
+| `Sy(site)` | $S^y_i$ |
+| `Splus(site)` | $S^+_i$ |
+| `Sminus(site)` | $S^-_i$ |
+| `XYExchange(i, j)` | $S^+_iS^-_j + S^-_iS^+_j$ |
+
+---
+
+### Fermionic operators
+
+*`tachys.lattice.fermions.fermion_operators`*
+
+They act on a `FermionState`. `band` is 0 for $\uparrow$ and 1 for
+$\downarrow$, and the mode of `(site, band)` has index `band * Ns + site`. The
+Jordan–Wigner sign counts the occupied modes of lower index.
+
+| Operator | Definition |
+|---|---|
+| `C(site, band)`, `Cup(site)`, `Cdn(site)` | $c_{i\sigma}$ |
+| `C_dag(site, band)`, `Cup_dag(site)`, `Cdn_dag(site)` | $c^\dagger_{i\sigma}$ |
+| `N(site, band)`, `Nup(site)`, `Ndn(site)` | $n_{i\sigma}$ (diagonal) |
+| `Hopping(i, j, band)`, `HoppingUp(i, j)`, `HoppingDown(i, j)` | $\alpha\, c^\dagger_{i\sigma} c_{j\sigma} + \alpha^*\, c^\dagger_{j\sigma} c_{i\sigma}$, with $\alpha$ the coupling |
+| `Sz_f(site)` | $\tfrac12\,(n_{i\uparrow} - n_{i\downarrow})$ (diagonal) |
+
+## Hamiltonians
+
+The factories take a `Lattice` and a list `nn` of bonds, with one entry per
+direction:
+
+- `((d1, d2), J)` couples sublattice 0 of every cell to sublattice 0 of the
+  cell displaced by `(d1, d2)`;
+- `((d1, d2), J, b)` does the same for sublattice `b`;
+- `((d1, d2), J, b_from, b_to)` couples sublattice `b_from` to sublattice
+  `b_to`.
+
+The bonds are those of `lattice.bonds`, and `J` is the coupling of all of them
+(the hopping amplitude, for the Hubbard model). The `*_square_pbc` factories
+build the nearest-neighbour model on an `L × L` periodic square lattice, term
+by term; they give the same Hamiltonian as the general factory with
+`nn=[((1, 0), J), ((0, 1), J)]`.
+
+### Heisenberg model
+
+*`tachys.lattice.spins.hamiltonians.heisenberg`*
+
+```python
+heisenberg_hamiltonian(lat, nn)
+heisenberg_square_pbc(L, J=1.0)
+```
+
+$$
+H = \sum_{\langle i,j \rangle} J_{ij} \left[ S^z_i S^z_j + \tfrac{1}{2}(S^+_i S^-_j + S^-_i S^+_j) \right]
+$$
+
+---
+
+### Transverse-field Ising model
+
+*`tachys.lattice.spins.hamiltonians.ising_transverse_field`*
+
+```python
+ising_transverse_field_hamiltonian(lat, nn, h=1.0)
+ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
+```
+
+With the Pauli matrices $\sigma^\alpha = 2S^\alpha$,
+
+$$
+H = -\sum_{\langle i,j \rangle} J_{ij}\, \sigma^z_i \sigma^z_j - h \sum_i \sigma^x_i .
+$$
+
+---
+
+### Hubbard model
+
+*`tachys.lattice.fermions.hamiltonians.hubbard`*
+
+```python
+hubbard_hamiltonian(lat, nn, U)
+hubbard_square_pbc(L, t=1.0, U=0.0)
+```
+
+$$
+H = -\sum_{\langle i,j \rangle, \sigma} t_{ij} \left(c^\dagger_{i\sigma} c_{j\sigma} + \text{h.c.}\right)
+    + U \sum_i n_{i\uparrow} n_{i\downarrow} ,
+$$
+
+with the hopping amplitudes $t_{ij}$ given by `nn`.
+
+## Expectation values
+
+### `compute_expectation`
+
+*`tachys.lattice.operator.local_estimator`*
+
+```python
+compute_expectation(operator, wf, state, log_amps, optimize_mask=True, batch_expand=1)
+```
+
+The expectation value of an operator on a sample, from its local estimator
+
+$$
+O_L(x) = \sum_{x'} \langle x|O|x'\rangle\, \frac{\psi(x')}{\psi(x)} = \frac{\langle x|O|\psi\rangle}{\langle x|\psi\rangle} .
+$$
+
+On configurations drawn from $|\psi|^2$, the mean of $O_L$ estimates
+$\langle\psi|O|\psi\rangle / \langle\psi|\psi\rangle$. For a Hermitian
+operator the exact value is real, but the sample mean is complex in general:
+its imaginary part is statistical noise. The chains are split among the
+devices.
+
+| Parameter | Description |
+|---|---|
+| `operator` | The operator. |
+| `wf` | The `WaveFunction`. |
+| `state` | The sample: a `State` of `N_mc` configurations. |
+| `log_amps` | `(N_mc,)`: $\log\psi$ on `state`, as returned by `sample`. |
+| `optimize_mask` | Evaluate $\psi(x')$ only where the mask of the operator is `True`. Default `True`. |
+| `batch_expand` | Batch size of these evaluations, in units of the number of chains per device; it must divide the number of connected configurations, `n_terms * N_mc_local`. Default `1`. |
+
+**Returns** `(O_L, O_mean, O2_mean)`: the local estimator, `(N_mc,)`; its
+mean; and the mean of $|O_L|^2$. For the Hamiltonian,
+`O2_mean - abs(O_mean)**2` is the energy variance, zero on an eigenstate.
+
+---
+
+### `local_estimator`
+
+*`tachys.lattice.operator.local_estimator`*
+
+```python
+local_estimator(operator, state, wf, log_amps, optimize_mask=True, batch_expand=1)
+```
+
+$O_L(x)$ on every configuration of `state`, on a single device: the building
+block of `compute_expectation`, for code that already runs on one shard of the
+batch. Note the order of `state` and `wf`, swapped with respect to
+`compute_expectation`.
+
+**Returns** `(N_mc,)` array.
+
 ## States
+
+### `State`
+
+*`tachys.lattice.state`*
+
+```python
+class State(*, lattice=None)
+```
+
+The base class of `SpinState` and `FermionState`, a `flax.struct.PyTreeNode`.
+Its data fields hold one row per chain, and the constructor checks that they
+have the same leading dimension. A state built without a `lattice` warns that
+`Ns` is unavailable.
+
+| Member | Description |
+|---|---|
+| `lattice` | The `Lattice`, keyword-only; a static field. |
+| `Ns` | Number of sites, `lattice.Ns`. |
+| `replace(**fields)` | A copy of the state with the given fields replaced. |
+
+---
 
 ### `SpinState`
 
@@ -10,17 +417,8 @@
 class SpinState(spins, *, lattice=None)
 ```
 
-Batched spin-½ configurations on a lattice. Extends `State` (see below), which
-extends `flax.struct.PyTreeNode`.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `spins` | `jax.Array` | Shape `(batch, N_sites)`. Spin values in {−1, +1}. |
-| `lattice` | `Lattice` | Inherited from `State`. Static (`pytree_node=False`) lattice metadata. Default `None`. |
-
-`Ns` (number of lattice sites) is **not** a constructor field — it's a
-read-only property inherited from `State`, computed as `self.lattice.Ns`.
-Construct with `SpinState(spins=..., lattice=lattice)`, not `Ns=...`.
+Spin-½ configurations: `spins`, of shape `(N_mc, Ns)`, with $+1$ for
+$\uparrow$ and $-1$ for $\downarrow$.
 
 ---
 
@@ -32,16 +430,10 @@ Construct with `SpinState(spins=..., lattice=lattice)`, not `Ns=...`.
 init_config_fixed_magn(key, N, sz=0, N_mc=1)
 ```
 
-Sample random spin configurations with a fixed total magnetization.
+`N_mc` random configurations of `N` spins with total magnetization
+$S^z$ = `sz`: `N/2 + sz` spins up and `N/2 - sz` down, at random positions.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `key` | `PRNGKey` | JAX random key. |
-| `N` | `int` | Number of spins. |
-| `sz` | `int` | Target magnetization. Default `0`. |
-| `N_mc` | `int` | Number of configurations to generate. |
-
-**Returns** `jnp.ndarray`, shape `(N_mc, N)`, values in {−1, +1}.
+**Returns** an `int8` array of shape `(N_mc, N)`.
 
 ---
 
@@ -53,23 +445,13 @@ Sample random spin configurations with a fixed total magnetization.
 class FermionState(occupations, Ne, Nbands=2, *, lattice=None)
 ```
 
-Batched fermionic occupation-number configurations. Extends `State` (see
-below), which extends `flax.struct.PyTreeNode`.
-Modes are ordered band by band: (site 0 ↑, site 1 ↑, …, site Ns−1 ↑, site 0 ↓, …, site Ns−1 ↓),
-i.e. mode `band * Ns + site`.
-`Ne` and `Nbands` are static (non-pytree) fields.
+Occupation-number configurations of `Ne` electrons.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `occupations` | `jax.Array` | Shape `(batch, Ns × Nbands)`. Binary occupation numbers ∈ {0, 1}. |
-| `Ne` | `int` | Total number of electrons. Must be fixed at construction. |
-| `Nbands` | `int` | Number of bands. Default `2` (spin-up / spin-down). |
-| `lattice` | `Lattice` | Inherited from `State`. Static (`pytree_node=False`) lattice metadata. Default `None`. |
-
-`Ns` (number of lattice sites) is **not** a constructor field — it's a
-read-only property inherited from `State`, computed as `self.lattice.Ns`.
-Construct with `FermionState(occupations=..., Ne=..., lattice=lattice)`, not
-`Ns=...`.
+| Field | Description |
+|---|---|
+| `occupations` | `(N_mc, Nbands * Ns)`, entries 0 and 1. Mode `band * Ns + site`: first the ↑ modes of all sites, then the ↓ modes. |
+| `Ne` | Number of electrons; static. |
+| `Nbands` | Number of bands; static. Default `2`, spin up and down. |
 
 ---
 
@@ -81,1539 +463,318 @@ Construct with `FermionState(occupations=..., Ne=..., lattice=lattice)`, not
 init_config_spinful(key, Ns, Ne, sz=0, N_mc=1, particle_hole=False)
 ```
 
-Sample random spinful fermionic configurations with fixed particle number and
-spin magnetization.
+`N_mc` random configurations of `Ne` electrons (`Ne` even) on `Ns` sites, with
+`N_up = Ne/2 + sz` electrons ↑ and `N_down = Ne/2 - sz` electrons ↓. With
+`particle_hole=True`, the ↓ band holds `Ns - N_down` particles instead: the
+configuration after a particle-hole transformation of the ↓ electrons.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `key` | `PRNGKey` | JAX random key. |
-| `Ns` | `int` | Number of lattice sites. |
-| `Ne` | `int` | Number of electrons. Must be even. |
-| `sz` | `int` | Spin-magnetization offset. Default `0`. |
-| `N_mc` | `int` | Number of configurations. |
-| `particle_hole` | `bool` | Apply particle-hole transformation to the spin-down band. |
-
-**Returns** `(config, N_up, N_down)`. `config` has shape `(N_mc, 2·Ns)`.
+**Returns** `(occupations, N_up, N_down)`, with `occupations` an `int32` array
+of shape `(N_mc, 2 * Ns)` and `N_down` the number of particles in the ↓ band.
 
 ---
 
-### `State`
-
-*`tachys.lattice.state`*
-
-```python
-class State(lattice=None)
-```
-
-Base class for all lattice configuration containers (e.g. `SpinState`,
-`FermionState`). Extends `flax.struct.PyTreeNode`.
-
-Enforces that every data leaf's leading axis is the MC-batch dimension
-(`N_mc`, or `N_mc_local` under sharding): `__post_init__` checks that all
-data leaves with ≥2 dimensions share the same leading-axis size, raising
-`ValueError` otherwise. If constructed without a `lattice`, emits a `UserWarning`
-(skipped during jit/vmap/scan retracing, where dynamic fields are tracers).
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `lattice` | `Lattice` | Static (`pytree_node=False`) lattice metadata. Default `None`. |
-
-| Property | Type | Description |
-|----------|------|--------------|
-| `Ns` | `int` | `self.lattice.Ns`. |
-
----
-
-### `get_n_mc_local`
+### State arrays
 
 *`tachys.lattice.state_array`*
 
+Helpers for code that handles any `State`, such as moves and symmetrizations.
+
+| Function | Description |
+|---|---|
+| `get_array(state)` | The configuration array: `state.spins`, `state.occupations`, or `state.array` for another subclass of `State` that defines it. |
+| `replace_array(state, new_array)` | A copy of `state` with that array replaced. A subclass with an `array` property must also define `replace_array(self, new_array)`. |
+| `get_n_mc_local(state)` | The leading dimension of `state`: the number of chains on this device inside `shard_map`, all of them outside. |
+| `get_n_mc(state)` | The total number of chains, inside `shard_map`: `get_n_mc_local(state) * n_devices`. |
+
+## Wavefunctions
+
+### `WaveFunction`
+
+*`tachys.wavefunction`*
+
 ```python
-get_n_mc_local(state)
+class WaveFunction(params, apply_fn, unravel_params_fn=None, dtype=jnp.float64)
 ```
 
-The batch size of `state` along axis 0 as it currently stands (`N_mc_local` if
-`state` is a per-device shard, else the same as `get_n_mc`) — read from any one
-data leaf, since every `State` subclass's data fields share the same leading
-batch axis (`State.__post_init__` checks this).
+The parameters of an ansatz together with its apply function, as a pytree.
+`sample`, `compute_expectation` and the optimizers evaluate the wavefunction
+only as `wf.apply_fn(wf.params, state)`, which returns $\log\psi(x)$ for every
+configuration $x$ of the batch: the real part is $\log|\psi(x)|$, the
+imaginary part the phase.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `State` | State batch (or per-device shard). |
-
-**Returns** `int`.
+| Member | Description |
+|---|---|
+| `params` | The parameters, a pytree. |
+| `apply_fn` | `(params, state) -> log_psi`, typically `model.apply`; static. It is wrapped so that a single configuration, without the batch axis, is evaluated as a batch of one; the original is `wf.apply_fn.__wrapped__`. |
+| `unravel_params_fn` | Maps a flat vector of parameters back to the pytree; static. Computed if not given. |
+| `dtype` | Precision of sampling and of the local estimators: `sample` and `compute_expectation` cast the parameters and the floating-point fields of the state to it. Static; default `jnp.float64`. In float32, matmuls run at JAX's default precision, which is TF32 on recent NVIDIA GPUs. The optimizers have a `dtype` of their own. |
+| `apply_gradients(grads, eta)` | A new `WaveFunction`, with parameters `params - eta * grads`. |
+| `num_params` | Number of scalar parameters. |
 
 ---
 
-### `get_n_mc`
+### Ansätze
 
-*`tachys.lattice.state_array`*
+The ansätze are `flax.linen.Module`s. `params = model.init(key, state)` takes
+a batch of configurations, and `model.apply(params, state)` returns one
+log-amplitude per configuration, of shape `(batch,)`. Determinants carry their
+sign as a phase, 0 or $\pi$; the RBM and the ViT learn a phase with
+`complex=True`.
 
-```python
-get_n_mc(state)
-```
+#### `SpinRBM`
 
-The global Monte Carlo batch size, even when `state` is currently a per-device
-shard inside a `shard_map` body (`get_n_mc_local(state) * n_devices`).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `State` | State batch (or per-device shard). |
-
-**Returns** `int`.
-
----
-
-### `get_array`
-
-*`tachys.lattice.state_array`*
+*`tachys.lattice.ansatz.rbm`*
 
 ```python
-get_array(state)
+class SpinRBM(hidden_units, dtype=jnp.float64, complex=False)
 ```
 
-The per-walker physical array a `State` subclass wraps: `state.spins` for
-`SpinState`, `state.occupations` for `FermionState`, or a custom `.array`
-property for subclasses that are neither (e.g. a composite state combining
-several physical fields).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `State` | State batch. |
-
-**Returns** `jax.Array`.
-
-**Raises** `TypeError` if `state`'s subclass implements neither pattern.
-
----
-
-### `replace_array`
-
-*`tachys.lattice.state_array`*
-
-```python
-replace_array(state, new_array)
-```
-
-Return a copy of `state` with its physical array replaced by `new_array`.
-Subclasses that fall back on `.array` in `get_array` must also implement a
-`replace_array(self, new_array)` method mirroring `.array`'s getter with the
-actual, possibly multi-field, update logic.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `State` | State batch. |
-| `new_array` | `jax.Array` | Replacement physical array, same shape as `get_array(state)`. |
-
-**Returns** `State`. A copy of `state` with the array field(s) replaced.
-
-**Raises** `TypeError` if `state`'s subclass implements neither pattern.
-
----
-
-### Foundation states
-
-`FoundationState` and its subclasses provide the per-sample bookkeeping needed to train a single
-ansatz across many distinct physical systems at once — a "foundation model" that shares one
-network across a Monte Carlo batch mixing samples from several Hamiltonians (e.g. different
-couplings or system sizes). It is a cross-cutting extension of the ordinary `State` hierarchy
-(`SpinState`, `FermionState`), not a separate lattice type: it is combined via multiple
-inheritance with a physical `State` subclass, carrying which system each sample in the batch
-belongs to and that system's coupling values.
-
-#### `FoundationState`
-
-*`tachys.lattice.foundation.foundation_state`*
-
-```python
-class FoundationState(system_couplings, system_ids, n_systems)
-```
-
-Per-sample bookkeeping for training one ansatz across many systems at once. Extends
-`flax.struct.PyTreeNode`. Meant to be combined via multiple inheritance with a physical `State`
-subclass rather than used on its own — see `SpinFoundationState` and `FermionFoundationState`.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `system_couplings` | `jax.Array` | Shape `(N_mc, n_couplings)`. Hamiltonian couplings (e.g. J, h) of each sample's system — one row per sample, matching the leading batch dimension of the paired `State`'s physical array (e.g. `spins`/`occupations`), *not* `(n_systems, n_couplings)`. |
-| `system_ids` | `jax.Array` | Shape `(N_mc,)`. Per-sample integer label in `[0, n_systems)` identifying which system each sample belongs to. |
-| `n_systems` | `int` | Total number of distinct systems in the batch. Static (non-pytree) field. |
-
----
-
-#### `SpinFoundationState`
-
-*`tachys.lattice.foundation.foundation_state`*
-
-```python
-class SpinFoundationState(spins, Ns, system_couplings, system_ids, n_systems)
-```
-
-`SpinState` samples tagged with their originating system for foundation-model training.
-Inherits fields from both `SpinState` and `FoundationState`.
-
----
-
-#### `FermionFoundationState`
-
-*`tachys.lattice.foundation.foundation_state`*
-
-```python
-class FermionFoundationState(occupations, Ns, Ne, Nbands, system_couplings, system_ids, n_systems)
-```
-
-`FermionState` samples tagged with their originating system for foundation-model training.
-Inherits fields from both `FermionState` and `FoundationState`.
-
----
-
-## Operators
-
-### `_Operator`
-
-*`tachys.lattice.operator.base`*
-
-```python
-class _Operator(coupling=1.0)
-```
-
-Abstract base for all operators. Subclass it and implement `apply(state)`, which
-returns, for every configuration x of the batch, the row of the operator at x:
-the configurations x' with ⟨x|O|x'⟩ ≠ 0 and those matrix elements. With this
-convention the local estimator averages to ⟨ψ|O|ψ⟩ for any operator, Hermitian
-or not. Calling an instance wraps `apply` in `jax.vmap` over the terms.
-
-| Member | Type | Description |
-|--------|------|-------------|
-| `coupling` | `float` | Scalar prefactor applied to all matrix elements. |
-| `__call__(state)` | `State → result` | Applies every term to the batch (vmap over the terms). |
-| `apply(state)` | `State → result` | Row of one term at every configuration of the batch. Override in subclasses. |
-| `__add__(other)` | `_Operator` | Merges into one batched operator when the type *and* all static (`pytree_node=False`) fields match; otherwise returns `_OperatorSum`. |
-| `__mul__(other)` | scalar or `_Operator` | Scalar: rescales coupling. Operator: returns `_OperatorMul`. |
-
----
-
-### `Sz`
-
-*`tachys.lattice.spins.spin_operators`*
-
-```python
-class Sz(site, coupling=1.0)
-```
-
-Diagonal spin-z operator. Returns `DiagonalResult` with element `0.5 · coupling · σ_z`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `site` | `int` | Lattice site index. |
-| `coupling` | `float` | Prefactor. Default `1.0`. |
-
----
-
-### `Splus`
-
-*`tachys.lattice.spins.spin_operators`*
-
-```python
-class Splus(site, coupling=1.0)
-```
-
-Raising operator S⁺ = (σ_x + iσ_y)/2. Returns `OffdiagonalResult` with the row
-⟨x|S⁺|x'⟩ = 1, where x' is x with the spin at `site` lowered; `mask=False` where
-that spin is ↓ in x.
-
----
-
-### `Sminus`
-
-*`tachys.lattice.spins.spin_operators`*
-
-```python
-class Sminus(site, coupling=1.0)
-```
-
-Lowering operator S⁻ = (σ_x − iσ_y)/2. Returns `OffdiagonalResult` with the row
-⟨x|S⁻|x'⟩ = 1, where x' is x with the spin at `site` raised; `mask=False` where
-that spin is ↑ in x.
-
----
-
-### `XYExchange`
-
-*`tachys.lattice.spins.spin_operators`*
-
-```python
-class XYExchange(i, j, coupling=1.0)
-```
-
-Two-body term S⁺ᵢS⁻ⱼ + S⁻ᵢS⁺ⱼ. Non-zero only when spins at sites `i` and `j`
-are antiparallel. Returns `OffdiagonalResult`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `i` | `int` | First site. |
-| `j` | `int` | Second site. |
-| `coupling` | `float` | Prefactor. Default `1.0`. |
-
----
-
-### `C`
-
-*`tachys.lattice.fermions.fermion_operators`*
-
-```python
-class C(site, band, coupling=1.0)
-```
-
-Fermionic annihilation operator c_{i,σ}, with the Jordan-Wigner sign. Returns
-`OffdiagonalResult` with the row ⟨x|c_{i,σ}|x'⟩, where x' is x with an electron
-added at `site` in `band` (0 = ↑, 1 = ↓); `mask=False` where that mode is
-occupied in x.
-
-Convenience subclasses: `Cup(site)` sets `band=0`; `Cdn(site)` sets `band=1`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `site` | `int` | Lattice site index. |
-| `band` | `int` | Band index: 0 = spin-up, 1 = spin-down. |
-| `coupling` | `float` | Prefactor. Default `1.0`. |
-
----
-
-### `C_dag`
-
-*`tachys.lattice.fermions.fermion_operators`*
-
-```python
-class C_dag(site, band, coupling=1.0)
-```
-
-Fermionic creation operator c†_{i,σ}, with the Jordan-Wigner sign. Returns
-`OffdiagonalResult` with the row ⟨x|c†_{i,σ}|x'⟩, where x' is x with the
-electron at `site` in `band` removed; `mask=False` where that mode is empty in x.
-
-Convenience subclasses: `Cup_dag(site)` and `Cdn_dag(site)`.
-
----
-
-### `N`
-
-*`tachys.lattice.fermions.fermion_operators`*
-
-```python
-class N(site, band, coupling=1.0)
-```
-
-Number operator n_{i,σ} = c†_{i,σ} c_{i,σ}. Returns `DiagonalResult`.
-
-Convenience subclasses: `Nup(site)` (band=0) and `Ndn(site)` (band=1).
-
----
-
-### Foundation operators
-
-Combine per-system Hamiltonians into a single foundation-model operator. A foundation model
-shares one wave function across a Monte Carlo batch that mixes samples from several distinct
-systems (see the *Foundation states* subsection under States, above). The Hamiltonian has to mix the same way:
-instead of one coupling per term (shape `(n_terms,)`, shared by every sample), each term needs a
-per-sample coupling (shape `(n_terms, N_mc)`) that supplies the right system's value for each
-column of the batch — vmapping `_Operator.apply` over the term axis then peels each leaf
-operator's `coupling` down to exactly `(N_mc,)`, which is already what every `apply`
-implementation expects to combine elementwise with state-derived quantities.
-
-#### `broadcast_coupling`
-
-*`tachys.lattice.foundation.operators`*
-
-```python
-broadcast_coupling(operator, n_mc_per_system)
-```
-
-Broadcast every leaf operator's 1-D coupling to 2-D: `(n_terms,) -> (n_terms, n_mc_per_system)`.
-Every sample drawn from `operator`'s system sees the same per-term coupling, so the new trailing
-axis is a plain repeat, not a fresh value per sample. Structural fields (`site`, `i`, `j`, …) are
-left untouched. Recurses into `_OperatorSum`/`_OperatorMul` trees.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `operator` | `_Operator` | Single-system operator (leaf, `_OperatorSum`, or `_OperatorMul`). |
-| `n_mc_per_system` | `int` | Number of Monte Carlo walkers dedicated to this system. |
-
-**Returns** `_Operator` of the same tree structure, with every leaf's `coupling` broadcast to
-shape `(n_terms, n_mc_per_system)`.
-
----
-
-#### `concatenate_couplings`
-
-*`tachys.lattice.foundation.operators`*
-
-```python
-concatenate_couplings(operators)
-```
-
-Concatenate same-structure operators' couplings along `axis=1`. Each of `operators` must already
-have 2-D `(n_terms, n_mc_per_system)` couplings (see `broadcast_coupling`) and share identical
-tree structure (e.g. built from the same Hamiltonian template with different coupling values).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `operators` | `list of _Operator` | Operators to concatenate, one per system, all with the same tree structure and 2-D couplings. |
-
-**Returns** `_Operator` whose `coupling` has shape `(n_terms, sum of n_mc_per_system)` — one
-column per Monte Carlo sample across all systems.
-
-**Raises** `ValueError` if the operators do not share identical tree structure.
-
----
-
-#### `combine_systems`
-
-*`tachys.lattice.foundation.operators`*
-
-```python
-combine_systems(operators, n_mc_per_system)
-```
-
-Combine per-system operators into one foundation-model operator, by broadcasting every leaf
-operator's 1-D coupling out to `(n_terms, n_mc_per_system)` and concatenating those along the
-sample axis. `operators` must all be built from the same template (identical term structure) but
-with different coupling values, exactly as produced by e.g.
-`[hubbard_square_pbc(L, U=U) for U in Us]`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `operators` | `list of _Operator` | Per-system operators, one per system, built from the same Hamiltonian template. |
-| `n_mc_per_system` | `int` | Number of Monte Carlo walkers dedicated to each system. |
-
-**Returns** `_Operator` whose `coupling` has shape `(n_terms, len(operators) · n_mc_per_system)`,
-matching the leading batch dimension of the paired `FoundationState`.
-
----
-
-#### `extract_system_couplings`
-
-*`tachys.lattice.foundation.operators`*
-
-```python
-extract_system_couplings(operator, atol=1e-8, rtol=1e-5)
-```
-
-Recover the distinct, sample-varying couplings of a combined operator (see `combine_systems`) as
-the compact `(N_mc, n_couplings)` summary `FoundationState.system_couplings` expects.
-
-`operator` must already be combined: every leaf's `coupling` is 2-D, `(n_terms, N_mc)` — one row
-per term, one column per Monte Carlo sample. Every row of every leaf is a candidate per-sample
-coupling; duplicate rows across leaves (e.g. several leaves sharing one fixed hopping amplitude)
-collapse to a single column (rows compared with `jnp.allclose`, kept in first-seen traversal
-order), rows that differ within one leaf (e.g. J1/J2 shells concatenated into one leaf's coupling)
-split apart, and columns constant across all `N_mc` samples (they don't distinguish systems) are
-dropped.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `operator` | `_Operator` | A combined operator, as returned by `combine_systems`. |
-| `atol` | `float` | Absolute tolerance for `jnp.allclose` row comparisons. Default `1e-8`. |
-| `rtol` | `float` | Relative tolerance for `jnp.allclose` row comparisons. Default `1e-5`. |
-
-**Returns** `jax.Array`, shape `(N_mc, n_couplings)`. Suitable for
-`FoundationState.system_couplings`. If no coupling varies across the batch, returns shape
-`(N_mc, 0)`.
-
----
-
-### Local estimators
-
-Evaluate the local estimator of an operator, `O_L(x) = Σ_{x'} ⟨x|O|x'⟩ ψ(x')/ψ(x)`, given a
-wave function and a batch of configurations, and reduce it to global expectation values across a
-sharded device mesh.
-
-#### `local_estimator`
-
-*`tachys.lattice.operator.local_estimator`*
-
-```python
-local_estimator(operator, state, wf, log_amps, optimize_mask=True, batch_expand=1)
-```
-
-Local estimator $O_L(x) = \sum_{x'} \langle x|O|x'\rangle\, \psi(x')/\psi(x)$.
-
-Applies `operator` to `state` to get a `DiagonalResult`, `OffdiagonalResult`, or
-`DiagOffdiagResult`; diagonal terms are summed directly, off-diagonal terms require evaluating the
-wave function on every connected state and forming the amplitude ratio `ψ(x')/ψ(x)` (via
-`exp(log ψ(x') − log ψ(x))`, with the exponent — not the final result — masked so inactive,
-possibly-placeholder connections can't overflow to `inf`/`NaN`).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `operator` | `_Operator` or `_OperatorSum` | Operator to evaluate. |
-| `state` | `State` | Batch of configurations, batch axis 0 of size `N_mc_local`. |
-| `wf` | wave function | Object with `.apply_fn(params, state) -> (N_mc_local,)` log-amplitudes and a `.params` attribute. |
-| `log_amps` | `jax.Array` | Shape `(N_mc_local,)`. Log-amplitudes of `state` under `wf`. |
-| `optimize_mask` | `bool` | Skip guaranteed-zero (all-mask-False) batches of connected states via a `while_loop`, instead of evaluating every connection. Default `True`. |
-| `batch_expand` | `float` | Batch-size scale factor used by the masked-evaluation path (only used when `optimize_mask=True`); `int(batch_expand · N_mc_local)` must divide `N_terms · N_mc_local`. Default `1`. |
-
-**Returns** `jax.Array`, shape `(N_mc_local,)`. The local estimator `O_L`.
-
----
-
-#### `compute_expectation`
-
-*`tachys.lattice.operator.local_estimator`*
-
-```python
-compute_expectation(operator, wf, state, log_amps, optimize_mask=True, batch_expand=1)
-```
-
-Sharded expectation value of an operator. Shards `state` and `log_amps` across all devices,
-evaluates `local_estimator` on each shard, then reduces to global statistics via `psum`. JIT-
-compiled with `optimize_mask` and `batch_expand` as static arguments.
-
-A foundation-model operator's `coupling` (see the *Foundation operators* subsection above),
-when 2-D with shape `(n_terms, N_mc)`, is sharded along the `N_mc` axis to match `state`'s sharded
-batch axis; all other operator fields, and non-foundation operators, are replicated across
-devices.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `operator` | `_Operator` | Replicated across devices, except a foundation-model operator's `coupling` (`ndim == 2`, shape `(n_terms, N_mc)`), which is sharded along the `N_mc` axis. |
-| `wf` | wave function | Replicated across devices. |
-| `state` | `State` | Batch axis 0 sharded across devices. |
-| `log_amps` | `jax.Array` | Shape `(N_mc_local,)`, sharded across devices. |
-| `optimize_mask` | `bool` | Forwarded to `local_estimator`. Default `True`. |
-| `batch_expand` | `int` | Forwarded to `local_estimator`. Default `1`. |
-
-**Returns** `(O_L, O_mean, O2_mean)`:
-- `O_L` — `jax.Array`, shape `(N_mc_local,)`, the local estimator, sharded.
-- `O_mean` — scalar, global mean `⟨O⟩`.
-- `O2_mean` — scalar, global mean `⟨|O|²⟩`.
-
----
-
-## Hamiltonians
-
-### `heisenberg_hamiltonian`
-
-*`tachys.lattice.spins.hamiltonians.heisenberg`*
-
-```python
-heisenberg_hamiltonian(lat, nn)
-```
-
-Heisenberg Hamiltonian on a generic `Lattice`, assembled from arbitrary bond
-specifications instead of a fixed periodic square geometry — the building
-block behind `heisenberg_square_pbc` and behind custom lattices (triangular,
-honeycomb, multiple coupling shells, …).
+Restricted Boltzmann machine for spins, with `hidden_units` hidden units:
 
 $$
-H = \sum_{\langle i,j \rangle} J_{ij} \left[ S^z_i S^z_j + \tfrac{1}{2}(S^+_i S^-_j + S^-_i S^+_j) \right]
+\log\psi(s) = \sum_{k} \log\cosh z_k, \qquad z = W s + b .
 $$
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lat` | `Lattice` | Lattice object providing bond geometry via `lat.bonds`. |
-| `nn` | `list` | Bond specifications, each pairing a cell displacement with its coupling: `((d1, d2), J_ij)` (source sublattice `b_from=0`), `((d1, d2), J_ij, b_from)`, or `((d1, d2), J_ij, b_from, b_to)`. List further shells (e.g. next-nearest-neighbour bonds) as additional entries. |
+With `complex=True`, a second dense layer, applied to $z$, adds an imaginary
+part: $z \to z + i\,(W' z + b')$. `dtype` is the dtype of the parameters.
 
-**Returns** `_OperatorSum`.
+#### `FermionRBM`
 
----
-
-### `heisenberg_square_pbc`
-
-*`tachys.lattice.spins.hamiltonians.heisenberg`*
+*`tachys.lattice.ansatz.rbm`*
 
 ```python
-heisenberg_square_pbc(L, J=1.0)
+class FermionRBM(hidden_units)
 ```
 
-Heisenberg model on an L×L square lattice with periodic boundary conditions.
-Sites are indexed row-major: site at (x, y) maps to `x·L + y`.
+Slater determinant with a backflow correction. The orbitals are parameters
+$\phi_a(r)$, one per electron $a$ and mode $r$, corrected by $F_a(n, r)$,
+which a two-layer network with `hidden_units` tanh units computes from the
+whole configuration $n$:
 
 $$
-H = J \sum_{\langle i,j \rangle} \left[ S^z_i S^z_j + \tfrac{1}{2}(S^+_i S^-_j + S^-_i S^+_j) \right]
+\psi(n) = \det\big[\phi_a(r_i) + F_a(n, r_i)\big]_{a,i=1}^{N_e},
 $$
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `L` | `int` | Linear dimension. Total sites N = L². |
-| `J` | `float` | Exchange coupling. Positive = antiferromagnetic. |
+where $r_1, \dots, r_{N_e}$ are the occupied modes of $n$. A singular matrix
+gives $\log\psi = -\infty$.
 
-**Returns** `_OperatorSum`.
+#### `log_cosh`
 
----
-
-### `hubbard_hamiltonian`
-
-*`tachys.lattice.fermions.hamiltonians.hubbard`*
+*`tachys.lattice.ansatz.rbm`*
 
 ```python
-hubbard_hamiltonian(lat, nn, U)
+log_cosh(x)
 ```
 
-Hubbard Hamiltonian on a generic `Lattice`, assembled from arbitrary bond
-specifications instead of a fixed periodic square geometry — the building
-block behind `hubbard_square_pbc` and behind custom lattices or bond-dependent
-hopping amplitudes.
+$\log\cosh x$, for real or complex `x`, without overflow at large $|x|$.
 
-$$
-H = -\sum_{\langle i,j \rangle, \sigma} t_{ij} \left(c^\dagger_{i\sigma} c_{j\sigma} + \text{h.c.}\right)
-    + U \sum_i n_{i\uparrow} n_{i\downarrow}
-$$
+#### `SpinViT`
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lat` | `Lattice` | Lattice object providing bond geometry via `lat.bonds`. |
-| `nn` | `list` | Bond specifications, each pairing a cell displacement with its hopping amplitude: `((d1, d2), t_ij)` (source sublattice `b_from=0`), `((d1, d2), t_ij, b_from)`, or `((d1, d2), t_ij, b_from, b_to)`. List further shells (e.g. next-nearest-neighbour hopping) as additional entries. |
-| `U` | `float` | On-site Coulomb repulsion. |
-
-**Returns** `_OperatorSum`.
-
----
-
-### `hubbard_square_pbc`
-
-*`tachys.lattice.fermions.hamiltonians.hubbard`*
+*`tachys.lattice.ansatz.spin_vit`*
 
 ```python
-hubbard_square_pbc(L, t=1.0, U=0.0)
+class SpinViT(num_layers, d_model, num_heads, seq_len, b, complex=True,
+              transl_invariant=False, two_dimensional=False, dtype=jnp.float64)
 ```
 
-Hubbard model on an L×L square lattice with periodic boundary conditions.
-Two bands (spin-up / spin-down) with nearest-neighbor hopping and on-site
-Coulomb repulsion.
+Vision transformer for spins; {doc}`resources/vit_wavefunction` builds a
+variant of it step by step. The configuration is cut into patches, a linear
+map sends each patch to a vector of size `d_model`, and an encoder of
+`num_layers` blocks with factored attention mixes these vectors. The output
+layer sums them and applies a dense layer and $\log\cosh$. The forward pass is
+rematerialized (`nn.remat`), which saves memory in the backward pass.
 
-$$
-H = -t \sum_{\langle i,j \rangle, \sigma} (c^\dagger_{i\sigma} c_{j\sigma} + \text{h.c.})
-    + U \sum_i n_{i\uparrow} n_{i\downarrow}
-$$
+| Field | Description |
+|---|---|
+| `num_layers` | Number of encoder blocks. |
+| `d_model` | Size of the patch vectors; a multiple of `num_heads`. |
+| `num_heads` | Number of attention heads. |
+| `seq_len` | Number of patches: `Ns // b`, or `Ns // b**2` with `two_dimensional`. |
+| `b` | Patch size: `b` consecutive sites, or `b × b` squares with `two_dimensional`. |
+| `complex` | Adds a second output branch, for the phase. Default `True`. |
+| `transl_invariant` | The attention between two patches depends only on their separation. Default `False`. |
+| `two_dimensional` | Square patches on an `L × L` lattice; with `transl_invariant`, invariance under two-dimensional translations of the patches. Default `False`. |
+| `dtype` | Dtype of the parameters. Default `jnp.float64`. |
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `L` | `int` | Linear dimension. Total sites N = L². |
-| `t` | `float` | Hopping amplitude. |
-| `U` | `float` | On-site Coulomb repulsion. |
+Its building blocks, in the same module:
 
-**Returns** `_OperatorSum`.
+| Name | Description |
+|---|---|
+| `extract_patches1d(x, b)` | `(batch, N)` → `(batch, N // b, b)`: consecutive sites. |
+| `extract_patches2d(x, b)` | `(batch, L * L)` → `(batch, (L // b)**2, b * b)`: `b × b` squares. |
+| `Embed(d_model, b, dtype, two_dimensional=False)` | The patches, then one dense layer shared by all of them. |
+| `OutputHead(d_model, dtype, complex)` | Sum over the patches, layer normalization, then a dense layer, layer normalization and $\sum \log\cosh$. With `complex`, a second dense branch gives the imaginary part. |
 
----
+#### `FermionicTransformer`
 
-### Ising model
-
-#### `ising_transverse_field_hamiltonian`
-
-*`tachys.lattice.spins.hamiltonians.ising_transverse_field`*
+*`tachys.lattice.ansatz.fermionic_transformer`*
 
 ```python
-ising_transverse_field_hamiltonian(lat, nn, h=1.0)
+class FermionicTransformer(num_layers, d_model, num_heads, Ne, Ns, Nbands=2,
+                           dtype=jnp.float64, transl_invariant=True, two_dimensional=True)
 ```
 
-Transverse-field Ising Hamiltonian on a generic `Lattice`, in Pauli-matrix convention
-(σ = 2S).
+Slater determinant whose orbitals a transformer computes from the
+configuration. The occupation of each site (empty, ↑, ↓ or both) is embedded
+as a vector of size `d_model`, and the encoder mixes the vectors of the sites.
+A linear map, different for each mode, sends the vector of a site to the
+values of the `Ne` orbitals on its two modes, and the determinant is taken over
+the occupied modes.
 
-$$
-H = -\sum_{\langle i,j \rangle} J_{ij}\, \sigma^z_i \sigma^z_j - h \sum_i \sigma^x_i
-$$
+| Field | Description |
+|---|---|
+| `num_layers`, `d_model`, `num_heads` | As for `SpinViT`. |
+| `Ne` | Number of electrons. |
+| `Ns` | Number of sites; a perfect square with `two_dimensional`. |
+| `Nbands` | Must be `2`. |
+| `dtype` | Dtype of the parameters. Default `jnp.float64`. |
+| `transl_invariant`, `two_dimensional` | As for `SpinViT`, with one site per patch. Default `True`. |
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lat` | `Lattice` | Lattice object providing bond geometry via `lat.bonds`. |
-| `nn` | `list` | Bond specifications, each pairing a cell displacement with its coupling: `((d1, d2), J_ij)` (source sublattice `b_from=0`), `((d1, d2), J_ij, b_from)`, or `((d1, d2), J_ij, b_from, b_to)`. List further shells (e.g. next-nearest-neighbour bonds) as additional entries. |
-| `h` | `float` | Transverse field strength. Default `1.0`. |
+Its components, in the same module:
 
-**Returns** `_OperatorSum`.
+| Name | Description |
+|---|---|
+| `_log_det(A)` | $\log\det A$ as a complex number, $\log\vert\det A\vert + i\arg\det A$, with $-\infty$ for a singular matrix. |
+| `compute_orbitals_fn(y, weights)` | `(batch, M, d)` and `(M, d, Ne)` → `(batch, M, Ne)`: the orbitals on the `M` modes. |
+| `OutputHeadDet(d_model, Ne, Ns, dtype, Nbands=2)` | The output layer: the orbitals from the site vectors `y`, and the determinant over the occupied modes `R`, as `head(y, R)`. |
 
----
+#### Transformer building blocks
 
-#### `ising_transverse_field_square_pbc`
-
-*`tachys.lattice.spins.hamiltonians.ising_transverse_field`*
+*`tachys.lattice.ansatz.transformer.attention`*, *`tachys.lattice.ansatz.transformer.encoder`*
 
 ```python
-ising_transverse_field_square_pbc(L, J=1.0, h=1.0)
+class FactoredAttention(d_model, num_heads, seq_len, dtype,
+                        transl_invariant=False, two_dimensional=False)
+class EncoderBlock(d_model, num_heads, seq_len, dtype,
+                   transl_invariant=False, two_dimensional=False)
+class Encoder(num_layers, d_model, num_heads, seq_len, dtype,
+              transl_invariant=False, two_dimensional=False)
 ```
 
-Transverse-field Ising model on an L×L square lattice with periodic boundary conditions, in
-Pauli-matrix convention (σ = 2S). Sites are indexed row-major: `site(x, y) = x·L + y`. The 1-D
-chain's critical point is at `J = h`.
+The encoder of `SpinViT` and `FermionicTransformer`. Each module maps an array
+of shape `(batch, seq_len, d_model)` to one of the same shape.
 
-$$
-H = -J \sum_{\langle i,j \rangle} \sigma^z_i \sigma^z_j - h \sum_i \sigma^x_i
-$$
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `L` | `int` | Linear dimension. Total sites N = L². |
-| `J` | `float` | Nearest-neighbour Ising coupling. Default `1.0`. |
-| `h` | `float` | Transverse field strength. Default `1.0`. |
-
-**Returns** `_OperatorSum`.
+- `FactoredAttention` is multi-head attention whose weights are parameters,
+  independent of the input: head $h$ returns $\alpha_h V_h \mathbf{x}$, and a
+  dense layer mixes the heads. With `transl_invariant`, each head learns one
+  row of $\alpha_h$ and the other rows are its cyclic shifts, so the weight
+  between two positions depends only on their separation. With
+  `two_dimensional` as well, the positions form a `√seq_len × √seq_len` grid,
+  shifted along both axes.
+- `EncoderBlock` applies the attention, then a two-layer feed-forward network
+  (hidden size `4 * d_model`, GELU), each after a layer normalization and with
+  a skip connection.
+- `Encoder` stacks `num_layers` blocks.
 
 ---
 
-## Lattices
+### Sign rules
 
-### `Lattice`
+*`tachys.lattice.spins.sign_rules`*
 
-*`tachys.lattice.lattice`*
+A known sign structure, added to the log-amplitude as a phase, so that the
+network learns only a positive amplitude ({doc}`guide/wavefunctions`).
 
-```python
-class Lattice(lattice_vectors, basis, basis_frac, points, site_coords,
-               cell_to_site, dist_matrix, L, Ns, nb, pbc)
-```
+| Function | Description |
+|---|---|
+| `add_sign_rule(sign_fn, apply_fn, L)` | Wraps `apply_fn` into `(params, state) -> apply_fn(params, state) + sign_fn(state.spins, L)`. |
+| `MSR_log_phase_square(spins, L)` | Marshall sign rule of the `L × L` square lattice: $i\pi N_\downarrow^A$, with $A$ the sites of even $x + y$. |
+| `MSR_log_phase_chain(spins, L)` | Marshall sign rule of a chain of `L` sites: $i\pi N_\downarrow^A$, with $A$ the even sites. |
+| `triangular_classical_log_phase(spins, L)` | 120° rule of the triangular lattice: $i\tfrac{2\pi}{3}\sum_{i\,\downarrow} c_i$, with $c_i$ = (row − column) mod 3. `L` is an `int` or `(Lx, Ly)`. |
 
-Immutable lattice geometry. Extends `typing.NamedTuple`. Always build one via
-`Lattice.create(...)`, never by calling the constructor with raw arrays directly.
-
-A site is an integer triple `(i, j, b)`: `i` = cell index along `a2` (row), `j` =
-cell index along `a1` (column), `b` = sublattice. `site_coords[s] = (i, j, b)` and
-the reverse map `cell_to_site[i, j, b] -> s` (`-1` where absent) make every lookup
-pure integer/modular arithmetic. `.bonds(delta, b_from, b_to)` connects sublattice
-`b_from` in cell `C` to sublattice `b_to` in cell `C + delta`, for every cell `C`;
-`delta` is a whole-cell displacement in `(a1, a2)` units — the intra-cell offset
-comes only from `b_from`/`b_to`.
-
-Equality and hashing are identity-based (`__eq__`/`__hash__` use `id(self)`), so a
-`Lattice` can sit as static (`pytree_node=False`) metadata on a `State` without
-JAX trying to hash or compare its numpy array fields.
-
-A `NamedTuple` is an automatic JAX pytree, so passing a `Lattice` directly into a
-jitted function makes JAX try to flatten these numpy arrays into leaves. Instead,
-build the jnp bond-index arrays once with `.bond_arrays()` and pass only those
-into traced code; treat `Lattice` itself as host-side metadata.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `lattice_vectors` | `np.ndarray` | `(2, 2)`. Rows are `a1`, `a2`. |
-| `basis` | `np.ndarray` | `(nb, 2)`. Cartesian positions of the basis atoms in one cell. |
-| `basis_frac` | `np.ndarray` | `(nb, 2)`. Basis positions in `(a1, a2)` fractional units. |
-| `points` | `np.ndarray` | `(Ns, 2)`. Cartesian coordinates of every site. |
-| `site_coords` | `np.ndarray` | `(Ns, 3)`. `(i, j, b)` per site. |
-| `cell_to_site` | `np.ndarray` | `(Ly, Lx, nb)`. Reverse lookup; `-1` where absent. |
-| `dist_matrix` | `np.ndarray` | `(Ns, Ns)`. Minimum-image Euclidean distances (for observables/plotting only). |
-| `L` | `tuple` | `(Lx, Ly)`, number of cells along `a1`/`a2`. |
-| `Ns` | `int` | Total number of sites. |
-| `nb` | `int` | Number of basis atoms per cell. |
-| `pbc` | `tuple` | `(pbc_x, pbc_y)`. |
+Each returns a complex array of shape `(batch,)`.
 
 ---
 
-### `Lattice.create`
+### Symmetries
 
-*`tachys.lattice.lattice`*
+*`tachys.lattice.symmetries`*
 
-```python
-Lattice.create(a1, a2, basis, shape, pbc_x=True, pbc_y=True)
-```
+Wrappers that project a wavefunction onto a symmetry sector. Each takes an
+apply function `(params, state) -> log_psi` and returns one with the same
+signature.
 
-Classmethod constructor. Builds a lattice from unit-cell vectors, a Cartesian
-basis, and a shape, computing the site table and the minimum-image distance
-matrix.
+| Function | Result |
+|---|---|
+| `symmetrize_wf(apply_fn, perms, sector_chars=None)` | $\log \sum_g \chi_g\, \psi(g\sigma)$, over the site permutations `perms` |
+| `singlet_symm(apply_fn)` | $\log[\psi(\sigma) + \psi(-\sigma)]$: even under the global spin flip |
+| `spin_flip_symm_f(apply_fn, p=1)` | For spinful fermions, the sector `p = ±1` of the spin flip $e^{-i\pi S^y}$ |
+| `time_reversal(apply_fn)` | $\log[\psi + \psi^*] = \log 2\,\mathrm{Re}\,\psi$: a real wavefunction |
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `a1`, `a2` | `2-vector` | Primitive cell vectors. |
-| `basis` | `(nb, 2) array` | Cartesian positions of the atoms in one cell. |
-| `shape` | `(Lx, Ly)` | Number of cells along `a1` and `a2`. |
-| `pbc_x`, `pbc_y` | `bool` | Periodic boundaries along `a1`/`a2`. Default `True`. |
+`symmetrize_wf` evaluates the network once per permutation. `perms` has shape
+`(M, W)`, with `W` the width of the configuration array: `Ns` for spins, and
+`2 * Ns` for fermions, where `expand_perm(perms, 2)` extends site permutations
+to both spin species; the fermionic sign of each permutation is included.
+`sector_chars` gives characters $\chi_g = e^{i\pi c_g}$ through the real
+numbers $c_g$ (0 or 1 for $\chi_g = \pm 1$); by default $\chi_g = 1$.
 
-**Returns** `Lattice`.
+`spin_flip_symm_f` requires $N_\uparrow = N_\downarrow$; `p=1` selects even
+total spin, including the singlets, and `p=-1` odd total spin.
 
----
+Permutation helpers, in the same module:
 
-### `Lattice.retrieve_index`
-
-*`tachys.lattice.lattice`*
-
-```python
-lattice.retrieve_index(c1, c2)
-```
-
-Low-level lookup: site index for target coefficients `(c1, c2)` in the `(a1, a2)`
-basis, including any basis offset. Most code should use `bonds`/`neighbour_of`
-instead of calling this directly.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `c1`, `c2` | `float` | Target coefficients in the `(a1, a2)` basis. |
-
-**Returns** `int`. Site index, or `-1` if no site exists there (OBC out of range,
-or the point does not coincide with any atom).
+| Function | Description |
+|---|---|
+| `expand_perm(perm, n_bands)` | `(..., Ns)` → `(..., n_bands * Ns)`: the same site permutation in every band. |
+| `invert_perm(perms)` | The inverse permutations. |
+| `combine_perm_groups(perms_a, perms_b, chars_a=None, chars_b=None)` | The `M1 * M2` products `perms_b[b][perms_a[a]]` of two groups and their characters, to symmetrize over both in one `symmetrize_wf` call. Returns `(perms, chars)`. |
+| `fermionic_sign(perm)` | The sign of a permutation, $\pm 1$. |
+| `sign_permutation(config, perm_inv)` | The fermionic sign that a site permutation, given by its inverse, produces on the single configuration `config`. |
 
 ---
 
-### `Lattice.bonds`
-
-*`tachys.lattice.lattice`*
-
-```python
-lattice.bonds(delta, b_from=0, b_to=None)
-```
-
-Directed `(src, dst)` index pairs for a cell displacement `delta`. A bond
-connects sublattice `b_from` in cell `C` to sublattice `b_to` in cell `C + delta`,
-for every cell `C` for which the target exists. This is the primitive used to
-assemble Hamiltonian bond lists.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `delta` | `(d1, d2)` | Cell displacement in `(a1, a2)` units (whole cells; the intra-cell offset comes from `b_from`/`b_to`, not `delta`). |
-| `b_from` | `int` | Source sublattice. Default `0`. |
-| `b_to` | `int` | Target sublattice. Default: same as `b_from`. |
-
-**Returns** `(src, dst)`, `int64` arrays of equal length. Under OBC, bonds whose
-target falls outside the lattice are dropped.
-
----
-
-### `Lattice.neighbour_of`
-
-*`tachys.lattice.lattice`*
-
-```python
-lattice.neighbour_of(site, delta, b_to=None)
-```
-
-Single site reached from `site`'s cell by cell displacement `delta`, landing on
-sublattice `b_to` (default: same sublattice as `site`). Same convention as
-`bonds`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `site` | `int` | Source site index. |
-| `delta` | `(d1, d2)` | Cell displacement in `(a1, a2)` units. |
-| `b_to` | `int` | Target sublattice. Default: same as `site`'s. |
-
-**Returns** `int`. Neighbour site index, or `-1` if absent.
-
----
-
-### `Lattice.bond_arrays`
-
-*`tachys.lattice.lattice`*
-
-```python
-lattice.bond_arrays(deltas, b_from=0, b_to=None)
-```
-
-Concatenate several cell displacements into flat `jnp` int arrays `(src, dst)`,
-ready to feed a jitted local energy. All displacements share `b_from`/`b_to`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `deltas` | `iterable of (d1, d2)` | Cell displacements to concatenate. |
-| `b_from` | `int` | Source sublattice. Default `0`. |
-| `b_to` | `int` | Target sublattice. Default: same as `b_from`. |
-
-**Returns** `(src, dst)`, `jnp.ndarray` int arrays, concatenated over all `deltas`.
-
----
-
-### `Lattice.shells`
-
-*`tachys.lattice.lattice`*
-
-```python
-lattice.shells(n_shells=None)
-```
-
-Distance-shell neighbour lists, for correlation functions / structure factors.
-**Not** for Hamiltonian construction — use `bonds()` there.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `n_shells` | `int` | Number of nearest distinct distances to return. Default `None` (all shells). |
-
-**Returns** `list[(distance, src, dst)]`. Each ordered pair of sites at that
-distance is counted once (`src[k] < dst[k]`).
-
----
-
-### `Lattice.plot`
-
-*`tachys.lattice.lattice`*
-
-```python
-lattice.plot(filename=None)
-```
-
-Scatter the sites, coloured by sublattice and labelled by index (via
-`matplotlib`).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `filename` | `str` | If given, saves the figure to this path instead of calling `plt.show()`. |
-
-**Returns** `None`.
-
----
-
-### `chain`
-
-*`tachys.lattice.lattice_database`*
-
-```python
-chain(L, pbc=True)
-```
-
-1-D chain of `L` sites, open along the (unused) second direction.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `L` | `int` | Number of sites. |
-| `pbc` | `bool` | Periodic boundary conditions along the chain. Default `True`. |
-
-**Returns** `Lattice`.
-
----
-
-### `square`
-
-*`tachys.lattice.lattice_database`*
-
-```python
-square(shape, pbc_x=True, pbc_y=True)
-```
-
-Square lattice, one site per cell.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `shape` | `(Lx, Ly)` | Number of cells along `a1`/`a2`. |
-| `pbc_x`, `pbc_y` | `bool` | Periodic boundaries along each direction. Default `True`. |
-
-**Returns** `Lattice`.
-
----
-
-### `triangular`
-
-*`tachys.lattice.lattice_database`*
-
-```python
-triangular(shape, pbc_x=True, pbc_y=True)
-```
-
-Triangular lattice, one site per cell, with `a1 = (1, 0)` and `a2` at 60° to `a1`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `shape` | `(Lx, Ly)` | Number of cells along `a1`/`a2`. |
-| `pbc_x`, `pbc_y` | `bool` | Periodic boundaries along each direction. Default `True`. |
-
-**Returns** `Lattice`.
-
----
-
-### `honeycomb`
-
-*`tachys.lattice.lattice_database`*
-
-```python
-honeycomb(shape, pbc_x=True, pbc_y=True)
-```
-
-Honeycomb lattice: the same triangular Bravais lattice as `triangular`, with a
-2-site basis (A at the cell origin, B at the centroid `(a1+a2)/3`). Each A site
-has 3 nearest-neighbour B sites, reached by cell displacements `(0,0)`, `(-1,0)`,
-`(0,-1)` — useful for Kitaev-type Hamiltonians that assign each of these its own
-bond-dependent operator.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `shape` | `(Lx, Ly)` | Number of cells along `a1`/`a2`. |
-| `pbc_x`, `pbc_y` | `bool` | Periodic boundaries along each direction. Default `True`. |
-
-**Returns** `Lattice`. `nb=2`.
-
----
-
-### `kagome`
-
-*`tachys.lattice.lattice_database`*
-
-```python
-kagome(shape, pbc_x=True, pbc_y=True)
-```
-
-Kagome lattice: triangular Bravais lattice with a 3-site basis.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `shape` | `(Lx, Ly)` | Number of cells along `a1`/`a2`. |
-| `pbc_x`, `pbc_y` | `bool` | Periodic boundaries along each direction. Default `True`. |
-
-**Returns** `Lattice`. `nb=3`.
-
----
-
-### `cylinder`
-
-*`tachys.lattice.lattice_database`*
-
-```python
-cylinder(shape, pbc_x=False, pbc_y=True)
-```
-
-Square lattice on a cylinder: periodic along `y` (rows) and open along `x`
-(columns) by default.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `shape` | `(Lx, Ly)` | Number of cells along `a1`/`a2`. |
-| `pbc_x` | `bool` | Periodic along `x`. Default `False`. |
-| `pbc_y` | `bool` | Periodic along `y`. Default `True`. |
-
-**Returns** `Lattice`.
-
----
-
-### `shastry_sutherland`
-
-*`tachys.lattice.lattice_database`*
-
-```python
-shastry_sutherland(shape, pbc_x=True, pbc_y=True)
-```
-
-Shastry-Sutherland lattice: square Bravais lattice (`a1=(1,0)`, `a2=(0,1)`) with
-a 4-site basis arranged around a 10° tilt angle.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `shape` | `(Lx, Ly)` | Number of cells along `a1`/`a2`. |
-| `pbc_x`, `pbc_y` | `bool` | Periodic boundaries along each direction. Default `True`. |
-
-**Returns** `Lattice`. `nb=4`.
-
----
-
-### `plaquette`
-
-*`tachys.lattice.lattice_database`*
-
-```python
-plaquette(shape, pbc_x=True, pbc_y=True)
-```
-
-2×2-site plaquette lattice with near-square intra-cell geometry (square Bravais
-lattice, 4-site basis).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `shape` | `(Lx, Ly)` | Number of cells along `a1`/`a2`. |
-| `pbc_x`, `pbc_y` | `bool` | Periodic boundaries along each direction. Default `True`. |
-
-**Returns** `Lattice`. `nb=4`.
-
----
-
-## Symmetries
-
-### `SymOp`
+### Lattice symmetries
 
 *`tachys.lattice.lattice_symmetries`*
+
+The symmetry operations of a finite cluster, as site permutations `perm`, with
+`perm[s]` the image of site `s`. `config[..., perm]` is the configuration
+transformed by the inverse operation; since a projector sums over the whole
+group, this does not matter for `symmetrize_wf`.
+
+| Function | Description |
+|---|---|
+| `translation_group(lat)` | The translations of the cluster by whole cells, along its periodic directions. Returns `(perms, shifts)`: an `(Nt, Ns)` array of permutations, and the shift `(n1, n2)` of each, in cells along `a1` and `a2`. |
+| `momentum_phases(lat, m)` | The characters $e^{-i\mathbf{k}\cdot\mathbf{R}_t}$ of these translations, in the same order, for $\mathbf{k} = 2\pi\,(m_1/L_x,\, m_2/L_y)$. The projector $\frac{1}{N_t}\sum_t e^{-i\mathbf{k}\cdot\mathbf{R}_t}\,T_t$ selects the states with $T_t \vert\psi\rangle = e^{i\mathbf{k}\cdot\mathbf{R}_t} \vert\psi\rangle$. |
+| `point_group(lat, center=(0.0, 0.0), n_candidates=12)` | The rotations and reflections about `center` that map the cluster onto itself, as a list of `SymOp`: $C_{4v}$ on a square cluster, $C_{6v}$ on a compatible triangular one, a subgroup otherwise. The candidate angles are multiples of $360°$ / `n_candidates`. |
 
 ```python
 class SymOp(name, matrix, perm)
 ```
 
-A single named point-group symmetry operation. Extends `typing.NamedTuple`.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | `str` | Schoenflies-style label, e.g. `"C4"`, `"C6^2"`, `"σv(30°)"`, `"σd(90°)"`. |
-| `matrix` | `np.ndarray` | `(2, 2)`. The Cartesian point-group matrix (identity for pure translations). |
-| `perm` | `np.ndarray` | `(Ns,)` int. `perm[s]` = image of site `s` under the operation. |
-
----
-
-### `translation_group`
-
-*`tachys.lattice.lattice_symmetries`*
-
-```python
-translation_group(lat)
-```
-
-Full translation group of the finite cluster under periodic boundary
-conditions. This is what selects a momentum sector: form the projector
-
-$$
-P_k = \frac{1}{N_t} \sum_t \text{phase}_t \, T_t
-$$
-
-from the permutations `T` returned here and the characters from
-`momentum_phases`. The group is abelian, so its irreps are momenta. A
-non-periodic direction contributes only the identity shift.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lat` | `Lattice` | Lattice to compute the translation group for. |
-
-**Returns** `(perms, labels)`.
-`perms` is `(Nt, Ns)` int64: `perms[t, s]` is the image of site `s` under
-translation `t`, i.e. the site whose cell is `(i+n2, j+n1) mod (Ly, Lx)`, same
-sublattice. `labels` is `(Nt, 2)` int64: `(n1, n2)`, the cell shift along
-`(a1, a2)` for each `t`.
-
----
-
-### `momentum_phases`
-
-*`tachys.lattice.lattice_symmetries`*
-
-```python
-momentum_phases(lat, m)
-```
-
-Characters of the translation group for momentum sector `m = (m1, m2)`, aligned
-with the rows of `translation_group(lat)[0]`.
-
-$$
-\mathbf{k} = 2\pi\left(\frac{m_1}{L_x}, \frac{m_2}{L_y}\right), \qquad
-\text{phase}_t = e^{-i\, \mathbf{k}\cdot\mathbf{R}_t}
-$$
-
-The projector $P_k = \frac{1}{N_t}\sum_t \text{phase}_t\, T_t$ selects states
-with $T_t|\psi\rangle = e^{+i\mathbf{k}\cdot\mathbf{R}_t}|\psi\rangle$. Flip the
-sign in the exponent (or negate `m`) for the opposite convention.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lat` | `Lattice` | Lattice to compute phases for. |
-| `m` | `(m1, m2)` | Momentum-sector indices. |
-
-**Returns** `np.ndarray`, shape `(Nt,)`, complex128.
-
----
-
-### `point_group`
-
-*`tachys.lattice.lattice_symmetries`*
-
-```python
-point_group(lat, center=(0.0, 0.0), n_candidates=12)
-```
-
-Point-group symmetries of the finite cluster that fix `center`, returned as
-named `SymOp`s. Rotations are named `C_n^p` (reduced to lowest terms, so a 60°
-rotation in a hexagonal group is `C6`, a 120° one is `C3`, 180° is `C2`, ...);
-reflections are `σv` (axis along a lattice vector) or `σd` (diagonal), tagged
-with the axis angle. Whatever subgroup is compatible with the cluster is
-detected automatically: `C4v` for square, `C6v` for triangular, a lower-order
-subgroup for incompatible sizes.
-
-`center` fixes the rotation center; for a group whose natural rotation center is
-not a basis-0 atom (e.g. a kagome plaquette center), pass the correct `center`
-or only the site-symmetry subgroup of the origin will be detected. Detection is
-exact modulo the `retrieve_index` tolerance: an incompatible cluster shape (e.g.
-a 6×4 triangular cluster that breaks 6-fold symmetry) correctly returns the
-smaller compatible group rather than silently including a broken operation.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lat` | `Lattice` | Lattice to compute the point group for. |
-| `center` | `(x, y)` | Fixed point of the rotations. Default the origin (basis atom 0). |
-| `n_candidates` | `int` | Angular resolution of the search grid. Default `12` (30° steps; enough for 2-/3-/4-/6-fold axes). |
-
-**Returns** `list[SymOp]`.
-
----
-
-### `singlet_symm`
-
-*`tachys.lattice.symmetries`*
-
-```python
-singlet_symm(wf_apply)
-```
-
-Wrap a spin wavefunction to enforce global spin-flip (Z₂) symmetry by projecting
-onto the even sector under $\sigma \to -\sigma$:
-
-$$
-\log\left[\psi(\sigma) + \psi(-\sigma)\right]
-= f(\sigma) + \log\left[1 + e^{f(-\sigma) - f(\sigma)}\right]
-$$
-
-where $f(\sigma) = \log\psi(\sigma)$. Corresponds to a singlet-like ($S_z=0$)
-symmetrization in the spin basis.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `wf_apply` | `callable` | `(params, lattice) → log-amplitude f(σ)`. |
-
-**Returns** `callable`. Same signature, returning the symmetrized log-amplitude.
-
----
-
-### `spin_flip_symm_f`
-
-*`tachys.lattice.symmetries`*
-
-```python
-spin_flip_symm_f(wf_apply, p=1)
-```
-
-Project a spinful `FermionState` wavefunction onto the $p=\pm1$ sector of
-$U = \exp(-i\pi S^y)$, the total-spin flip — the occupation-number counterpart
-of `singlet_symm`, generalized to select either parity sector via `p`. `p=+1`
-selects even total spin (contains $S{=}0$); `p=-1` selects odd (contains
-$S{=}1$).
-
-Assumes the doubled occupation-number layout (`n_up_1..n_up_Ns, n_dn_1..n_dn_Ns`)
-used throughout tachys for single-band spinful fermions (`FermionState` with
-`Nbands=2`), so up↔down flip is a half-roll of the occupations array. Requires
-`N_up == N_dn` ($S_z=0$), since only then does flipping up↔down stay within the
-same $(N_e, S_z)$ sector.
-
-$$
-U|n\rangle = (-1)^{N_{dn}(1+N_{up})}\,|\text{flip}(n)\rangle,\qquad
-\log\left[\psi(n) + p\cdot U\text{-phase}(n)\cdot\psi(\text{flip}(n))\right]
-$$
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `wf_apply` | `callable` | `(params, state) → log-amplitude f(n)`, `state` a `FermionState` with `Nbands=2`. |
-| `p` | `int` | Sector to project onto, `+1` or `-1`. Default `1`. |
-
-**Returns** `callable`. Same signature, returning the symmetrized log-amplitude.
-
----
-
-### `time_reversal`
-
-*`tachys.lattice.symmetries`*
-
-```python
-time_reversal(apply_fn)
-```
-
-Wrap a wavefunction to enforce time-reversal symmetry by symmetrizing the
-log-amplitude under complex conjugation ($\psi \to \psi^*$), producing a
-real-valued wavefunction:
-
-$$
-\log\left[\psi(\sigma) + \psi^*(\sigma)\right] = \log\left[2\,\text{Re}\,\psi(\sigma)\right]
-= \text{log\_amps} + \log\left[1 + e^{-2i\,\text{Im}(\text{log\_amps})}\right]
-$$
-
-The result's imaginary part encodes the sign of the wavefunction: `0` when
-$\text{Re}\,\psi>0$, `π` when $\text{Re}\,\psi<0$.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `apply_fn` | `callable` | `(params, state) → complex log-amplitude`. |
-
-**Returns** `callable`. Same signature, returning the time-reversal-symmetrized log-amplitude.
-
----
-
-### `symmetrize_wf`
-
-*`tachys.lattice.symmetries`*
-
-```python
-symmetrize_wf(wf_apply, perms, sector_chars=None)
-```
-
-Wrap a wavefunction to project onto a symmetric sector of a lattice permutation
-group (translations, point group, or any `(M, W)` perm array). Species-agnostic:
-goes through `tachys.lattice.state_array`'s `get_array`/`replace_array`, so the
-same wrapper works for `SpinState` and `FermionState` alike.
-
-If `state` is a `FermionState`, the fermionic-sign phase each group element picks
-up on the occupation-number representation is added automatically (via
-`sign_permutation`), so the caller only ever supplies the single forward `perms`
-array — no separate inverse to build or pass in. The per-band inverse permutation
-is derived from `perms` once at wrap time (not on every call).
-
-Unlike the bosonic case, a fermionic output is not literally constant across a
-group orbit: for a genuine sector eigenstate,
-$f_{sym}(g.\sigma) = f_{sym}(\sigma) + i\pi\cdot[\text{sign}(g,\sigma)<0] - \log\chi(g)$
-(trivial $\chi$ by default) — this is expected, not a bug: a fermionic
-parity/momentum eigenstate genuinely transforms with a sign under the group.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `wf_apply` | `callable` | `(params, state, *args, **kwargs) → log-amplitude`. |
-| `perms` | `(M, W) int array` | `W == get_array(state).shape[-1]` exactly. For a multi-band `FermionState`, build with `expand_perm(base_perms, state.Nbands)`. |
-| `sector_chars` | `(M,) array` | Optional real array of π-multiples folded in as $e^{i\pi\chi}$ before combining. Default `None` (trivial character). |
-
-**Returns** `callable`. Same signature, returning the symmetrized log-amplitude.
-
----
-
-### `invert_perm`
-
-*`tachys.lattice.symmetries`*
-
-```python
-invert_perm(perms)
-```
-
-Inverse of a site permutation, or a batch of them (any leading shape, last axis
-`= Ns`). Every row is an honest bijection of `{0,...,Ns-1}`, so the inverse is
-simply the argsort — no reference row or row-matching needed.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `perms` | `np.ndarray` | `(..., Ns)`. Permutation(s) to invert. |
-
-**Returns** `np.ndarray`, same shape as `perms`.
-
----
-
-### `expand_perm`
-
-*`tachys.lattice.symmetries`*
-
-```python
-expand_perm(perm, n_bands)
-```
-
-Widen an `Ns`-wide site permutation (or a batch, shape `(..., Ns)`) to act on a
-`State`'s physical array of width `n_bands*Ns`, by applying the same geometric
-permutation independently inside each contiguous `Ns`-band slice
-(`array[..., b*Ns:(b+1)*Ns]`). `n_bands=1` is a no-op (covers `SpinState`).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `perm` | `np.ndarray` | `(..., Ns)`. Site permutation(s). |
-| `n_bands` | `int` | Number of bands to replicate the permutation across. |
-
-**Returns** `np.ndarray`, shape `(..., n_bands*Ns)`.
-
----
-
-### `combine_perm_groups`
-
-*`tachys.lattice.symmetries`*
-
-```python
-combine_perm_groups(perms_a, perms_b, chars_a=None, chars_b=None)
-```
-
-Outer-product combine of two site-permutation groups (and, optionally, their
-sector characters) into the single `(M1*M2, W)` perms / `(M1*M2,)` chars that one
-`symmetrize_wf` call needs to reproduce nesting
-`symmetrize_wf(symmetrize_wf(f, perms_a, chars_a), perms_b, chars_b)` exactly —
-a flat `jax.lax.map` instead of `M2` sequential calls of an `M1`-step map each.
-
-`perms_a`/`chars_a` is the group applied by the inner `symmetrize_wf` call (e.g.
-translation coset reps), `perms_b`/`chars_b` the outer one (e.g. point group).
-Row `(a, b)` of the combined perms is `perms_b[b][perms_a[a]]`. Entry `(a, b)` of
-the combined chars is `chars_a[a] + chars_b[b]`. A missing `chars_a`/`chars_b` is
-treated as all-zero (trivial character).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `perms_a` | `(M1, W) array` | Inner group's permutations. |
-| `perms_b` | `(M2, W) array` | Outer group's permutations. |
-| `chars_a` | `(M1,) array` | Optional inner sector characters. Default `None`. |
-| `chars_b` | `(M2,) array` | Optional outer sector characters. Default `None`. |
-
-**Returns** `(combined_perms, combined_chars)`. `combined_perms` has shape
-`(M1*M2, W)`; `combined_chars` is `None` iff both `chars_a` and `chars_b` are `None`.
-
----
-
-### `fermionic_sign`
-
-*`tachys.lattice.symmetries`*
-
-```python
-fermionic_sign(perm)
-```
-
-Sign of `perm` via inversion counting: $(-1)^{\#\{i<j:\,\text{perm}[i]>\text{perm}[j]\}}$.
-`perm` may contain the `Ns+1` sentinel in trailing slots (see `sign_permutation`)
-— sentinel-vs-sentinel and sentinel-vs-real pairs never register as inversions
-since the sentinel exceeds every real value, so the padding is inert. Single
-sample; `vmap` at the call site for a batch.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `perm` | `jax.Array` | `(n,)`. Permutation (possibly sentinel-padded). |
-
-**Returns** `int`, `+1` or `-1`.
-
----
-
-### `sign_permutation`
-
-*`tachys.lattice.symmetries`*
-
-```python
-sign_permutation(config, perm_inv)
-```
-
-Fermionic sign for one configuration (no batch axis — `vmap` this over the
-MC-batch axis at the call site). `Ns` and `n_bands` are inferred from shapes:
-`Ns = perm_inv.shape[-1]`, `n_bands = config.shape[-1] // Ns`. For each
-`Ns`-wide band slice, finds the occupied sites (ascending, padded to length `Ns`
-with sentinel `Ns+1`), maps them through `perm_inv`, and takes `fermionic_sign`;
-the total sign is the product over bands.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `config` | `jax.Array` | `(n_bands*Ns,)`. Single occupation-number configuration. |
-| `perm_inv` | `jax.Array` | `(Ns,)`. Inverse site permutation. |
-
-**Returns** `int`, `+1` or `-1`.
-
----
-
-## Sign rules
-
-Log-phase helpers for baking a fixed sign structure (Marshall sign rule, 120° classical order, …)
-into a wave function's log-amplitude, so the variational ansatz only has to learn the remaining
-sign-free amplitude.
-
-### `triangular_classical_log_phase`
-
-*`tachys.lattice.spins.sign_rules`*
-
-```python
-triangular_classical_log_phase(spins, L)
-```
-
-120°/three-sublattice classical sign rule for the triangular lattice, expressed as a log-phase.
-Sublattice assignment is `(i - j) mod 3` (not `(i + j) mod 3`), matching the triangular lattice's
-three nearest-neighbour bond directions a1 = (1,0), a2 = (0,1), and a1−a2 = (1,−1) (60° a1/a2
-convention, see `lattice_database.triangular`); `(i + j) mod 3` is invariant along a1−a2 and is
-not a valid tripartition for this bond convention. Only down spins contribute (up spins give a
-factor 1, i.e. log-phase 0).
-
-$$
-\log\phi(\{S_i\}) = i\,\frac{2\pi}{3} \sum_{i:\,S_i=\downarrow} c_i, \qquad c_i = (i_\text{row} - j_\text{col}) \bmod 3
-$$
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `spins` | `jax.Array` | Shape `(batch, Lx·Ly)`. Values +1 (up) / −1 (down). Flattened with site index = `i·Lx + j` (`i` along `a2`, the row; `j` along `a1`, the column) — tachys's `Lattice._build_sites` convention. This is the transpose of `x·Ly + y` except when `Lx == Ly`. |
-| `L` | `int` or `(Lx, Ly)` | Linear size. An `int` is treated as a square cluster. |
-
-**Returns** `jax.Array`, complex, shape `(batch,)`. The full log-phase `iθ` to add to a log-amplitude.
-
----
-
-### `MSR_log_phase_square`
-
-*`tachys.lattice.spins.sign_rules`*
-
-```python
-MSR_log_phase_square(spins, L)
-```
-
-Marshall sign rule for a bipartite square lattice, as a log-phase: `log((-1)^{N_down^A})`.
-The A-sublattice is the checkerboard set of sites with `(x + y) % 2 == 0`.
-
-$$
-\log\phi(\{S_i\}) = i\pi \left( N_\downarrow^A \bmod 2 \right)
-$$
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `spins` | `jax.Array` | Shape `(batch, Lx·Ly)`. Values +1 (up) / −1 (down). Row-major flattened, site index = `x·Ly + y`. |
-| `L` | `int` or `(Lx, Ly)` | Linear size. An `int` is treated as a square cluster. |
-
-**Returns** `jax.Array`, complex, shape `(batch,)`.
-
----
-
-### `MSR_log_phase_chain`
-
-*`tachys.lattice.spins.sign_rules`*
-
-```python
-MSR_log_phase_chain(spins, L)
-```
-
-Marshall sign rule for a 1-D chain, as a log-phase: `log((-1)^{N_down^A})`. The A-sublattice is
-the set of even sites, `x % 2 == 0`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `spins` | `jax.Array` | Shape `(batch, L)`. Values +1 (up) / −1 (down). Site index = `x`. |
-| `L` | `int` | Chain length. |
-
-**Returns** `jax.Array`, complex, shape `(batch,)`.
-
----
-
-### `add_sign_rule`
-
-*`tachys.lattice.spins.sign_rules`*
-
-```python
-add_sign_rule(sign_fn, apply_fn, L)
-```
-
-Factory that wraps a wave function's `apply_fn` so its log-amplitude gets an additive log-phase
-from `sign_fn`. Useful for combining a learned, sign-free amplitude network with a fixed,
-analytically-known sign structure (e.g. `MSR_log_phase_square` or
-`triangular_classical_log_phase`).
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `sign_fn` | `callable` | `sign_fn(spins, L) -> jax.Array`. Must return the *full* log-phase (i.e. `i·θ`), shape `(batch,)`. |
-| `apply_fn` | `callable` | `apply_fn(params, state, *args, **kwargs) -> jax.Array`. Returns log-amplitudes. |
-| `L` | `int` or `(Lx, Ly)` | Forwarded to `sign_fn`. |
-
-**Returns** `callable` with signature `wrapped(params, state, *args, **kwargs)`, returning
-`apply_fn(params, state, *args, **kwargs) + sign_fn(state.spins, L)`.
-
----
+A point-group operation: its name, such as `"C4"` or `"σv(0°)"`, its
+$2 \times 2$ matrix, and its site permutation.
+
+When the rotation centre of the group is not a site of sublattice 0, as for
+the centre of a hexagon of the kagome lattice, pass it as `center`; otherwise
+only the operations that fix the origin are found.
 
 ## Monte Carlo
 
-### `_BaseAction`
+### `sample`
 
 *`tachys.montecarlo`*
 
 ```python
-class _BaseAction()
+sample(nsweeps, state, action, key, wf)
 ```
 
-Abstract base for MCMC move proposals. Extends `flax.struct.PyTreeNode`. Subclass
-it and implement `__call__(key, state)`. `__init_subclass__` automatically wraps
-any subclass `__call__` so it always returns 4 values: implementations may return
-either 3 values (atomic actions, `action_id` defaults to `0`) or 4 (when a custom
-`action_id` is needed), and `log_prob_correction` is broadcast to the shape of
-`allowed_move` so every action exposes a uniform output shape (required by
-`jax.lax.switch` inside `CompositeAction`).
+Runs `nsweeps * Ns` Metropolis–Hastings steps on every chain. At each step,
+`action` proposes a configuration $x'$, accepted with probability
+$\min\big(1,\, |\psi(x')/\psi(x)|^2\, q(x|x')/q(x'|x)\big)$. The chains are
+split among the devices.
 
-| Member | Type | Description |
-|--------|------|-------------|
-| `__call__(key, state)` | `(State → (State, bool[N_mc], float[N_mc], int))` | Proposes a move. Returns `(new_state, allowed_move, log_prob_correction, action_id)`. `allowed_move` is `False` for no-op moves (e.g. exchanging identical spins), allowing early rejection before the wavefunction is evaluated. `log_prob_correction` is the log-probability correction for asymmetric proposals (`0.0` for symmetric moves). `action_id` identifies which sub-action was used (scalar `0` for atomic actions; per-chain array for `CompositeAction`). |
-| `n_actions` | `int` (property) | Number of distinct sub-actions. `1` for atomic actions. |
+| Parameter | Description |
+|---|---|
+| `nsweeps` | Number of sweeps, of `Ns` steps each. |
+| `state` | The `N_mc` current configurations. |
+| `action` | The move. |
+| `key` | One PRNG key per chain, `jax.random.split(key, N_mc)`. |
+| `wf` | The `WaveFunction` to sample. |
 
-Concrete subclasses (spin-flip, bond-exchange, fermion-hop actions, …) live
-alongside their respective lattice modules — see below.
-
----
-
-### `CompositeAction`
-
-*`tachys.montecarlo`*
-
-```python
-class CompositeAction(actions, probs)
-```
-
-An `_BaseAction` that randomly selects among several sub-actions independently
-on each Markov chain: chain `i` applies `actions[k]` with probability `probs[k]`.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `actions` | `tuple[_BaseAction, ...]` | Candidate actions to choose from. |
-| `probs` | `tuple[float, ...]` | Selection probability per action. Must sum to `1` (enforced in `__post_init__`). Static (non-pytree) field. |
-
-`n_actions` returns `len(probs)`. Calling the instance dispatches each chain to
-its selected action via `jax.lax.switch` and returns the same 4-tuple as
-`_BaseAction.__call__`, with `action_id` giving the per-chain index of the
-sub-action actually used (useful for tracking acceptance rates per move type).
+**Returns** `(state, log_amps, acceptance)`: the new configurations, their
+log-amplitudes, and the fraction of accepted proposals, with one entry per move
+of the action.
 
 ---
 
@@ -1625,676 +786,216 @@ sub-action actually used (useful for tracking acceptance rates per move type).
 mc_step(state, key, action, wf, log_amps, optimize_mask=True, batch_expand=0.25)
 ```
 
-Perform one Metropolis–Hastings step across all chains: propose a move with
-`action`, evaluate the wavefunction on the proposal, and accept/reject each
-chain independently according to
+One Metropolis–Hastings step on every chain, on a single device: the building
+block of `sample`, for custom samplers. `log_amps` holds $\log\psi$ of the
+current configurations. With `optimize_mask`, the wavefunction is evaluated
+only on the proposals that `action` allows, in batches of
+`batch_expand * N_mc`.
 
-$$
-\log p_{\text{accept}} = 2\,\mathrm{Re}\big[\log\psi(s') - \log\psi(s)\big] + \Delta_{\text{corr}}
-$$
-
-where $\Delta_{\text{corr}}$ is the proposal's `log_prob_correction`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `State` | Batch axis 0 of size `N_mc`. |
-| `key` | `jax.random.key[N_mc]` | One PRNG key per chain. |
-| `action` | `_BaseAction` | Move-proposal callable. |
-| `wf` | `WaveFunction` | Supplies `wf.apply_fn(params, state) -> (N_mc,)` log-amplitudes. |
-| `log_amps` | `jax.Array`, shape `(N_mc,)` | Current log-amplitudes. |
-| `optimize_mask` | `bool` | If `True`, skip wavefunction evaluation for trivially rejected moves (via `_apply_masked`). Default `True`. |
-| `batch_expand` | `float` | Batch enlargement factor passed through to `_apply_masked`. Default `0.25`. |
-
-**Returns** `(state, key, log_amps, accepted, action_id)`. `accepted` is a
-boolean array of shape `(N_mc,)`; `action_id` is a scalar or per-chain integer
-array identifying the sub-action used.
+**Returns** `(state, key, log_amps, accepted, action_id)`: `accepted` is a
+boolean array of shape `(N_mc,)`, and `action_id` the index of the move used
+on each chain (0 for a single move).
 
 ---
 
-### `sample`
+### `_BaseAction`
 
 *`tachys.montecarlo`*
 
 ```python
-sample(nsweeps, state, action, key, wf)
+class _BaseAction()
 ```
 
-Run `nsweeps * Ns` Metropolis steps across all sharded Markov chains. JIT-compiled
-and wrapped in `shard_map` over the device mesh (`tachys.parallel.mesh`, axis
-`'i'`): `state` and `key` are sharded along the chain axis, `action` and `wf` are
-replicated. This is the top-level entry point used by the training loop
-(`tachys.ground_state_training.train`) and by `compute_observables` to advance
-the Markov chain between measurements.
+The base class of the moves, a `flax.struct.PyTreeNode`. A subclass implements
+`__call__(key, state)`, which receives one PRNG key per chain and the batch of
+configurations, and returns
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `nsweeps` | `int` | Number of sweeps; one sweep is `Ns` Metropolis steps. |
-| `state` | `State` | Batch axis 0 of size `N_mc` (sharded across devices). |
-| `action` | `_BaseAction` | Move-proposal callable. |
-| `key` | `jax.random.key[N_mc]` | One PRNG key per chain (sharded). |
-| `wf` | `WaveFunction` | The guiding wavefunction. |
+- `new_state`, the proposed configurations;
+- `allowed_move`, one boolean per chain: `False` rejects the proposal without
+  evaluating the wavefunction;
+- `log_prob_correction`, $\log[q(x|x')/q(x'|x)]$ for each chain, or `0.0` for
+  a symmetric proposal.
 
-**Returns** `(state, log_amps, acceptance)`. `acceptance` has shape
-`(n_actions,)`: the per-action acceptance rate (accepted / selected), reduced
-across all devices.
+A fourth value, the index of the move used on each chain, is optional.
+`n_actions` is the number of moves, 1 for a single one.
+
+---
+
+### `CompositeAction`
+
+*`tachys.montecarlo`*
+
+```python
+class CompositeAction(actions, probs)
+```
+
+At each step and on each chain, applies the move `actions[k]` with probability
+`probs[k]`; `probs` must sum to 1. `sample` then returns one acceptance rate
+per move.
 
 ---
 
 ### Moves
 
-Concrete `_BaseAction` subclasses used to build a `sample`/`train` call's `action`.
+| Move | Module | Proposal |
+|---|---|---|
+| `BondExchange.create(lattice, max_dist=1, Nbands=1)` | `tachys.lattice.bond_exchange` | swap the values of the two sites of a bond |
+| `FermionSpinExchange.create(lattice, max_dist=1)` | `tachys.lattice.fermions.fermion_action` | swap the spins of two singly occupied sites of a bond |
+| `SpinFlip()` | `tachys.lattice.spins.spin_action` | flip one spin |
+| `BondFlip.create(lattice, deltas, b_from=0, b_to=None)` | `tachys.lattice.spins.spin_action` | flip both spins of a bond |
 
-#### `exchange_spins`
+- `BondExchange` draws a band, then a bond whose two sites differ in that band,
+  and swaps their values: two antiparallel spins, or, with `Nbands=2` for
+  fermions, an electron and an empty site of the same spin. It conserves $S^z$,
+  or $N_\uparrow$ and $N_\downarrow$. The bonds are the pairs of sites in the
+  first `max_dist` distance shells (`lattice.shells`), and the proposal
+  probability is corrected for the number of valid bonds before and after the
+  move.
+- `FermionSpinExchange` draws a bond of the first `max_dist` shells. If one
+  site holds only an ↑ electron and the other only a ↓ electron, it swaps their
+  spins; otherwise the proposal is rejected. It moves no charge.
+- `SpinFlip` flips a spin drawn at random, changing $S^z$ by one.
+- `BondFlip` flips both spins of a bond drawn among `lattice.bonds(delta, b_from,
+  b_to)` for every `delta` in `deltas`. It conserves the parity of
+  $N_\uparrow$.
 
-*`tachys.lattice.spins.spin_action`*
+`exchange_spins(spins, id1, id2)`, in `tachys.lattice.spins.spin_action`,
+swaps two entries of a single configuration.
+
+## Optimizers
+
+### Interface and shared fields
+
+*`tachys.optimizer`*
+
+`SR`, `SPRING` and `MARCH` are called in the same way,
 
 ```python
-exchange_spins(spins, id1, id2)
+opt_state = optimizer.init(wf.params)
+updates, opt_state = optimizer(E_L, opt_state, state, wf)
+wf = wf.apply_gradients(updates, lr)
 ```
 
-Swap the values at positions `id1` and `id2` in a single (non-batched) spin or occupation array.
-Used as a low-level building block by both spin and fermion move proposals.
+and share the fields of their base class, `_BaseOptimizer`
+(`tachys.optimizer.optimizers`):
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `spins` | `jax.Array` | 1-D array (a single chain's spins or occupations). |
-| `id1` | `int` | First index. |
-| `id2` | `int` | Second index. |
+| Field | Description |
+|---|---|
+| `diag_shift` | The shift $\lambda$ added to the diagonal of the kernel. |
+| `mode` | `"complex"`: the real and imaginary parts of $\log\psi$ enter as separate rows, and the phase is optimized. `"real"`: only $\log\vert\psi\vert$ enters, which is exact when the phase does not depend on the parameters. Static. |
+| `nbatches` | Number of chunks in which each device evaluates the Jacobian, to limit memory. Static; default `1`. |
+| `dtype` | Precision of the network evaluations in the update: the Jacobians, their contraction into the kernel, and the map back to parameter space. Static; default `None`, the dtype of the parameters. With `jnp.float32` (or `"float32"`), they run in single precision, with full-precision matmuls rather than TF32; the kernel and its solve stay in double precision. Single precision shifts the eigenvalues of the kernel by about $10^{-8}$ of the largest one: with a smaller `diag_shift`, the solve can fail, and a failed solve gives a zero step. |
 
-**Returns** `jax.Array`, same shape as `spins`, with the two entries swapped.
+The parameters must be real in both modes; a complex parameter gets a zero
+update. `optimizer(E_L, opt_state, state, wf, weights=None)` also takes
+per-sample importance weights, see {ref}`reweighted-estimators`.
+
+The formulas below use the notation of {doc}`guide/optimization`: $\bar O$ is
+the $N_{mc} \times P$ matrix of the centred log-derivatives
+$\partial_{\theta_k}\log\psi(x)$, divided by $\sqrt{N_{mc}}$, and
+$\bar\varepsilon$ the vector of the centred local energies, scaled by
+$2/\sqrt{N_{mc}}$.
 
 ---
 
-#### `SpinFlip`
+### `SR`
 
-*`tachys.lattice.spins.spin_action`*
-
-```python
-class SpinFlip()
-```
-
-Proposes flipping a single, uniformly-drawn spin. Because the site is drawn uniformly, the
-proposal is symmetric and `log_prob_correction = 0`.
-
-| Member | Type | Description |
-|--------|------|-------------|
-| `__call__(key, state)` | `(PRNGKey, SpinState) → (SpinState, mask, 0.0)` | Flips one random site per chain. `allowed_move` is always `True`. |
-
----
-
-#### `BondFlip`
-
-*`tachys.lattice.spins.spin_action`*
+*`tachys.optimizer`*
 
 ```python
-class BondFlip(bonds)
+class SR(diag_shift, mode, nbatches=1, dtype=None)
 ```
 
-Proposes flipping **both** spins on a randomly chosen bond, unconditionally — mirroring the
-process an off-diagonal bond term built from two unconditional single-site flip operators (e.g.
-`Sx`/`Sy`) connects to. Unlike a swap (`BondExchange`), the flip does not require the two spins to
-differ, and unlike `SpinFlip` it acts on a whole bond rather than a single site. The bond is drawn
-uniformly from a fixed, precomputed list independent of the current configuration, so the
-proposal is its own inverse and `log_prob_correction = 0`.
-
-| Field / Member | Type | Description |
-|-----------------|------|-------------|
-| `bonds` | `tuple` | `(N_bonds, 2)` candidate `(site_i, site_j)` pairs. Static (non-pytree) field. |
-| `__call__(key, state)` | `(PRNGKey, SpinState) → (SpinState, mask, 0.0)` | Flips both endpoints of a uniformly-drawn bond. `allowed_move` is always `True`. |
-
-##### `BondFlip.create`
-
-```python
-BondFlip.create(lattice, deltas, b_from=0, b_to=None)
-```
-
-Pools one or more cell displacements into a single candidate bond list. Pass multiple `deltas`
-(e.g. a Kitaev model's x- and y-bond displacements) to pool several bond types into one action.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lattice` | `Lattice` | Lattice providing bond geometry via `lattice.bonds`. |
-| `deltas` | `iterable of (int, int)` | Cell displacements, each passed to `lattice.bonds`. |
-| `b_from` | `int` | Source sublattice. Default `0`. |
-| `b_to` | `int` or `None` | Target sublattice. Default: same as `b_from`. |
-
-**Returns** `BondFlip`.
-
----
-
-#### `BondExchange`
-
-*`tachys.lattice.bond_exchange`*
-
-```python
-class BondExchange(max_dist=1, bonds, Nbands=1)
-```
-
-Extends `tachys.montecarlo._BaseAction`. Proposes exchanging two sites' values
-within the same band.
-
-Candidate site pairs are precomputed from the lattice geometry (all bonds up to
-`max_dist` shells). On each step, a band is drawn uniformly, then a pair is drawn
-uniformly among the bonds (within that band) that are currently valid (the two
-sites differ). Because the proposal is restricted to the valid subset, and the
-count of valid bonds generally differs before/after the move, the proposal is
-asymmetric and needs a log-probability correction.
-
-Works with any `State` subclass supported by `tachys.lattice.state_array`'s
-`get_array`/`replace_array` (`SpinState.spins` or `FermionState.occupations`).
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `max_dist` | `int` | Maximum bond distance (in lattice shells) between the two sites. Static field. |
-| `bonds` | `tuple` | Candidate `(site_i, site_j)` pairs, as a hashable tuple-of-tuples (not a `jnp.array`) so instances stay hashable for `jax.lax.switch` inside `CompositeAction`. Static field. |
-| `Nbands` | `int` | Number of bands sharing the same site indexing (e.g. `2` for spin-½ fermion occupations, `1` for plain spins). Default `1`. Static field. |
-
-##### `BondExchange.create`
-
-```python
-BondExchange.create(lattice, max_dist=1, Nbands=1)
-```
-
-Classmethod constructor. Builds the candidate bond list from
-`lattice.shells(max_dist)`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lattice` | `Lattice` | Lattice geometry to build candidate bonds from. |
-| `max_dist` | `int` | Maximum bond distance (in shells) to include. Default `1`. |
-| `Nbands` | `int` | Number of bands sharing the site indexing. Default `1`. |
-
-**Returns** `BondExchange`.
-
-##### `BondExchange.__call__`
-
-```python
-bond_exchange(key, state)
-```
-
-Propose one bond-exchange move per walker: draw a band uniformly, then a bond
-uniformly among the currently-valid bonds (the two sites' values differ) in that
-band, and swap the two sites' values.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `key` | `PRNGKey` | Batched JAX random key, shape `(N_mc_local, 2)`. |
-| `state` | `State` | Current walker batch. |
-
-**Returns** `(new_state, allowed_move, log_prob_correction)`. `new_state` is
-`state` with the two chosen sites' values exchanged; `allowed_move` is always
-`True` by construction; `log_prob_correction` is
-`log(N_valid_before) - log(N_valid_after)`, the asymmetric-proposal correction.
-
----
-
-#### `FermionSpinExchange`
-
-*`tachys.lattice.fermions.fermion_action`*
-
-```python
-class FermionSpinExchange(max_dist=1, bonds=...)
-```
-
-Proposes exchanging the local spin between two singly-occupied sites within `max_dist` lattice
-neighbour shells of each other: an up electron at site `i` becomes a down electron at the same
-site `i`, and a down electron at a neighbouring site `j` becomes an up electron at that same site
-`j` (`i` and `j` are drawn, in random order, from a precomputed candidate bond list). No electron
-actually hops — each flips its own band in place — but the net effect on sites `i` and `j` is the
-same as swapping their (opposite) spin orientations.
-
-Combined, the move conserves `Nup` and `Ndn`. It requires site `i` to currently hold an up
-electron with its down slot empty, and site `j` to hold a down electron with its up slot empty;
-`allowed_move` is `False` otherwise (occupied-source / empty-destination guard).
-
-The bond is drawn uniformly from the fixed, precomputed `bonds` list (not by picking a site and
-then one of its neighbours), so the proposal stays symmetric and `log_prob_correction = 0` even
-under OBC, where boundary sites have fewer neighbours than bulk sites (a site-then-neighbour
-scheme would implicitly weight by `1/degree(site)` and break detailed balance there). Unlike
-`BondExchange`, the random choice is not restricted to only currently-valid bonds — this move's
-validity condition (occupied + empty on both sides of the bond) is stronger than
-`BondExchange`'s, so a walker could plausibly have zero valid bonds at some step; proposing
-uniformly and rejecting invalid draws via `allowed_move` sidesteps that.
-
-| Field / Member | Type | Description |
-|-----------------|------|-------------|
-| `max_dist` | `int` | Maximum bond distance (in lattice shells) between the two sites. Static (non-pytree) field. |
-| `bonds` | `tuple` | `(N_bonds, 2)` candidate `(site_i, site_j)` pairs, precomputed from the lattice geometry up to `max_dist` shells. Static (non-pytree) field. |
-| `__call__(key, state)` | `(PRNGKey, FermionState) → (FermionState, mask, 0.0)` | Draws a bond and, in a random order, moves an up electron and a down electron as described above. |
-
-##### `FermionSpinExchange.create`
-
-```python
-FermionSpinExchange.create(lattice, max_dist=1)
-```
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `lattice` | `Lattice` | Lattice object providing neighbour-shell geometry via `lattice.shells`. |
-| `max_dist` | `int` | Number of neighbour shells (by distance) to draw candidate bonds from. Default `1`. |
-
-**Returns** `FermionSpinExchange`.
-
----
-
-## Wavefunction ansätze
-
-All classes below are `flax.linen.Module` subclasses representing variational wavefunctions for Monte Carlo sampling. They follow the standard Flax lifecycle and a shared calling convention used throughout `tachys`:
-
-- **Init**: `params = model.init(key, state)`, where `state` is a representative `SpinState`, `FermionState`, or a foundation-model variant carrying an extra `system_couplings` field.
-- **Apply**: `log_psi = model.apply(params, state)` evaluates the log-wavefunction on a batch of configurations (leading batch axis); the result has shape `(batch,)`. Modules only ever receive batches: when tachys evaluates a single configuration (the per-sample Jacobians of the optimizers), `WaveFunction` adds the batch axis (see below). `model.init` is not wrapped, so call it with a batch.
-- **Complex vs. real output**: whenever the architecture derives its output from `jnp.linalg.slogdet` (all fermionic/determinant ansätze), or is explicitly constructed with `complex=True` (RBM/ViT ansätze), `log_psi` is complex: `Re[log_psi] = log|ψ|` is the log-amplitude and `Im[log_psi]` is the phase, so `ψ = exp(log_psi)`. With `complex=False`, RBM-style ansätze return a real log-amplitude only (a sign/phase-free wavefunction).
-- To drive sampling/optimization (`tachys.montecarlo`, `tachys.optimizer`), wrap `(params, model.apply)` in a `tachys.wavefunction.WaveFunction`.
-
-### Wavefunction container
-
-#### `WaveFunction`
-
-*`tachys.wavefunction`*
-
-```python
-class WaveFunction(params, apply_fn, unravel_params_fn=None, dtype=jnp.float64)
-```
-
-Immutable container pairing a parameter pytree with its apply function. Extends `flax.struct.PyTreeNode`. This is the object passed to `tachys.montecarlo.sample`, `tachys.lattice.operator.local_estimator`, and the optimizers in `tachys.optimizer` — none of them call a model directly, they all go through `wf.apply_fn(wf.params, state)`.
-
-| Member | Type | Description |
-|--------|------|-------------|
-| `params` | pytree | Model parameters (a pytree node, tracked by JAX transformations). |
-| `apply_fn` | `Callable` | Static (non-pytree) field. Typically `model.apply` for some `nn.Module`. Called as `apply_fn(params, state) -> log_psi`. Wrapped in `__post_init__` so that the function always receives a batch: a single configuration (no batch axis) gets a leading axis of size one on every data leaf and returns a single log-amplitude. The wrapping is done once; the original function is `wf.apply_fn.__wrapped__`. |
-| `unravel_params_fn` | `Callable` | Static field. Maps a flat parameter vector back to the `params` pytree structure. If not supplied, computed automatically in `__post_init__` via `jax.flatten_util.ravel_pytree(params)`. |
-| `dtype` | `Any` | Static field. Default `jnp.float64`. Precision of sampling and of the local estimators: `sample`, `compute_expectation`, the TDVP error and the experimental estimators cast the parameters and the state's floating leaves to it before evaluating `apply_fn`. Its matmuls run at JAX's default precision, which for float32 on recent NVIDIA GPUs is TF32. The optimizers ignore it; their precision is `_BaseOptimizer.dtype`. |
-| `apply_gradients(grads, eta)` | `(pytree, float) → WaveFunction` | `jax.jit`-compiled plain gradient-descent step: `new_params = params - eta * grads`, returned as a new `WaveFunction` via `.replace(...)`. |
-| `num_params` | `int` (property) | Total number of scalar parameters, computed as the flattened size of `params` via `ravel_pytree`. |
-
----
-
-### Restricted Boltzmann machine (RBM) ansätze
-
-Single-hidden-layer RBM wavefunctions. `SpinRBM` acts directly on spin configurations; `FermionRBM` uses a neural backflow correction on top of a bare Slater determinant.
-
-#### `log_cosh`
-
-*`tachys.lattice.ansatz.rbm`*
-
-```python
-log_cosh(x)
-```
-
-Numerically stable elementwise `log(cosh(x))`, implemented as `|x| + log1p(exp(-2|x|)) - log(2)` (sign of `x.real` tracked separately so it also works for complex `x`). Used as the nonlinearity in every RBM/output-head module in this package.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `x` | `jax.Array` | Real or complex array. |
-
-**Returns** `jax.Array`, same shape as `x`.
-
----
-
-#### `SpinRBM`
-
-*`tachys.lattice.ansatz.rbm`*
-
-```python
-class SpinRBM(hidden_units, dtype=jnp.float64, complex=False)
-```
-
-Complex restricted Boltzmann machine over spin-½ configurations. A single dense (visible→hidden) layer produces a pre-activation per hidden unit; when `complex=True` a second, independently-parametrized dense layer supplies the imaginary part of that pre-activation (there is no single complex-valued kernel — real and imaginary parts come from two real `nn.Dense` layers). The log-wavefunction is the sum over hidden units of `log_cosh` of the (possibly complex) pre-activation:
+Stochastic reconfiguration:
 
 $$
-\log\psi(s) = \sum_{k=1}^{H} \log\cosh\!\big(z_k(s)\big), \qquad
-z_k(s) = \sum_i W_{ki} s_i + b_k \;+\; i\Big(\sum_i W'_{ki} s_i + b'_k\Big)\ \text{(if complex)}
+\delta\theta = \bar O^T \big(\bar O\,\bar O^T + \lambda I\big)^{-1}\,\bar\varepsilon ,
 $$
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `hidden_units` | `int` | Number of hidden units `H`. |
-| `dtype` | `Any` | Parameter dtype for both dense layers. Default `jnp.float64`. |
-| `complex` | `bool` | If `True`, adds a second dense layer (`imag_linear`) whose output becomes the imaginary part of the pre-activation, making `log_psi` complex (amplitude + phase). If `False`, `log_psi` is real. Default `False`. |
-
-**Call signature** `__call__(lattice) -> jax.Array`, shape `(batch,)`. `lattice` is a `SpinState`; only `lattice.spins` (values in {−1, +1}) is used.
+by a Cholesky solve of the $N_{mc} \times N_{mc}$ kernel ($2N_{mc} \times 2N_{mc}$
+in `"complex"` mode) and a vector-Jacobian product. `init` returns an empty
+`SRState()`.
 
 ---
 
-#### `FermionRBM`
+### `SPRING`
 
-*`tachys.lattice.ansatz.rbm`*
+*`tachys.optimizer`*
 
 ```python
-class FermionRBM(hidden_units)
+class SPRING(diag_shift, mode, nbatches=1, dtype=None, *, mu=0.9)
 ```
 
-Backflow-corrected Slater-determinant ansatz for spinful/multiband fermions. A bare set of `Ne` orbitals over all fermionic modes is held as a direct parameter; a two-layer `tanh` MLP ("backflow network") maps the *full* occupation-number vector of a sample to a per-sample additive correction to those orbitals. The wavefunction is the determinant of the corrected orbital matrix evaluated at the occupied positions:
+SR with momentum `mu`, from Goldshlager, Abrahamsen & Lin,
+["A Kaczmarz-inspired approach to accelerate the optimization of neural network
+wavefunctions"](https://doi.org/10.1016/j.jcp.2024.113351), *Journal of
+Computational Physics* (2024). The previous update $\delta\theta_{t-1}$ enters
+both the right-hand side and the result:
 
 $$
-\psi(n) = \det\Big[\, \phi_{a}(r_i) + F_{a}(n)_{i} \,\Big]_{a,i=1}^{N_e}, \qquad r_1,\dots,r_{N_e} = \text{occupied modes of } n
+\delta\theta_t = \bar O^T \big(\bar O\,\bar O^T + \lambda I\big)^{-1}
+\big(\bar\varepsilon - \mu\,\bar O\,\delta\theta_{t-1}\big) + \mu\,\delta\theta_{t-1} .
 $$
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `hidden_units` | `int` | Width of the backflow MLP's hidden layer. |
-
-Internally, `orbitals` is a `(lattice.Ne, N_modes)` parameter (`nn.initializers.xavier_uniform`, dtype `float64`), where `N_modes = occupations.shape[-1]` is the *total* number of fermionic modes (e.g. `lattice.Ns * lattice.Nbands` for a spinful system — not the single-band site count). The backflow MLP is `Dense(hidden_units) → tanh → Dense(N_modes * Ne)`, reshaped to `(batch, Ne, N_modes)` and added to the bare orbitals. For each sample, the `Ne` occupied mode indices `R` (via `.nonzero(size=Ne)`) select the corresponding columns, giving an `(Ne, Ne)` matrix passed to `_log_det` (see below).
-
-**Call signature** `__call__(lattice) -> jax.Array`, shape `(batch,)`, always complex (result of `_log_det`). `lattice` is a `FermionState`; uses `lattice.occupations` and `lattice.Ne`.
-
-**Returns** log-amplitude + phase; `-inf` (real part) for samples where the orbital matrix is singular.
+`init` returns `SPRINGState(old_updates)`, the previous update, zero at the
+start.
 
 ---
 
-### Foundation-model RBM ansätze
+### `MARCH`
 
-*`tachys.lattice.ansatz.rbm_foundation`*
-
-Drop-in generalizations of `SpinRBM`/`FermionRBM` for training one shared network across *multiple* Hamiltonians simultaneously. Each sample's Hamiltonian coupling vector (`lattice.system_couplings`, produced by `tachys.lattice.foundation.operators.extract_system_couplings`) is concatenated to the network's input so a single set of weights can condition its output on which system the sample came from.
-
-#### `SpinFoundationRBM`
+*`tachys.optimizer`*
 
 ```python
-class SpinFoundationRBM(hidden_units, dtype=jnp.float64, complex=False)
+class MARCH(diag_shift, mode, nbatches=1, dtype=None, *, mu=0.95, beta=0.995)
 ```
 
-Identical architecture and fields to `SpinRBM`, except the dense layer's input is `concatenate([lattice.spins, lattice.system_couplings], axis=-1)` rather than `lattice.spins` alone.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `hidden_units` | `int` | Number of hidden units. |
-| `dtype` | `Any` | Parameter dtype. Default `jnp.float64`. |
-| `complex` | `bool` | Same meaning as in `SpinRBM`. Default `False`. |
-
-**Call signature** `__call__(lattice) -> jax.Array`, shape `(batch,)`. `lattice` must additionally provide `system_couplings`, shape `(batch, N_couplings)`.
-
----
-
-#### `FermionFoundationRBM`
-
-```python
-class FermionFoundationRBM(hidden_units)
-```
-
-Foundation-model generalization of `FermionRBM`. The bare Slater-determinant `orbitals` parameter stays system-independent (shared across all Hamiltonians); only the backflow correction network is conditioned on the couplings — its input is `concatenate([occupations, system_couplings], axis=-1)`.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `hidden_units` | `int` | Width of the backflow MLP's hidden layer. |
-
-**Call signature** `__call__(lattice) -> jax.Array`, shape `(batch,)`, complex. `lattice` is a foundation `FermionState` exposing `occupations`, `Ne`, and `system_couplings`.
-
----
-
-### Transformer building blocks
-
-*`tachys.lattice.ansatz.transformer.attention`*, *`tachys.lattice.ansatz.transformer.encoder`*
-
-Shared building blocks used by both `FermionicTransformer` and `SpinViT`. The attention mechanism is unusual: instead of learning query/key projections, attention weights are learned directly as a parameter (optionally forced to be translation-invariant), and only a value projection is data-dependent.
-
-#### `FactoredAttention`
-
-*`tachys.lattice.ansatz.transformer.attention`*
-
-```python
-class FactoredAttention(d_model, num_heads, seq_len, dtype, transl_invariant=False, two_dimensional=False)
-```
-
-Multi-head attention where the attention-weight matrix `alpha` (per head) is a free parameter rather than a function of the input — there is no query/key projection, only a value projection `v = Dense(x)` and an output projection `W`. The output for head `h` is `alpha_h @ v_h`.
-
-When `transl_invariant=True`, only a single length-`seq_len` row per head is learned and every other row is obtained by `jnp.roll`-ing it, producing a circulant (translation-invariant) attention matrix rather than a full unconstrained `(seq_len, seq_len)` matrix. When `two_dimensional=True` in addition, the sequence is interpreted as a flattened `√seq_len × √seq_len` square lattice, and the roll is applied independently along both spatial axes (`roll2d`), enforcing 2D translational invariance; this requires `seq_len` to be a perfect square and `transl_invariant=True`.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `d_model` | `int` | Total embedding dimension; must be divisible by `num_heads`. |
-| `num_heads` | `int` | Number of attention heads. |
-| `seq_len` | `int` | Sequence length. |
-| `dtype` | `Any` | Parameter dtype. |
-| `transl_invariant` | `bool` | Enforce translational invariance via rolling a single learned row. Default `False`. |
-| `two_dimensional` | `bool` | Enforce 2D translational invariance (requires `transl_invariant=True` and `seq_len` a perfect square). Default `False`. |
-
-**Call signature** `__call__(x) -> jax.Array`, `x` shape `(batch, seq_len, d_model)` → output same shape.
-
----
-
-#### `EncoderBlock`
-
-*`tachys.lattice.ansatz.transformer.encoder`*
-
-```python
-class EncoderBlock(d_model, num_heads, seq_len, dtype, transl_invariant=False, two_dimensional=False)
-```
-
-One standard pre-LayerNorm transformer block: `x = x + FactoredAttention(LayerNorm(x))`, then `x = x + FFN(LayerNorm(x))`, where the feed-forward network is `Dense(4·d_model) → gelu → Dense(d_model)`.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `d_model` | `int` | Embedding dimension. |
-| `num_heads` | `int` | Number of attention heads, forwarded to `FactoredAttention`. |
-| `seq_len` | `int` | Sequence length, forwarded to `FactoredAttention`. |
-| `dtype` | `Any` | Parameter dtype. |
-| `transl_invariant` | `bool` | Forwarded to `FactoredAttention`. Default `False`. |
-| `two_dimensional` | `bool` | Forwarded to `FactoredAttention`. Default `False`. |
-
-**Call signature** `__call__(x) -> jax.Array`, shape `(batch, seq_len, d_model)` → same shape.
-
----
-
-#### `Encoder`
-
-*`tachys.lattice.ansatz.transformer.encoder`*
-
-```python
-class Encoder(num_layers, d_model, num_heads, seq_len, dtype, transl_invariant=False, two_dimensional=False)
-```
-
-Stack of `num_layers` `EncoderBlock`s applied sequentially (no positional embedding is added — translational structure, if any, comes entirely from `FactoredAttention`'s `transl_invariant`/`two_dimensional` options).
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `num_layers` | `int` | Number of stacked `EncoderBlock`s. |
-| `d_model` | `int` | Embedding dimension. |
-| `num_heads` | `int` | Attention heads per block. |
-| `seq_len` | `int` | Sequence length. |
-| `dtype` | `Any` | Parameter dtype. |
-| `transl_invariant` | `bool` | Forwarded to every block. Default `False`. |
-| `two_dimensional` | `bool` | Forwarded to every block. Default `False`. |
-
-**Call signature** `__call__(x) -> jax.Array`, shape `(batch, seq_len, d_model)` → same shape.
-
----
-
-### Fermionic transformer ansatz
-
-*`tachys.lattice.ansatz.fermionic_transformer`*
-
-A transformer-encoder backflow producing a single Slater determinant over fermionic modes, for spinful (two-band) fermion configurations.
-
-#### `_log_det`
-
-```python
-_log_det(A)
-```
-
-Numerically robust `log(det(A))` for a batch of square matrices, returned as a complex number: `Re = log|det A|`, `Im = arg(det A)` (i.e. `0` for positive real determinant, `π` for negative). Computed via `jnp.linalg.slogdet`; the result dtype is promoted to at least `complex64`. Any `NaN` (e.g. from a singular matrix) is replaced with `-inf`. Shared by `FermionRBM`, `OutputHeadDet`, and hence `FermionicTransformer`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `A` | `jax.Array` | Shape `(..., N, N)`. |
-
-**Returns** `jax.Array`, shape `(...)`, complex dtype.
-
----
-
-#### `compute_orbitals_fn`
-
-```python
-compute_orbitals_fn(y, weights)
-```
-
-Contracts per-mode transformer features against a per-mode orbital-weight tensor to produce `Ne` orbital values per mode: `einsum('batch Norb d, Norb d Ne -> batch Norb Ne')`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `y` | `jax.Array` | Shape `(batch, N_orb, d_model)`. Per-mode feature vectors (e.g. transformer encoder output). |
-| `weights` | `jax.Array` | Shape `(N_orb, d_model, Ne)`. Per-mode orbital projection weights. |
-
-**Returns** `jax.Array`, shape `(batch, N_orb, Ne)`.
-
----
-
-#### `OutputHeadDet`
-
-```python
-class OutputHeadDet(d_model, Ne, Ns, dtype, Nbands=2)
-```
-
-Slater-determinant output head. Duplicates the per-site encoder output `y` (shape `(batch, Ns, d_model)`) into two copies concatenated along the mode axis (`(batch, 2·Ns, d_model)`) — one range of the learned weight tensor's leading axis effectively serves each spin band — projects each of the `2·Ns` modes to `Ne` orbital values via `compute_orbitals_fn`, gathers the rows at the `Ne` occupied mode positions `R`, and returns `_log_det` of the resulting `(Ne, Ne)` matrix.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `d_model` | `int` | Encoder feature dimension. |
-| `Ne` | `int` | Number of electrons (determinant size). |
-| `Ns` | `int` | Number of lattice sites (the mode tensor spans `2·Ns` = both bands). |
-| `dtype` | `Any` | Parameter dtype for the orbital weight tensor `W`, shape `(2·Ns, d_model, Ne)`. |
-| `Nbands` | `int` | Accepted but **not used** in `setup`/`__call__` — the orbital tensor's leading dimension is hard-coded to `2·Ns` regardless of this value. Default `2`. |
-
-**Call signature** `__call__(y, R) -> jax.Array`. `y` shape `(batch, Ns, d_model)`; `R` shape `(batch, Ne)`, integer indices of occupied modes in `[0, 2·Ns)`.
-
-**Returns** `jax.Array`, shape `(batch,)`, complex (log-amplitude + phase).
-
----
-
-#### `FermionicTransformer`
-
-```python
-class FermionicTransformer(num_layers, d_model, num_heads, Ne, Ns, Nbands=2, dtype=jnp.float64, transl_invariant=True, two_dimensional=True)
-```
-
-Transformer-backflow Slater-determinant wavefunction for two-band (spin-↑/↓) fermions on a lattice. Each site's local occupation (an integer in `[0, 2**Nbands)` combining its up/down occupation bits) is embedded with `nn.Embed`, run through a translation-invariant `Encoder`, layer-normed, and fed to `OutputHeadDet` together with the positions of the occupied modes to produce a single determinant amplitude.
-
-Note: although `Nbands` is a generic field, `__call__` hard-codes a two-band split (`n[..., :Ns]` = band 0, `n[..., Ns:]` = band 1) and combines them via `2**jnp.arange(Nbands)`; using `Nbands != 2` will raise a shape error. `Ns` here means the single-band lattice site count (`state.occupations` has shape `(batch, 2·Ns)`), unlike the `Ns` convention in `FermionRBM`.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `num_layers` | `int` | Number of transformer encoder layers. |
-| `d_model` | `int` | Transformer embedding dimension. |
-| `num_heads` | `int` | Attention heads per encoder layer. |
-| `Ne` | `int` | Number of electrons. |
-| `Ns` | `int` | Number of lattice sites (per band). |
-| `Nbands` | `int` | Number of bands; must be `2` for the current implementation. Default `2`. |
-| `dtype` | `Any` | Parameter dtype. Default `jnp.float64`. |
-| `transl_invariant` | `bool` | Passed to the internal `Encoder`/`FactoredAttention`. Default `True`. |
-| `two_dimensional` | `bool` | Passed to the internal `Encoder`/`FactoredAttention` (requires `Ns` to be a perfect square). Default `True`. |
-
-**Call signature** `__call__(state) -> jax.Array`, shape `(batch,)`, complex. `state` is a `FermionState`; uses `state.occupations`, `state.Ns`, `state.Ne`.
-
----
-
-### Vision-transformer (ViT) spin ansatz
-
-*`tachys.lattice.ansatz.spin_vit`*
-
-A patch-based vision-transformer wavefunction for spin-½ configurations: the lattice is partitioned into small patches, each patch is linearly embedded, a translation-invariant transformer encoder mixes patches, and a pooled, `log_cosh`-nonlinear output head produces the (optionally complex) log-amplitude.
-
-#### `extract_patches1d`
-
-```python
-extract_patches1d(x, b)
-```
-
-Splits a 1D chain of sites into non-overlapping patches of size `b`: `rearrange(x, 'batch (seq_len b) -> batch seq_len b', b=b)`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `x` | `jax.Array` | Shape `(batch, N)`. |
-| `b` | `int` | Patch size; must divide `N`. |
-
-**Returns** `jax.Array`, shape `(batch, N/b, b)`.
-
----
-
-#### `extract_patches2d`
-
-```python
-extract_patches2d(x, b)
-```
-
-Splits a flattened square lattice of `N = L²` sites into non-overlapping `b×b` patches, and flattens each patch to a vector. Concretely, reshapes `x` to `(batch, L, b, L, b)`... after transposing and reshaping, returns `(batch, (L/b)², b²)` — `(L/b)²` patches, each a length-`b²` vector.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `x` | `jax.Array` | Shape `(batch, N)` with `N = L²` a perfect square. |
-| `b` | `int` | Patch side length; must divide `L`. |
-
-**Returns** `jax.Array`, shape `(batch, (L/b)², b²)`.
-
----
-
-#### `Embed`
-
-```python
-class Embed(d_model, b, dtype, two_dimensional=False)
-```
-
-Patch-extraction + linear embedding layer (standard ViT "patchify"). Uses `extract_patches2d` when `two_dimensional=True`, otherwise `extract_patches1d`, then applies a shared `nn.Dense(d_model)` to every patch vector.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `d_model` | `int` | Output embedding dimension per patch. |
-| `b` | `int` | Patch size (side length if `two_dimensional`). |
-| `dtype` | `Any` | Parameter dtype. |
-| `two_dimensional` | `bool` | Use 2D (square-lattice) patch extraction instead of 1D chunking. Default `False`. |
-
-**Call signature** `__call__(x) -> jax.Array`, `x` shape `(batch, N)` → output shape `(batch, num_patches, d_model)`.
-
----
-
-#### `OutputHead`
-
-```python
-class OutputHead(d_model, dtype, complex)
-```
-
-Pools the encoder's per-patch outputs by summation, layer-norms, and projects through one (or two, if complex) `Dense → LayerNorm` branches before applying the `log_cosh` nonlinearity and summing over the feature axis to produce a scalar log-amplitude — the same read-out pattern as the RBM ansätze, applied on top of transformer features instead of raw spins.
+SPRING with a rescaling of each parameter, in the spirit of Adam's second
+moment, from Gu et al., ["Solving the Hubbard model with neural quantum
+states"](https://doi.org/10.1038/s41467-026-74028-6), *Nature Communications*
+(2026). $V$ is a running average, with decay rate `beta`, of the squared change
+of the update between consecutive steps, $\hat V$ its bias-corrected value, and
+$D = \mathrm{diag}\big(1/(\sqrt{\hat V} + 10^{-8})\big)$:
 
 $$
-z = \text{LayerNorm}\Big(\textstyle\sum_{\text{patches}} y\Big), \qquad
-\text{out} = \text{LN}_2(\text{Dense}_0(z)) \;+\; i\,\text{LN}_3(\text{Dense}_1(z))\ \text{(if complex)}, \qquad
-\log\psi = \sum \log\cosh(\text{out})
+\delta\theta_t = D\,\bar O^T \big(\bar O D \bar O^T + \lambda I\big)^{-1}
+\big(\bar\varepsilon - \mu\,\bar O\,\delta\theta_{t-1}\big) + \mu\,\delta\theta_{t-1} .
 $$
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `d_model` | `int` | Feature dimension of the pooled representation and both output `Dense` layers. |
-| `dtype` | `Any` | Parameter dtype. |
-| `complex` | `bool` | If `True`, adds a second `Dense`+`LayerNorm` branch (`output_layer1`/`norm3`) providing the imaginary part; `log_psi` is then complex. If `False`, `log_psi` is real. |
-
-**Call signature** `__call__(y) -> jax.Array`, `y` shape `(batch, num_patches, d_model)` → output shape `(batch,)`.
+`init` returns `MARCHState(old_updates, V, t)`: the previous update, $V$
+(ones at the start), and the step counter.
 
 ---
 
-#### `SpinViT`
+### Learning-rate schedules
 
-```python
-class SpinViT(num_layers, d_model, num_heads, seq_len, b, complex=True, transl_invariant=False, two_dimensional=False, dtype=jnp.float64)
-```
+*`tachys.optimizer`*
 
-Full vision-transformer wavefunction for spin-½ configurations: `Embed` → `Encoder` (stack of `FactoredAttention`-based blocks) → `OutputHead`. The call is wrapped in `nn.remat` (gradient checkpointing) to reduce memory use during backpropagation through the encoder stack.
+| Function | Description |
+|---|---|
+| `linear_decay(eta0, eta_final, N_steps)` | Linear, from `eta0` at step 0 to `eta_final` at step `N_steps`, and constant afterwards. |
+| `shifted_cosine_decay(init_value, decay_steps, min_value=None)` | Cosine decay from `init_value` to `min_value` in `decay_steps` steps; `min_value` defaults to `init_value / 10`. |
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `num_layers` | `int` | Number of transformer encoder layers. |
-| `d_model` | `int` | Patch embedding / transformer dimension. |
-| `num_heads` | `int` | Attention heads per encoder layer. |
-| `seq_len` | `int` | Number of patches produced by `Embed`; must match `b` and the lattice size (`N/b` for 1D, `(L/b)²` for 2D), and is used to size the `FactoredAttention` weight tensors. |
-| `b` | `int` | Patch size (side length if `two_dimensional`). |
-| `complex` | `bool` | Forwarded to `OutputHead`; controls whether `log_psi` is complex. Default `True`. |
-| `transl_invariant` | `bool` | Forwarded to `Encoder`/`FactoredAttention`. Default `False`. |
-| `two_dimensional` | `bool` | Use 2D patch extraction and 2D translation-invariant attention (requires `transl_invariant=True` for the latter to take effect). Default `False`. |
-| `dtype` | `Any` | Parameter dtype throughout. Default `jnp.float64`. |
-
-**Call signature** `__call__(lattice) -> jax.Array`, shape `(batch,)`. `lattice` is a `SpinState`; uses `lattice.spins`.
-
-**Returns** log-amplitude (complex if `complex=True`, else real).
+Each returns a function of the step number. The step is absolute, so a resumed
+run, whose steps start at `start_step`, continues the schedule.
 
 ---
+
+### Kernel functions
+
+*`tachys.optimizer._kernels`*
+
+The building blocks of the optimizers, for writing new ones. They run inside
+`shard_map`.
+
+| Function | Description |
+|---|---|
+| `compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1, dtype=None)` | The centred kernel $N_{mc}\,\bar O\,\bar O^T$: `ntk_parallel_fn`, then `center_ntk`, then the optional scaling of rows and columns by $\sqrt{w}$. |
+| `ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None)` | The kernel of the whole batch before centring, of shape `(N_mc, N_mc)`, or `(N_mc, N_mc, 2, 2)` in `"complex"` mode, with the Jacobian contractions split among the devices. `V` is the rescaling of MARCH. |
+| `center_ntk(ntk, weights, state)` | Subtracts the row, column and global means; per system for a `FoundationState`. |
+| `linear_solver_cholesky(ntk, eps, diag_shift, mode="complex")` | Solves $(K + \lambda I)\,x = \varepsilon$ by Cholesky decomposition. In `"complex"` mode, as a real system of twice the size, returning `[u, v]` with $x = u + iv$. A failed solve returns zeros. |
+| `linear_solver_eigh(ntk, eps, diag_shift, mode="complex", rcond=1e-8, atol=0.0)` | The same system, by diagonalization: eigenvalues below `max(rcond * λ_max, atol)` are discarded, and `diag_shift` is added to the others. Used by `TDVP`. |
+| `center_sr_solution(sr_solution, state, mode, weights)` | Centres the solution before it is mapped back to parameter space; per system for a `FoundationState`. |
 
 ## Training
 
@@ -2308,65 +1009,53 @@ train(key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
       opt_state=None, start_step=0, estimator=None)
 ```
 
-Run the main VMC ground-state optimization loop: at every step, sample the
-Markov chain with `sample`, evaluate the local energy and its moments with
-`compute_expectation`, take one optimizer step (e.g. `SR`, `SPRING`, `MARCH`),
-and update `wf`'s parameters. Prints a live per-step diagnostics table (energy
-per site, variance, V-score, acceptance, timings, ETA) and optionally logs to
-a caller-supplied `wandb` run and checkpoints via `tachys.checkpoint`.
+Runs the optimization loop of the {doc}`quickstart`, and prints at every step
+the energy per site, its variance, the V-score, the acceptance rate and the
+timings. It exits the program if the energy per site becomes NaN or leaves the
+interval $[-100, 100]$.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `key` | `jax.random.key` | PRNG key. |
-| `H` | `_Operator` | Hamiltonian whose expectation value is minimized. |
-| `state` | `State` | Initial Monte Carlo configuration batch. `state.lattice.Ns` sets the energy-per-site normalization. |
-| `wf` | `WaveFunction` | Variational wavefunction to be optimized in place (functionally — a new `wf` is returned each step). |
-| `optimizer` | optimizer (`SR`, `SPRING`, `MARCH`, …) | Natural-gradient optimizer; called as `optimizer(E_L, opt_state, state, wf)`. |
-| `action` | `_BaseAction` | MCMC move proposal used for sampling. |
-| `N_steps` | `int` | Number of optimization steps to run in *this* call. |
-| `lr_schedule` | `callable(step: int) -> float` | Learning rate as a function of the absolute step. |
-| `N_mc` | `int` | Number of Markov chains. |
-| `wandb_run` | optional wandb run | If given, logs `lr`, `energy`, `variance_per_site`, `vscore`, `acceptance` every step and checkpoints `wf.params`/`state`/`opt_state`/`key` into `wandb_run.dir/checkpoints` every `wandb_run.config["checkpoint_every"]` steps (default: once, at the end). Caller owns its lifecycle (`wandb.init`/`.finish`); expected non-`None` only on the `MASTER` rank — every rank still participates in the collective checkpoint calls. |
-| `log_callback_fn` | optional `callable(state, wf, step) -> dict \| None`, or list thereof | Extra metrics merged into the wandb log. `None` results are skipped. Called on *every* rank regardless of `wandb_run` (callbacks are typically jitted and may touch mesh-sharded arrays, so all ranks must call them in lockstep); only the merged result is logged, and only on `MASTER`. |
-| `skip_optimization` | `bool` | If `True`, skip the optimizer step / parameter update each iteration — only sample and evaluate the energy of `wf`. Default `False`. |
-| `nsweeps` | `int` | MC sweeps per step, passed to `sample`. Default `1`. |
-| `opt_state` | optional optimizer state | Pre-initialized optimizer state (e.g. restored via `tachys.checkpoint.load_checkpoint`) to resume from. Defaults to a fresh `optimizer.init(wf.params)`. |
-| `start_step` | `int` | Absolute step number to resume at. Offsets `lr_schedule`, the wandb log step, the printed step column, and checkpoint numbering. `N_steps` still counts iterations run by *this* call — pass the remaining steps, not the original total. |
-| `estimator` | optional callable | Replaces the default `\|ψ\|²` expectation value with an importance-weighted one (see [Reweighted estimators](#reweighted-estimators)). `None` (default) calls `compute_expectation` directly and leaves the loop bit-identical. |
+| Parameter | Description |
+|---|---|
+| `key` | PRNG key. |
+| `H` | The Hamiltonian. |
+| `state` | The initial configurations; `state.Ns` normalizes the energy per site. |
+| `wf` | The initial `WaveFunction`. |
+| `optimizer` | `SR`, `SPRING` or `MARCH`. |
+| `action` | The Monte Carlo move. |
+| `N_steps` | Number of steps of this call. |
+| `lr_schedule` | The learning rate as a function of the step. |
+| `N_mc` | Number of chains. |
+| `wandb_run` | A Weights & Biases run, on the master process only. `train` logs the learning rate, energy, variance, V-score and acceptance there at every step, and writes checkpoints to `wandb_run.dir/checkpoints`: every `wandb_run.config["checkpoint_every"]` steps (default `N_steps`) and at the last step, keeping the last `checkpoint_keep` (default 1). |
+| `log_callback_fn` | A function `(state, wf, step) -> dict or None`, or a list of them, whose metrics are added to the log. Called on every process. |
+| `skip_optimization` | Only sample and measure the energy, without updating the parameters. Default `False`. |
+| `nsweeps` | Sweeps per step. Default `1`. |
+| `opt_state` | The optimizer state to start from, for instance from a checkpoint. Default: `optimizer.init(wf.params)`. |
+| `start_step` | The number of the first step, to resume a run: it offsets the learning-rate schedule, the logs and the checkpoints. `N_steps` still counts the steps of this call. |
+| `estimator` | Replaces `compute_expectation`, to sample from a distribution other than $\vert\psi\vert^2$; see below. |
 
-**Returns** `(key, state, wf, opt_state, history)`. `history` is a
-`dict[str, list]` with keys `"energy"`, `"variance_per_site"`, `"vscore"`,
-`"acceptance"`, `"lr"`, one entry per step.
-
----
+**Returns** `(key, state, wf, opt_state, history)`. `history` is a dict of
+lists, with one entry per step, for the keys `"energy"` (per site),
+`"variance_per_site"`, `"vscore"`, `"acceptance"` and `"lr"`.
 
 (reweighted-estimators)=
 
 #### Reweighted estimators
 
-`estimator` is the seam for sampling from a density other than `|ψ|²` and
-correcting for it with per-sample importance weights. The protocol is
+An `estimator` samples from a distribution other than $|\psi|^2$, and corrects
+with importance weights. `train` calls it as
 
 ```python
-estimator(keys, H, wf, state, log_amps)
-    -> (eval_state, E_L, weights, e_mean, e2_mean, metrics)
+eval_state, E_L, weights, e_mean, e2_mean, metrics = estimator(keys, H, wf, state, log_amps)
 ```
 
-| Element | Description |
-|---------|-------------|
-| `keys` | `(N_mc,)` per-chain PRNG keys, built as `jax.random.split(key, N_mc)` — the same form `sample` takes. |
-| `eval_state` | The batch `E_L` was actually evaluated on. This — not the chain's `state` — is what `train` hands the optimizer, because the weights correct *those* configurations back to `|ψ|²`. |
-| `weights` | `None`, or a `(N_mc,)` array of per-sample importance weights. The overall scale does not matter: `_BaseOptimizer._call_reweighted` divides by the psum'd mean weight before anything downstream sees them, so the update is invariant under `w → c·w`. |
-| `metrics` | `dict[str, float]` of extra scalars, merged into the wandb log and appended to the printed per-step line. |
-
-The Markov chain always carries the unmodified `state` forward, and
-`log_callback_fn` and the checkpoints keep seeing it too — an estimator changes
-what the energy and the gradient are computed from, never what is sampled.
-
-`weights` activates `_BaseOptimizer._call_reweighted`, i.e. the weighted NTK
-centering and `sqrt(w)` scaling in `tachys.optimizer._kernels`. That path raises
-`NotImplementedError` for a `FoundationState`, so reweighted estimators do not
-currently work with foundation models.
+with `keys` one PRNG key per chain. It returns the configurations on which it
+evaluated `E_L`, which the optimizer receives in place of `state`; the
+per-sample `weights`, or `None`, whose overall scale does not matter; `e_mean`
+and `e2_mean`, as `compute_expectation` does; and a dict of extra scalars to
+print and log. The Markov chains still evolve from `state`, which the callbacks
+and the checkpoints see. Weights are not supported for foundation models.
+`tachys.experimental.blurred_sampling.BlurredEstimator` is an estimator of this
+kind.
 
 ---
 
@@ -2375,102 +1064,188 @@ currently work with foundation models.
 *`tachys.ground_state_training`*
 
 ```python
-compute_observables(key, N_steps, state, action, wf, N_mc, op_groups, nsweeps=1, log_every=1)
+compute_observables(key, N_steps, state, action, wf, N_mc, op_groups, nsweeps=1,
+                    log_every=1, complex=False)
 ```
 
-Measure a fixed set of observables along a Markov chain with `wf` held fixed —
-unlike `train`, this never updates parameters. Every operator in `op_groups` is
-evaluated on the same sampled batch at each step, so different observables
-share Monte Carlo statistics rather than being measured from independent runs.
+Measures operators along the Markov chain, with `wf` fixed: at each of the
+`N_steps` steps, it samples, then evaluates every operator on the same batch.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `key` | `jax.random.key` | PRNG key. |
-| `N_steps` | `int` | Number of sampling steps (measurements). |
-| `state` | `State` | Current Monte Carlo configuration batch. |
-| `action` | `_BaseAction` | MCMC move proposal used for sampling. |
-| `wf` | `WaveFunction` | Fixed guiding wavefunction. |
-| `N_mc` | `int` | Number of Markov chains. |
-| `op_groups` | `dict[str, Sequence[_Operator]]` or `Sequence[_Operator]` | Named groups of observables (e.g. the output of an observable-construction helper). Every operator of every group is evaluated at every step. A bare sequence is treated as a single group named `"obs"`. |
-| `nsweeps` | `int` | MC sweeps per step, passed to `sample`. Default `1`. |
-| `log_every` | `int` | Print a status line every this many steps. `0` disables. Default `1`. |
+| Parameter | Description |
+|---|---|
+| `op_groups` | A dict of named lists of operators, or a single list, which is named `"obs"`. |
+| `log_every` | Print a line every `log_every` steps; `0` for none. Default `1`. |
+| `complex` | Keep the complex means; by default, only their real parts. |
 
-**Returns** `(key, state, metrics)`. `metrics` is `dict[str, np.ndarray]`;
-`metrics[name]` has shape `(N_steps, len(op_groups[name]))`, the real part of
-`⟨O⟩` at every step.
+The other parameters are those of `train`.
+
+**Returns** `(key, state, metrics)`: `metrics[name]` is an array of shape
+`(N_steps, len(op_groups[name]))`, the mean of each operator at each step.
+
+## Foundation models
+
+The objects of {doc}`foundation_models`.
+
+### Foundation states
+
+*`tachys.lattice.foundation.foundation_state`*
+
+```python
+SpinFoundationState(spins=..., system_couplings=..., system_ids=..., n_systems=..., lattice=...)
+FermionFoundationState(occupations=..., Ne=..., system_couplings=..., system_ids=...,
+                       n_systems=..., lattice=...)
+```
+
+A `SpinState` or a `FermionState` whose samples come from several systems.
+Pass the fields by keyword. The three extra fields come from `FoundationState`:
+
+| Field | Description |
+|---|---|
+| `system_couplings` | `(N_mc, n_couplings)`: the couplings of the system of each sample. |
+| `system_ids` | `(N_mc,)`, integers in `[0, n_systems)`: the system of each sample. |
+| `n_systems` | Number of systems; static. |
 
 ---
 
+### `combine_systems`
+
+*`tachys.lattice.foundation.operators`*
+
+```python
+combine_systems(operators, n_mc_per_system)
+```
+
+One operator for a batch that mixes several systems. `operators` holds one
+Hamiltonian per system, all made by the same factory with different couplings.
+In the result, the samples `k * n_mc_per_system` to
+`(k + 1) * n_mc_per_system - 1` see `operators[k]`: every coupling becomes an
+array of shape `(n_terms, N_mc)`, with one column per sample.
+
+**Returns** the combined operator. **Raises** `ValueError` if the operators do
+not have the same structure.
+
+---
+
+### `extract_system_couplings`
+
+*`tachys.lattice.foundation.operators`*
+
+```python
+extract_system_couplings(operator, atol=1e-8, rtol=1e-5)
+```
+
+The couplings of a combined operator that vary from sample to sample, as the
+array `system_couplings` of the state. There is one column per distinct
+coupling, compared with `jnp.allclose(..., atol=atol, rtol=rtol)`: the
+couplings shared by all systems are dropped, and a parameter that appears with
+two prefactors, such as $J$ and $J/2$, gives two columns.
+
+**Returns** an array of shape `(N_mc, n_couplings)`, or `(N_mc, 0)` if no
+coupling varies.
+
+---
+
+### `broadcast_coupling`, `concatenate_couplings`
+
+*`tachys.lattice.foundation.operators`*
+
+```python
+broadcast_coupling(operator, n_mc_per_system)
+concatenate_couplings(operators)
+```
+
+The two steps of `combine_systems`. `broadcast_coupling` repeats every coupling
+over the samples of one system, from shape `(n_terms,)` to
+`(n_terms, n_mc_per_system)`; `concatenate_couplings` joins operators of the
+same structure along the sample axis, and raises `ValueError` otherwise.
+
+---
+
+### Foundation ansätze
+
+*`tachys.lattice.ansatz.rbm_foundation`*
+
+```python
+class SpinFoundationRBM(hidden_units, dtype=jnp.float64, complex=False)
+class FermionFoundationRBM(hidden_units)
+```
+
+`SpinRBM` and `FermionRBM` with `state.system_couplings` appended to the input
+of their first dense layer: to the spins for `SpinFoundationRBM`, to the input
+of the backflow network for `FermionFoundationRBM`, whose bare orbitals are the
+same for all systems.
+
+---
+
+### Grouped sums and means
+
+*`tachys.lattice.foundation.collectives`*
+
+```python
+grouped_sum(x, y, K, axis=0)
+grouped_mean(x, y, K, axis=0, broadcast=False)
+```
+
+Sums and means of `x` along `axis` within the `K` groups labelled by the
+integers `y`, over all devices: for code inside `shard_map`, where each device
+holds part of the batch. The result has size `K` along `axis`. With
+`broadcast=True`, `grouped_mean` returns instead, for every element, the mean
+of its group, sharded like `x`, so that
+`x - grouped_mean(x, y, K, broadcast=True)` centres each group. `K` must be a
+Python integer.
+
 ## Real-time dynamics
 
-Real-time evolution (t-VMC) mirrors ground-state optimization: the same sampler,
-the same local estimator, the same neural tangent kernel, the same VJP back to
-parameter space. Three things change.
+*`tachys.dynamics`*
 
-**The equation.** Minimizing the residual of the linearized evolution,
-$\lVert \sum_k \dot\theta_k \lvert\partial_k\psi\rangle + i(H - \langle H\rangle)\lvert\psi\rangle\rVert^2$,
-over *real* $\dot\theta$ gives
+Real-time evolution (t-VMC) follows $i\,\partial_t|\psi\rangle = H|\psi\rangle$
+within the variational manifold. By the time-dependent variational principle,
+the real parameters evolve as
 
 $$
 S\,\dot\theta = \mathrm{Im}\,F, \qquad
 S_{kl} = \mathrm{Re}\langle \Delta O_k^{*}\,\Delta O_l\rangle, \qquad
-F_k = \langle \Delta O_k^{*}\,\Delta E_L\rangle,
+F_k = \langle \Delta O_k^{*}\,\Delta E_L\rangle ,
 $$
 
-whereas imaginary time (`SR`) gives $S\dot\theta = -\mathrm{Re}\,F$, i.e. the
-natural gradient $S^{-1}\nabla E$ with $\nabla E = 2\,\mathrm{Re}\,F$. So real
-time is imaginary time with the generator multiplied by $i$ — in the NTK
-formulation, one line: the force vector becomes
-$\varepsilon_i = i\,(E_{L,i} - \bar E_L)^{*}/\sqrt{N_{mc}}$ (note both the `1j`
-*and* the dropped factor of 2 relative to `SR`, which the ground-state learning
-rate absorbs but a physical time step cannot).
-
-**The regularization.** The kernel is genuinely rank deficient here — centering
-alone puts exact zero modes in the spectrum, and $2N_{mc} > n_{params}$ makes it
-singular by construction. `TDVP` inverts it by diagonalization and discards
-eigenvalues below a threshold (`linear_solver_eigh`) rather than damping every
-direction with a Tikhonov shift.
-
-**The step.** A step is a Runge–Kutta step: `n_stages` sample+solve evaluations,
-not one gradient step.
-
-The ansatz must be **complex-valued**: real-time evolution generates a phase, and
-a real log-amplitude has no parameter that can carry it.
-
----
+with $\Delta$ the deviation from the sample mean. Imaginary time gives
+$S\,\dot\theta = -\mathrm{Re}\,F$ instead, the direction of the SR step, since
+$\nabla E = 2\,\mathrm{Re}\,F$. tachys solves the equation with the same
+kernel as `SR`, with two differences. The kernel is singular, since the
+centring gives it zero modes and its rank cannot exceed the number of
+parameters: `TDVP` discards its smallest eigenvalues instead of adding a
+diagonal shift. And a step is a Runge–Kutta step, which draws a new sample at
+each stage. The ansatz must be complex, since the evolution creates a phase.
 
 ### `TDVP`
 
-*`tachys.dynamics.tdvp`* (also exported from `tachys.dynamics`)
+*`tachys.dynamics`*
 
 ```python
 class TDVP(*, diag_shift=0.0, mode, nbatches=1, dtype=None, rcond=1e-8, atol=0.0)
 ```
 
-Real-time TDVP velocity. Extends `_BaseOptimizer` and is called exactly like an
-optimizer — `dtheta_dt, opt_state = tdvp(E_L, opt_state, state, wf)` — but what
-it returns is the physical time derivative $d\theta/dt$, not a descent direction.
-Advance with $\theta + \Delta t\,\dot\theta$ (which the integrators do), never
-with `apply_gradients`, whose `p - eta * g` convention would reverse the
-direction of time.
+The velocity $\dot\theta$, called like an optimizer:
+`dtheta_dt, opt_state = tdvp(E_L, opt_state, state, wf)`. It returns the
+physical time derivative, which the integrators apply as
+$\theta + \Delta t\,\dot\theta$; `apply_gradients`, which subtracts, would
+reverse time.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `diag_shift` | `float` | Tikhonov shift applied to the **kept** eigenvalues, `1 / (lambda + diag_shift)`. Default `0.0`: with the spectral truncation the solve is already well posed, and a shift biases the directions that survive. |
-| `mode` | `str` | Must be `"complex"`; `"real"` raises. Static field. |
-| `nbatches` | `int` | NTK sub-batching, as for the SR-family optimizers. Static field. |
-| `dtype` | `Any` | Precision of the Jacobian, NTK contraction and VJP, as for the SR-family optimizers. Static field, default `None` (the parameters' own dtype). |
-| `rcond` | `float` | Relative eigenvalue cutoff — eigenvalues at or below `rcond * lambda_max` are discarded, capping the condition number of the retained subspace at `1 / rcond`. The single most important knob of a t-VMC run. |
-| `atol` | `float` | Absolute floor on that cutoff. Default `0.0` (purely relative). |
+| Field | Description |
+|---|---|
+| `rcond` | Eigenvalues of the kernel below `rcond` times the largest are discarded. The main parameter of a t-VMC run. Default `1e-8`. |
+| `atol` | Absolute lower bound of that cutoff. Default `0.0`. |
+| `diag_shift` | Added to the eigenvalues that are kept. Default `0.0`. |
+| `mode` | Must be `"complex"`. |
+| `nbatches`, `dtype` | As for the optimizers. |
 
-`init(params)` returns `TDVPState()` (stateless; kept so the driver mirrors
-`train`'s return tuple and round-trips through `tachys.checkpoint`).
+`init` returns an empty `TDVPState()`.
 
 ---
 
 ### `evolve`
 
-*`tachys.dynamics.real_time_evolution`* (also exported from `tachys.dynamics`)
+*`tachys.dynamics`*
 
 ```python
 evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
@@ -2479,934 +1254,216 @@ evolve(key, H, state, wf, tdvp, action, N_steps, dt, N_mc,
        tdvp_error_rule="rect")
 ```
 
-Run the t-VMC real-time evolution loop — the real-time counterpart of
-`ground_state_training.train`, with the same live diagnostics table and the same
-wandb / checkpoint / callback discipline. At every step the integrator performs
-`n_stages` evaluations of the TDVP right-hand side (sample, local energies of
-`H(t_stage)`, TDVP solve) and combines them into the parameter increment.
+The real-time counterpart of `train`: advances `wf` by `N_steps` steps of size
+`dt`, and prints at every step the time, the energy per site, its variance and
+its drift since the start.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `key` | `jax.random.key` | PRNG key. |
-| `H` | `_Operator` or `callable(t) -> _Operator` | Hamiltonian. For the time-dependent form only the numerical **values** of the operators' `coupling` may vary with `t`; the pytree structure, static fields and leaf shapes/dtypes must not, or every step would recompile. Checked once, up front, with an explicit error. |
-| `state` | `State` | Initial Monte Carlo configuration batch. `state.lattice.Ns` sets the per-site normalizations. |
-| `wf` | `WaveFunction` | Must be complex-valued. Typically the output of a ground-state `train` run. |
-| `tdvp` | `TDVP` | Called as `tdvp(E_L, opt_state, state, wf)`. Passing an `SR`/`SPRING`/`MARCH` optimizer raises — they solve the imaginary-time equation. |
-| `action` | `_BaseAction` | MCMC move proposal used for sampling. |
-| `N_steps` | `int` | Number of time steps taken by *this* call. |
-| `dt` | `float` | Time step. Cost per step is `n_stages` sample+solve evaluations. |
-| `N_mc` | `int` | Number of Markov chains. |
-| `integrator` | `str` or `ExplicitRK` | `"rk4"` (default), `"heun"`, or an `ExplicitRK` instance. |
-| `t0` | `float` | Physical time at `start_step`. Default `0.0`. |
-| `wandb_run` | optional wandb run | Logs energy, variance, acceptance, TDVP-error metrics and callback metrics every step, and checkpoints exactly as `train` does. Expected non-`None` only on `MASTER`; every rank still participates in the collective checkpoint calls. |
-| `log_callback_fn` | optional `callable(state, wf, step) -> dict \| None`, or list thereof | `train`'s protocol, called once per step with the wavefunction at the **start** of the step (time `t0 + (step - start_step) * dt`) and the stage-1 batch sampled from it — the pair the reported energy is measured on, so observables computed from it cost no extra sampling. Non-`None` results are merged into the wandb log. Called on *every* rank. |
-| `nsweeps` | `int` | MC sweeps per stage, passed to `sample`. Default `1`. The main lever against the warm-start lag bias, which shows up as a slow energy drift. |
-| `opt_state` | optional | Pre-initialized `TDVPState` (matters only for checkpoint symmetry with `train`). |
-| `start_step` | `int` | Absolute step number to resume at; offsets the printed step column, the wandb log step and the checkpoint numbering. Combine with `t0` to resume the physical time. |
-| `tdvp_error_every` | `int` | If `> 0`, measure the TDVP error every this many steps with `TDVPError` and show the accumulated `R²` in the live table. `0` (default) disables it. |
-| `tdvp_error_rule` | `str` | `"rect"` (default) or `"trapezoid"` — how a measurement taken every `n` steps is extended over the steps between measurements. |
+| Parameter | Description |
+|---|---|
+| `H` | The Hamiltonian, or a function `t -> H(t)` for a time-dependent one. `H(t)` may change the values of the couplings, not the structure of the operator; `evolve` checks this at the start. |
+| `wf` | A complex `WaveFunction`, for instance the result of `train`. |
+| `tdvp` | A `TDVP`; an optimizer raises an error. |
+| `dt` | Time step. A step costs one sample and one solve per stage of the integrator. |
+| `integrator` | `"rk4"` (default), `"heun"`, or an `ExplicitRK`. |
+| `t0` | Time of the first step. Default `0.0`. |
+| `nsweeps` | Sweeps per stage. Default `1`. A slow drift of the energy means that the chains lag behind the wavefunction: increase `nsweeps`. |
+| `tdvp_error_every` | Measure the TDVP error every this many steps (see `TDVPError`); `0`, the default, never. |
+| `tdvp_error_rule` | `"rect"` (default) or `"trapezoid"`, see `TDVPError`. |
 
-**Returns** `(key, state, wf, opt_state, history)`. `history` is a
-`dict[str, list]` with keys `"t"`, `"energy"` (per site), `"energy_real"`,
-`"variance_per_site"`, `"acceptance"`, and — when `tdvp_error_every` is set —
-`"R2"`, `"tdvp_rate"` and `"tdvp_error"` (the `TDVPError` accumulator's
-per-measurement history).
+The other parameters are those of `train`; `log_callback_fn` receives the
+wavefunction at the start of each step and the batch sampled from it.
+
+**Returns** `(key, state, wf, opt_state, history)`. `history` has, with one
+entry per step, the keys `"t"`, `"energy"` (per site), `"energy_real"` (the
+total), `"variance_per_site"` and `"acceptance"`; with `tdvp_error_every`, also
+`"R2"` and `"tdvp_rate"`, and `"tdvp_error"`, the history of the `TDVPError`
+measurements.
 
 ---
 
 ### Integrators
 
-*`tachys.dynamics.integrators`* (also exported from `tachys.dynamics`)
+*`tachys.dynamics`*
 
 ```python
 class ExplicitRK(name, c, A, b, order)
-Heun()      # explicit trapezoidal, order 2, 2 stages
-RK4()       # classical Runge-Kutta, order 4, 4 stages
-get_integrator(integrator)   # "heun" / "rk4" / an ExplicitRK instance
+Heun()                       # second order, 2 stages
+RK4()                        # fourth order, 4 stages
+get_integrator(integrator)   # "heun", "rk4" or an ExplicitRK
 ```
 
-An explicit Runge–Kutta scheme defined by its Butcher tableau (`c` stage times,
-`A` strictly lower-triangular coefficient rows, `b` quadrature weights). The
-tableau is validated on construction: shape, row-sum condition and `sum(b) == 1`.
-
+An explicit Runge–Kutta scheme, defined by its Butcher tableau: the stage
+times `c`, the lower-triangular coefficients `A` and the weights `b`.
 `step(rhs, key, t, wf, state, dt)` advances one step and returns
-`(key, wf, state, ks, auxes)`, where `rhs` is
-`(key, t, wf, state) -> (key, state, thetadot, aux)` and `ks`/`auxes` are the
-per-stage velocity and diagnostics lists.
-
-Two properties of the t-VMC right-hand side shape the design:
-
-- **The chain is warm-started across stages**, never reset. Successive stage
-  densities differ by `O(dt)`, so the incoming configurations are already
-  `O(dt)` from equilibrium, whereas re-thermalizing at every stage would cost
-  10–100× more for a *larger* bias. What remains is a lag bias of order
-  `exp(-nsweeps/tau_int)`, which shows up as a slow energy drift; the cure is
-  more `nsweeps`, never a chain reset.
-- **Every stage draws fresh samples.** Reusing one batch for all stages of a step
-  makes each `k_i` wrong by `O(dt)` — stage `i` would estimate the metric and
-  force under `|psi_theta_n|²` instead of `|psi_theta_i|²` — reducing both Heun
-  and RK4 to *first*-order global accuracy.
+`(key, wf, state, ks, auxes)`, with `rhs(key, t, wf, state)` returning
+`(key, state, dtheta_dt, aux)`. The Markov chains carry over from one stage to
+the next, and every stage draws a new sample.
 
 ---
 
 ### `tdvp_error_rate`
 
-*`tachys.dynamics.error`* (also exported from `tachys.dynamics`)
+*`tachys.dynamics`*
 
 ```python
 tdvp_error_rate(wf, state, E_L, dtheta_dt, mode="complex")
 ```
 
-The per-step TDVP residual rate `δs²/δt²` and its decomposition, from a single
-JVP. `wf` must hold the parameters `E_L` was measured at — i.e. **before** the
-integrator step; taking the JVP at the advanced parameters would put an `O(dt)`
-inconsistency straight into the small residual being measured.
-
-Writing `t_i = sum_k ΔO_ik θ̇_k` (one JVP of the ansatz with tangent `θ̇`) and
-`ΔE_Li = E_Li - ⟨E_L⟩`, the three terms of
+The residual of the TDVP equation for the velocity `dtheta_dt`, per unit time
+squared,
 
 $$
-\frac{\delta s^2}{\delta t^2} = \mathrm{Var}(H) + \dot\theta^T S \dot\theta - 2\,\mathrm{Im}(F)^T\dot\theta
+\frac{\delta s^2}{\delta t^2} = \mathrm{Var}(H) + \dot\theta^T S\,\dot\theta - 2\,\mathrm{Im}(F)^T\dot\theta ,
 $$
 
-are `mean|ΔE_L|²`, `mean|t|²` and `2 Im mean[conj(t) ΔE_L]` — no `P×P` matrix
-`S`, no `P`-dimensional `F`. And because
-`|t + iΔE|² = |t|² + |ΔE|² - 2 Im[conj(t) ΔE]` identically, the whole rate
-collapses to `mean|t + 1j ΔE|²`, which is what is evaluated: manifestly
-non-negative for any `θ̇` at any sample size, and free of the catastrophic
-cancellation of a difference of three `O(Var(H))` numbers.
+where $\delta s$ is the Fubini–Study distance, after one step, between the
+exact and the variational evolution. `wf` must hold the parameters at which
+`E_L` was measured, before the step.
 
-**Returns** a `TDVPErrorEstimate` with fields `rate`, `var_H`, `quad`, `force`,
-`ratio` (`force / (2 quad)`, exactly 1 when `θ̇` solves the TDVP equation — a
-direct check on the velocity's normalization and sign) and `decomposed`
-(`var_H + quad - force`, algebraically identical to `rate`; their difference is a
-free cancellation/consistency check).
+**Returns** a `TDVPErrorEstimate` with the fields `rate`
+($\delta s^2/\delta t^2$), `var_H`, `quad` ($\dot\theta^T S\,\dot\theta$),
+`force` ($2\,\mathrm{Im}(F)^T\dot\theta$), `ratio` (`force / (2 * quad)`, 1
+when $\dot\theta$ solves the TDVP equation) and `decomposed`
+(`var_H + quad - force`, equal to `rate` up to rounding).
 
 ---
 
 ### `TDVPError`
 
-*`tachys.dynamics.error`* (also exported from `tachys.dynamics`)
+*`tachys.dynamics`*
 
 ```python
 class TDVPError(rule="rect", prefix="tdvp")
 ```
 
-Accumulator for the integrated TDVP error
+Accumulates the integrated error
 
 $$
-\mathcal{R}^2(t) = \frac{1}{\sqrt{N}}\int_0^t \sqrt{\delta s^2}, \qquad
-\delta s^2 = \delta t^2\left[\mathrm{Var}(\hat H) + \dot\theta^T S \dot\theta - 2\,\mathrm{Im}(F)^T\dot\theta\right]
+\mathcal{R}^2(t) = \frac{1}{\sqrt{N_s}} \int_0^t \sqrt{\frac{\delta s^2}{\delta t^2}}\; dt'
 $$
 
-with `N = state.Ns`. Since `δs²` already carries `δt²`,
-`sqrt(δs²) = dt * sqrt(rate)` and summing over steps *is* the Riemann sum of the
-integral; measuring every `n` steps is the rectangle rule of width `n*dt`
-(`rule="trapezoid"` averages consecutive measurements over the same interval
-instead — the same cost and strictly more accurate, but not what the definition
-says). Intervals are keyed on elapsed time, so a changed stride, a skipped
-measurement or a short final block are all handled.
+from `tdvp_error_rate` measurements; `evolve(..., tdvp_error_every=n)` builds
+one and measures every `n` steps. `rule` extends each measurement to the steps
+before the next one: `"rect"` holds it constant, `"trapezoid"` interpolates
+linearly. $\sqrt{N_s}\,\mathcal{R}^2$ bounds the Fubini–Study angle between
+the exact and the variational state. It does not include the error of the time
+discretization, and it can only grow: the current `rate`, or `rate / var_H`,
+shows better whether the state is drifting away now.
 
-`evolve(..., tdvp_error_every=10)` builds one and feeds it a
-`tdvp_error_rate` measurement every 10 steps (shown as the `R²` column of the
-live table and as `history["R2"]`). The measurement uses the **first stage** of
-the step — the velocity `k₁`, the batch and the local energies all at
-`(t_n, theta_n)`.
+| Member | Description |
+|---|---|
+| `R2` | $\mathcal{R}^2$ at the last measurement. |
+| `history` | Dict of lists, with one entry per measurement: `step`, `t`, `rate`, `R2`, `var_H`, `quad`, `force`, `ratio`. |
+| `accumulate(step, t, Ns, est)` | Adds a `TDVPErrorEstimate` and returns the metrics to log. |
+| `reset()` | Clears `R2` and `history`. |
 
-| Attribute / method | Description |
-|--------------------|-------------|
-| `R2` | The accumulated error at the last measured step. |
-| `history` | `dict[str, list]` — per-measurement `step`, `t`, `rate`, `R2`, `var_H`, `quad`, `force`, `ratio`. |
-| `reset()` | Clear the accumulator and history (call before reusing the object for a second run). |
-| `accumulate(step, t, Ns, est)` | Fold one `TDVPErrorEstimate` in and return the metrics to log; this is what `evolve` calls, and it works the same outside it. |
+## Exact diagonalization
 
-Interpretation: `δs²` is the squared Fubini–Study distance between
-`exp(-iH δt)|psi(theta)>` and `|psi(theta + δt θ̇)>` to `O(δt²)` — the per-step
-infidelity — so `R² √N` is the accumulated Fubini–Study angle, which upper-bounds
-the angle between the exact and the variational state at time `t`. The `1/√N`
-makes it intensive, since `Var(H) ~ N` for a local Hamiltonian.
+*`tachys.lattice.exact_diag`*
 
-Two caveats worth stating plainly. `δs²` is the residual of the *linearized*
-evolution: it measures how much of `-i(H - ⟨H⟩)|psi>` lies outside the tangent
-space, plus Monte Carlo and regularization error — it says nothing about the
-integrator's time-discretization error, so switching Heun → RK4 will not reduce
-it. And `R²` is a sum of non-negative increments, hence monotone: at long times
-it is an upper bound that can be loose, so read the instantaneous `rate` (or
-`rate / var_H`, the fraction of the evolution direction the manifold fails to
-capture) to judge whether the state is drifting *now*.
+For clusters small enough to hold the whole Hilbert space;
+{doc}`guide/hamiltonians` has an example.
 
----
+| Function | Description |
+|---|---|
+| `spins_hilbert_space(N, values=(-1, 1))` | All $2^N$ configurations of `N` spins, an array of shape `(2**N, N)`; `values` are the values for down and up. |
+| `fermions_hilbert_space(Ns, Ne, Nbands=2)` | All configurations of `Ne` electrons on `Nbands * Ns` modes. |
+| `exact_diag(state_full_hilbert, H, pack, k=1)` | The `k` lowest eigenvalues of `H`, in ascending order, and their eigenvectors, by sparse diagonalization. Returns `(eigenvalues, eigenvectors)`. |
+| `build_sparse_hamiltonian(state_full_hilbert, H, pack)` | The sparse matrix of `H`, for instance for exact time evolution. Returns `(matrix, sorted_active)`, with `sorted_active` the labels of `pack` in the order of the rows. |
+
+`state_full_hilbert` is a `State` holding every configuration of the basis,
+and `pack` maps a `State` to one distinct integer per configuration. `H` must
+have both diagonal and off-diagonal terms.
 
 ## Checkpointing
 
-### `resolve_checkpoint_settings`
-
 *`tachys.checkpoint`*
 
-```python
-resolve_checkpoint_settings(wandb_run, N_steps, rank, MASTER)
-```
-
-Compute `(directory, save_interval_steps, max_to_keep)` on rank `MASTER` from a
-wandb run's config, and broadcast the result to all ranks over multi-host
-collectives. Must be called collectively by every process, including ranks
-where `wandb_run` is `None`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `wandb_run` | optional wandb run | Source of `checkpoint_every` / `checkpoint_keep` config keys. Only meaningful on the source rank. |
-| `N_steps` | `int` | Fallback save interval (`checkpoint_every`) when unset in `wandb_run.config`. |
-| `rank` | `int` | Current process's rank (see `tachys.parallel.rank`). |
-| `MASTER` | `int` | Rank designated as the config source (see `tachys.parallel.MASTER`). |
-
-**Returns** `(dir, every, keep)`, or `(None, None, None)` if no rank has an
-active `wandb_run`.
-
----
-
-### `build_checkpoint_manager`
-
-*`tachys.checkpoint`*
-
-```python
-build_checkpoint_manager(directory, save_interval_steps, max_to_keep)
-```
-
-Construct an `orbax.checkpoint.CheckpointManager` configured with a
-`FixedIntervalPolicy`, so that (unlike orbax's default) it does *not* force a
-checkpoint on the very first call regardless of `save_interval_steps`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `directory` | `str` | Checkpoint root directory. |
-| `save_interval_steps` | `int` | Save every this many steps. |
-| `max_to_keep` | `int` | Number of most-recent checkpoints to retain. |
-
-**Returns** `orbax.checkpoint.CheckpointManager`.
-
----
-
-### `get_last_step`
-
-*`tachys.checkpoint`*
-
-```python
-get_last_step(checkpoint_dir)
-```
-
-Look up the most recent completed step number in a checkpoint directory.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `checkpoint_dir` | `str` | Checkpoint root directory. |
-
-**Returns** `int | None` — the latest step, or `None` if no checkpoint exists.
-
----
-
-### `save_training_checkpoint`
-
-*`tachys.checkpoint`*
-
-```python
-save_training_checkpoint(manager, step, key, state, params, opt_state, force=False)
-```
-
-Checkpoint `params`, `key`, and the mutable parts of `state`/`opt_state` as one
-atomic composite orbax checkpoint. The whole `state` pytree is saved (not just
-its physical array), since foundation-model states carry extra data fields
-(`system_couplings`, `system_ids`) that must round-trip too. `key` is saved as
-its raw bit representation (`jax.random.key_data`), unsharded onto the global
-mesh first. Must be called collectively by every process (no rank guard) so
-orbax can write each host's own shards of sharded arrays.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `manager` | `orbax.checkpoint.CheckpointManager` | Manager returned by `build_checkpoint_manager`. |
-| `step` | `int` | Step number to checkpoint under. |
-| `key` | `jax.random.key` | Current PRNG key. |
-| `state` | `State` | Current Monte Carlo configuration batch. |
-| `params` | pytree | Wavefunction parameters (`wf.params`). |
-| `opt_state` | pytree | Optimizer state. |
-| `force` | `bool` | Force a save even outside the manager's save interval (e.g. on the final training step). Default `False`. |
-
-**Returns** whatever `manager.save(...)` returns (orbax's save future / bool).
-
----
+`train` and `evolve` write checkpoints when they are given a `wandb_run`, to
+`wandb_run.dir/checkpoints`. Each checkpoint holds the parameters, the
+optimizer state, the configurations and the PRNG key, and is labelled by the
+number of steps done.
 
 ### `load_checkpoint`
-
-*`tachys.checkpoint`*
 
 ```python
 load_checkpoint(checkpoint_dir, state_template, opt_state_template, params_template=None, step=None)
 ```
 
-Restore `params`, `opt_state`, `state` and `key` from a checkpoint directory
-written by `save_training_checkpoint`. `state_template` and
-`opt_state_template` supply the structural pieces that aren't serialized
-(static fields like `state.lattice`, and the `opt_state` `NamedTuple` type);
-every data field of the restored objects is overwritten with the checkpointed
-values. Restoring is portable across device topologies: everything is placed
-onto the *current* global `mesh` (from `tachys.parallel`) rather than the
-sharding recorded at save time. `params`/`opt_state`/`key` are restored fully
-replicated; `state` is restored partitioned along the mesh's `'i'` axis.
+Restores `(params, opt_state, state, key)`. The templates supply what is not
+saved: the static fields of the state, such as its lattice, and the type of the
+optimizer state, for instance `optimizer.init(wf.params)`. The arrays are
+placed on the current devices, which may differ from those of the run that
+saved them.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `checkpoint_dir` | `str` | Checkpoint root directory. |
-| `state_template` | `State` | Structural template for restoring `state` (supplies static fields). |
-| `opt_state_template` | pytree | Structural template for restoring `opt_state` (e.g. from `optimizer.init(params)`). |
-| `params_template` | optional pytree | Structural template for `params`. Omit to recover params as a plain dict inferred from checkpoint metadata (fine when `wf.params` is already a plain dict), at the cost of a suppressed sharding-fallback warning. |
-| `step` | optional `int` | Step to restore. Defaults to the manager's latest step. |
+| Parameter | Description |
+|---|---|
+| `params_template` | The structure of the parameters. If omitted, they are restored as a plain dict. |
+| `step` | The step to restore. Default: the latest. |
 
-**Returns** `(params, opt_state, state, key)`.
+To resume a run:
+
+```python
+from tachys.checkpoint import get_last_step, load_checkpoint
+
+step = get_last_step(checkpoint_dir)
+params, opt_state, state, key = load_checkpoint(
+    checkpoint_dir, state, optimizer.init(wf.params), params_template=wf.params,
+)
+wf = wf.replace(params=params)
+key, state, wf, opt_state, history = train(
+    key, H, state, wf, optimizer, action, N_steps - step, lr_schedule, N_mc,
+    opt_state=opt_state, start_step=step,
+)
+```
 
 ---
+
+### Other functions
+
+| Function | Description |
+|---|---|
+| `get_last_step(checkpoint_dir)` | The latest saved step, or `None`. |
+| `save_training_checkpoint(manager, step, key, state, params, opt_state, force=False)` | Saves a checkpoint with an orbax `CheckpointManager`; `force` saves outside the interval of the manager. Called on every process. |
+| `build_checkpoint_manager(directory, save_interval_steps, max_to_keep)` | An orbax `CheckpointManager` that saves every `save_interval_steps` steps and keeps the last `max_to_keep` checkpoints. |
+| `resolve_checkpoint_settings(wandb_run, N_steps, rank, MASTER)` | The directory, interval and number of checkpoints, read from `wandb_run` on the master process and sent to all processes. `(None, None, None)` without a run. |
+
+(api-parallelism)=
 
 ## Parallelism
 
 *`tachys.parallel`*
 
-Module-level constants describing the current JAX device topology, computed
-once at import time and used throughout `tachys` for `shard_map`-based
-multi-device/multi-host parallelism.
-
-| Name | Type | Description |
-|------|------|-------------|
-| `mesh` | `jax.sharding.Mesh` | Device mesh over all `jax.devices()`, with a single named axis `'i'`. Used as the sharding mesh for every `shard_map`/`NamedSharding` call in `tachys` (Monte Carlo sampling, optimizers, checkpointing). |
-| `n_devices` | `int` | Total number of devices, `len(jax.devices())`. |
-| `rank` | `int` | Current process's index, `jax.process_index()`. `0` on a single-process run. |
-| `MASTER` | `int` | Rank designated to own single-writer responsibilities (logging, wandb, checkpoint config). Always `0`. |
-
----
-
-### `all_unshard`
-
-```python
-all_unshard(pytree)
-```
-
-Force every leaf of `pytree` onto a fully replicated sharding (`P()` over
-`mesh`) — every device holds a full copy. Used to promote host-local arrays
-(e.g. a PRNG key produced by plain `jax.random.split`) to a proper multi-host
-global array before checkpointing.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `pytree` | pytree of `jax.Array` | Arrays to replicate. |
-
-**Returns** the same pytree with every leaf's sharding constrained to `P()`.
-
----
-
-### `promote_to_pytree`
-
-```python
-promote_to_pytree(f)
-```
-
-Decorator that lifts a function operating on a single array to one that
-`jax.tree.map`s it over an arbitrary pytree. Used to define `hard_shard`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `f` | `callable(array) -> array` | Function to lift. |
-
-**Returns** `callable(pytree) -> pytree`.
-
----
-
-### `hard_shard`
-
-```python
-hard_shard(array)
-```
-
-Slice the leading axis of every leaf of a pytree into `n_devices` equal
-contiguous chunks and keep only the chunk belonging to the current `rank`
-— an explicit (non-`jax.jit`) host-side partition, distinct from
-`shard_map`'s device-level sharding. Requires the leading axis length to be
-divisible by `n_devices`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `array` | pytree of `jax.Array` | Data to partition; leading axis is split. |
-
-**Returns** the same pytree, restricted to this rank's local chunk.
-
----
-
-## Optimizers
-
-### `_BaseOptimizer`
-
-*`tachys.optimizer.optimizers`*
-
-```python
-class _BaseOptimizer(diag_shift, mode, nbatches=1, dtype=None)
-```
-
-Abstract base for all natural-gradient (SR-family) optimizers. Extends
-`flax.struct.PyTreeNode`. Subclass it and implement `init(params)` and
-`update(E_L, opt_state, state, wf, weights=None)`. Handles the `shard_map`
-dispatch (`__call__`) so subclasses only need to implement per-shard logic.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `diag_shift` | `float` | Diagonal (Tikhonov) regularization added to the NTK before solving. |
-| `mode` | `str` | `"complex"`: the real and imaginary parts of `log ψ` enter the kernel as separate rows, so a parameter-dependent phase is optimized too. `"real"`: only `Re log ψ = log|ψ|` enters, which is exact when the phase does not depend on the parameters. The parameters themselves must be real in both modes (complex-dtype parameters give a zero update). Static (non-pytree) field. |
-| `nbatches` | `int` | Number of sub-batches the NTK assembly splits the Monte Carlo batch into (trades memory for extra compute). Static field, default `1`. |
-| `dtype` | `Any` | Precision of the network evaluations inside the update: the per-sample Jacobians, their contraction into the NTK, the VJP and the SPRING/MARCH JVP. Static field, default `None`, which evaluates in the dtype the parameters are stored in. A dtype (e.g. `jnp.float32`, or `"float32"` from a config) casts the parameters and the state's floating leaves to it for those evaluations, runs their matmuls at full precision (JAX's default for float32 on recent NVIDIA GPUs is TF32), and shifts every Jacobian by one estimate of its mean before the contraction, which the centering cancels exactly but which keeps a float32 contraction from losing `(mean/std)^2` in precision. The NTK and its solve stay in float64; the updates come back in the parameters' own dtypes. float32 rounding moves the NTK's eigenvalues by about `1e-8` of the largest one. A smaller `diag_shift` can leave the shifted NTK indefinite, and the Cholesky solve then fails. As for any failed solve, the SR step is then silently zero, and SPRING/MARCH keep only their momentum term. Independent of `WaveFunction.dtype`. |
-
-| Member | Type | Description |
-|--------|------|-------------|
-| `init(params)` | `pytree → OptimizerState` | Build the initial optimizer state for a given parameter pytree. |
-| `update(E_L, opt_state, state, wf, weights=None)` | `→ (updates, new_opt_state)` | Per-shard update rule. Override in subclasses. |
-| `__call__(E_L, opt_state, state, wf, weights=None)` | `→ (updates, new_opt_state)` | JIT-compiled, `shard_map`-wrapped entry point; dispatches to `update`. |
-
-**Returns** (of `__call__`) `(updates, new_opt_state)`, where `updates` is a
-pytree matching `wf.params`, meant to be passed to `wf.apply_gradients`.
-
----
-
-### `SR`
-
-*`tachys.optimizer.optimizers`* (also exported from `tachys.optimizer`)
-
-```python
-class SR(diag_shift, mode, nbatches=1, dtype=None)
-```
-
-Stochastic Reconfiguration: the natural-gradient update obtained from the
-neural tangent kernel (NTK) $S$ of the wavefunction and the energy force
-vector $\boldsymbol\varepsilon$,
-
-$$
-(S + \lambda I)\,\delta\theta = \boldsymbol\varepsilon, \qquad
-\varepsilon_i = \frac{2\,(E_{L,i} - \bar E_L)^{*}}{\sqrt{N_{mc}}}
-$$
-
-solved via a Cholesky decomposition (`tachys.optimizer._kernels.linear_solver_cholesky`),
-then mapped back to parameter space with a VJP through `wf.apply_fn`.
-
-`init(params)` returns `SRState()` (stateless). Calling the instance computes
-one SR update from a batch of local energies.
-
----
-
-### `SRState`
-
-*`tachys.optimizer.optimizers`* (also exported from `tachys.optimizer`)
-
-```python
-class SRState()
-```
-
-Empty `NamedTuple` — `SR` carries no state between steps.
-
----
-
-### `SPRING`
-
-*`tachys.optimizer.optimizers`* (also exported from `tachys.optimizer`)
-
-```python
-class SPRING(diag_shift, mode, nbatches=1, dtype=None, *, mu=0.9)
-```
-
-SR with Projected Nesterov-style momentum. Folds a JVP-based momentum
-correction into the force vector before solving, then adds momentum to the
-resulting parameter update:
-
-$$
-\delta\theta_t = \delta\theta_t^{\mathrm{SR}} + \mu\,\delta\theta_{t-1}
-$$
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `mu` | `float` | Momentum coefficient. Default `0.9`. |
-
-(Inherits `diag_shift`, `mode`, `nbatches`, `dtype` from `_BaseOptimizer`.)
-
-`init(params)` returns `SPRINGState(old_updates=zeros_like(params))`.
-
----
-
-### `SPRINGState`
-
-*`tachys.optimizer.optimizers`* (also exported from `tachys.optimizer`)
-
-```python
-class SPRINGState(old_updates)
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `old_updates` | pytree matching `wf.params` | Parameter update from the previous step, used for the momentum term. |
-
----
-
-### `MARCH`
-
-*`tachys.optimizer.optimizers`* (also exported from `tachys.optimizer`)
-
-```python
-class MARCH(diag_shift, mode, nbatches=1, dtype=None, *, mu=0.95, beta=0.995)
-```
-
-SPRING augmented with an adaptive second-moment preconditioner (analogous to
-Adam's second moment): an exponential moving average $V$ of squared parameter
-update differences is maintained and its bias-corrected value scales both the
-NTK and the final update,
-
-$$
-V_t = \beta V_{t-1} + (1-\beta)\,\lvert \delta\theta_{t-1} - \delta\theta_{t-2} \rvert^2,
-\qquad
-\delta\theta_t = \frac{\delta\theta_t^{\mathrm{SR}}}{\sqrt{\hat V_t} + \epsilon} + \mu\,\delta\theta_{t-1}
-$$
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `mu` | `float` | Momentum coefficient. Default `0.95`. |
-| `beta` | `float` | Exponential-moving-average decay for the second moment `V`. Default `0.995`. |
-
-(Inherits `diag_shift`, `mode`, `nbatches`, `dtype` from `_BaseOptimizer`.)
-
-`init(params)` returns `MARCHState(old_updates=zeros_like(params), V=ones_like(params), t=0)`.
-
----
-
-### `MARCHState`
-
-*`tachys.optimizer.optimizers`* (also exported from `tachys.optimizer`)
-
-```python
-class MARCHState(old_updates, V, t)
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `old_updates` | pytree matching `wf.params` | Parameter update from the previous step. |
-| `V` | pytree matching `wf.params` | Exponential moving average of squared update differences (uncorrected). |
-| `t` | `int32` | Step counter, used for bias correction of `V`. |
-
----
-
-### `linear_decay`
-
-*`tachys.optimizer.lr_schedules`* (also exported from `tachys.optimizer`)
-
-```python
-linear_decay(eta0, eta_final, N_steps)
-```
-
-Linear learning-rate decay from `eta0` to `eta_final` over `N_steps`, as a
-function of the *absolute* step — so it decays correctly across resumes when
-the step passed in is offset by `start_step`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `eta0` | `float` | Initial learning rate. |
-| `eta_final` | `float` | Final learning rate, reached at `step = N_steps` and held thereafter. |
-| `N_steps` | `int` | Number of steps over which to decay. |
-
-**Returns** `callable(step: int) -> float`.
-
----
-
-### `shifted_cosine_decay`
-
-*`tachys.optimizer.lr_schedules`* (also exported from `tachys.optimizer`)
-
-```python
-shifted_cosine_decay(init_value, decay_steps, min_value=None)
-```
-
-Cosine-decay learning-rate schedule (via `optax.cosine_decay_schedule`),
-shifted so its floor is `min_value` instead of `0`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `init_value` | `float` | Learning rate at step `0`. |
-| `decay_steps` | `int` | Number of steps over which the cosine decay runs. |
-| `min_value` | optional `float` | Floor value the schedule decays to. Defaults to `init_value / 10`. |
-
-**Returns** `callable(step: int) -> float`.
-
----
-
-### Low-level SR kernels
-
-*`tachys.optimizer._kernels`*
-
-Building blocks used internally by `SR`/`SPRING`/`MARCH`, exposed for advanced
-use (e.g. implementing a custom SR-family optimizer, or unit-testing the NTK
-pipeline directly).
-
-#### `linear_solver_cholesky`
-
-```python
-linear_solver_cholesky(ntk, eps, diag_shift, mode="complex")
-```
-
-Solve the regularized SR linear system $(S + \lambda I)\,\delta\theta = \varepsilon$
-via Cholesky decomposition. In `mode="complex"`, the complex linear system is
-solved as an equivalent real `2M × 2M` block system (real/imaginary parts) using
-two nested Cholesky solves (Schur complement). Degrades to a no-op (returns
-`0`) for any row where the solve produces non-finite values, guarding against
-`jnp.linalg.cholesky`'s under-`jit` behavior of silently filling non-PD rows
-with NaN instead of raising.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `ntk` | `jax.Array` | `mode="real"`: shape `(..., M, M)`, real SPD. `mode="complex"`: shape `(..., M, M, 2, 2)` block matrix. |
-| `eps` | `jax.Array` | Force vector, shape `(..., M)`; complex in `mode="complex"`. |
-| `diag_shift` | `float` | Regularization added to the diagonal. |
-| `mode` | `str` | `"real"` or `"complex"`. Default `"complex"`. |
-
-**Returns** `(..., M)` real, or `(..., 2*M)` real `[u, v]` (with solution
-`x = u + iv`) in `mode="complex"`.
-
----
-
-#### `linear_solver_eigh`
-
-```python
-linear_solver_eigh(ntk, eps, diag_shift, mode="complex", rcond=1e-8, atol=0.0)
-```
-
-Spectrally-truncated (pseudo-inverse) solver for the same system — a drop-in
-replacement for `linear_solver_cholesky` with the same arguments and the same
-return layout. Diagonalizes the kernel and inverts it only on the eigenvectors
-whose eigenvalue clears `cutoff = max(rcond * lambda_max, atol)`, projecting the
-rest away. Used by `tachys.dynamics.TDVP`: in real-time evolution the kernel is
-genuinely rank deficient (centering alone puts exact zero modes in the spectrum,
-and `2M > n_params` makes it singular by construction), and Tikhonov damping
-distorts the well-resolved directions instead of removing the unresolved ones.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `ntk` | `jax.Array` | `mode="real"`: `(..., M, M)`. `mode="complex"`: `(..., M, M, 2, 2)`. |
-| `eps` | `jax.Array` | Force vector, shape `(..., M)`; complex in `mode="complex"`. |
-| `diag_shift` | `float` | Tikhonov shift applied to the **kept** eigenvalues, `1 / (lambda + diag_shift)`. Because `diag_shift * I` is isotropic it commutes with the eigendecomposition, so the matrix is never modified. |
-| `mode` | `str` | `"real"` or `"complex"`. Default `"complex"`. |
-| `rcond` | `float` | Relative eigenvalue cutoff. Relative rather than absolute because the kernel's scale varies by orders of magnitude with ansatz, system size and step, whereas `1 / rcond` is exactly the condition number the retained subspace is capped at. |
-| `atol` | `float` | Absolute floor on the cutoff. Default `0.0`. |
-
-**Returns** `(..., M)` real, or `(..., 2*M)` real `[u, v]` in `mode="complex"` —
-matching `linear_solver_cholesky`.
-
-The keep mask reads the **raw** spectrum, before `diag_shift` is applied, so the
-two regularizers stay orthogonal: `rcond` chooses the retained subspace,
-`diag_shift` softens the amplification inside it. (Masking `lambda + diag_shift`
-instead would let a large enough shift silently switch the truncation off.) The
-mask is `lambda > cutoff`, not `|lambda| > cutoff`: the kernel is a Gram matrix,
-so a negative eigenvalue is roundoff on a signal-free direction, and inverting it
-would flip the update along that direction and amplify it by `1 / |lambda|`.
-Non-finite input degrades to a zero update, as in the Cholesky path.
-
-Note that a hard truncation makes the solution discontinuous in the parameters
-whenever an eigenvalue crosses the threshold — harmless for a fixed-step
-integrator, but it would corrupt an embedded error estimate used for step-size
-control.
-
----
-
-#### `ntk_parallel_fn`
-
-```python
-ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None)
-```
-
-Assemble the full `(N_mc × N_mc)` neural tangent kernel matrix by distributing
-pairwise per-batch Jacobian contractions across devices and reducing with
-`psum`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `State` | Local shard of the Monte Carlo batch. |
-| `wf` | `WaveFunction` | Wavefunction whose Jacobian w.r.t. parameters is contracted. |
-| `nbatches` | `int` | Number of sub-batches to split the local batch into. |
-| `mode` | `str` | `"real"` or `"complex"`. |
-| `V` | optional pytree matching `wf.params` | MARCH's bias-corrected second-moment preconditioner. |
-| `dtype` | optional dtype | The optimizers' `dtype`: compute the Jacobians and their contraction in it, at full matmul precision, each Jacobian shifted by the pmean'd mean of every device's first sub-batch (invisible after `center_ntk`). The NTK is accumulated in float64 either way. Default `None`, the parameters' own dtype. |
-
-**Returns** the full NTK: shape `(N_mc, N_mc)` (real) or `(N_mc, N_mc, 2, 2)`
-(complex).
-
----
-
-#### `center_ntk`
-
-```python
-center_ntk(ntk, weights, state)
-```
-
-Subtract row, column, and global means from the NTK (the centering step
-equivalent to centering the Jacobian before contraction). Uses per-system
-means when `state` is a `FoundationState`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `ntk` | `jax.Array` | Fully gathered/replicated NTK, from `ntk_parallel_fn`. |
-| `weights` | optional `jax.Array` | Per-sample reweighting (e.g. importance weights). Not yet supported together with `FoundationState`. |
-| `state` | `State` | Determines whether per-system (`FoundationState`) or global centering is used. |
-
-**Returns** the centered NTK, same shape as `ntk`.
-
----
-
-#### `compute_ntk`
-
-```python
-compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1, dtype=None)
-```
-
-Full NTK pipeline: `ntk_parallel_fn` → `center_ntk` → optional `sqrt(weights)`
-row/column scaling.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `State` | Local shard of the Monte Carlo batch. |
-| `wf` | `WaveFunction` | Wavefunction. |
-| `mode` | `str` | `"real"` or `"complex"`. |
-| `weights` | optional `jax.Array` | Per-sample reweighting. |
-| `V` | optional pytree matching `wf.params` | MARCH preconditioner. |
-| `nbatches` | `int` | Sub-batch count for the pairwise Jacobian assembly. Default `1`. |
-| `dtype` | optional dtype | Passed to `ntk_parallel_fn`. Default `None`. |
-
-**Returns** the centered (and optionally reweighted) NTK.
-
----
-
-#### `center_sr_solution`
-
-```python
-center_sr_solution(sr_solution, state, mode, weights)
-```
-
-Center the linear-solve output before the final VJP step (mirrors
-`center_ntk`'s centering, applied to the solution vector rather than the
-kernel). Uses per-system means when `state` is a `FoundationState`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `sr_solution` | `jax.Array` | Output of `linear_solver_cholesky`. |
-| `state` | `State` | Determines per-system vs. global centering. |
-| `mode` | `str` | `"real"` or `"complex"`. |
-| `weights` | optional `jax.Array` | Per-sample reweighting. |
-
-**Returns** the centered solution, reshaped to `(N_mc, 2)` in `mode="complex"`
-before the caller's VJP.
-
----
-
-## Collectives
-
-Sharded-mesh reduction helpers for grouping per-sample quantities by system. Meant to be called
-inside a `shard_map` over mesh axis `'i'`: each shard computes a local per-group reduction, then
-`jax.lax.psum` combines the shards so every shard ends up with the same, fully-reduced result —
-groups whose elements are split across shards are still reduced correctly. Used by foundation-
-model training to average quantities (e.g. local energies) per-system rather than over the whole
-mixed batch.
-
-### `grouped_sum`
-
-*`tachys.lattice.foundation.collectives`*
-
-```python
-grouped_sum(x, y, K, axis=0)
-```
-
-Sums `x` into `K` groups given by `y`, reduced across the sharded mesh axis `'i'`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `x` | `jax.Array` | Local shard, any shape with `x.shape[axis] == y.shape[0]`. |
-| `y` | `jax.Array` | Local shard of integer group labels in `[0, K)`. |
-| `K` | `int` | Number of groups. Must be a static (non-traced) Python `int`, since it is used as `segment_sum`'s `num_segments`. |
-| `axis` | `int` | Axis of `x` indexed by `y`; replaced by `K` in the output. Default `0`. |
-
-**Returns** `jax.Array` like `x` but with size `K` along `axis`, replicated over the mesh.
-
----
-
-### `grouped_mean`
-
-*`tachys.lattice.foundation.collectives`*
-
-```python
-grouped_mean(x, y, K, axis=0, broadcast=False)
-```
-
-Averages `x` within each of `K` groups given by `y`. Same contract as `grouped_sum`, but averages
-within each group instead of summing. Counts are reduced the same way (per-shard `segment_sum`
-then `psum`) so groups split across shards are still averaged correctly.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `x` | `jax.Array` | Local shard, any shape with `x.shape[axis] == y.shape[0]`. |
-| `y` | `jax.Array` | Local shard of integer group labels in `[0, K)`. |
-| `K` | `int` | Number of groups (static Python `int`). |
-| `axis` | `int` | Axis of `x` indexed by `y`. Default `0`. |
-| `broadcast` | `bool` | If `False` (default), return the reduced `(..., K, ...)` array of per-group means, replicated over the mesh. If `True`, return an array shaped like `x` instead, with each element replaced by its own group's mean — e.g. to center per-group values (such as per-system local energies) via `x - grouped_mean(x, y, K, axis, True)`. Note this changes the sharding of the result along `axis` from replicated to matching `x`'s local shard, so the `shard_map` call site's `out_specs` must be updated accordingly (e.g. `P('i')` instead of `P()`). |
-
-**Returns** `jax.Array`. Shape `(..., K, ...)` if `broadcast=False`, or shaped like `x` if
-`broadcast=True`.
-
----
+`sample`, `compute_expectation` and the optimizers split the chains among all
+the devices of `jax.devices()`, so `N_mc` must be a multiple of their number.
+Run one process per device, launched with `mpirun` or `srun`: the optimizers
+assign their work by process, and with several devices in one process they
+return wrong updates.
+
+Importing `tachys`
+
+- enables 64-bit precision in JAX (`jax_enable_x64`);
+- calls `jax.distributed.initialize()` when launched by `mpirun` or `srun` with
+  more than one process;
+- restricts `print` to the master process;
+- prints the devices and the versions of JAX and Flax.
+
+| Name | Description |
+|---|---|
+| `mesh` | A `jax.sharding.Mesh` over all devices, with the single axis `'i'`. |
+| `n_devices` | Number of devices. |
+| `rank` | Index of this process, `jax.process_index()`. |
+| `MASTER` | Rank of the process that prints, logs and reads the configuration: `0`. |
+| `all_unshard(pytree)` | Replicates every array of `pytree` on all devices. |
+| `hard_shard(pytree)` | The part of every array that belongs to this process: the `rank`-th of `n_devices` equal parts of its first axis. |
+| `promote_to_pytree(f)` | Turns a function of one array into a function of a pytree of arrays. |
 
 ## Utilities
 
 *`tachys.utils`*
 
-### `same_treedef`
-
-```python
-same_treedef(tree1, tree2)
-```
-
-Check whether two pytrees have identical structure (types, nesting, and static
-fields). Compares `repr(jax.tree.structure(...))` rather than using
-`PyTreeDef.__eq__` directly, since recent JAX/Flax versions changed `__eq__` to
-ignore the registered node type (e.g. `Splus == Sminus` would compare equal
-under `__eq__`). Useful when writing a custom `_BaseAction` to verify a
-proposed new state has the same structure as the original.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `tree1`, `tree2` | pytree | Trees to compare. |
-
-**Returns** `bool`.
-
----
-
-### `same_treedef_and_avals`
-
-```python
-same_treedef_and_avals(tree1, tree2)
-```
-
-Like `same_treedef`, but additionally requires every leaf to have matching
-shape and dtype.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `tree1`, `tree2` | pytree | Trees to compare. |
-
-**Returns** `bool`.
-
----
-
-### `as_column`
-
-```python
-as_column(x)
-```
-
-Reshape a 1-D array to a column vector `(N, 1)`; leaves arrays of other ranks
-unchanged.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `x` | array-like | Input array. |
-
-**Returns** `jnp.ndarray`.
-
----
-
-## Exact diagonalization
-
-### `build_sparse_hamiltonian`
-
-*`tachys.lattice.exact_diag`*
-
-```python
-build_sparse_hamiltonian(state_full_hilbert, H, pack)
-```
-
-Assemble the sparse matrix of `H` in the basis enumerated by
-`state_full_hilbert`. Split out of `exact_diag` so the matrix itself is
-reachable — needed by anything that wants more than the extremal eigenpairs,
-e.g. exact real-time propagation `expm(-1j * H * t) @ psi` for validating
-`tachys.dynamics`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state_full_hilbert` | `State` | Batch containing every basis state in the Hilbert space. |
-| `H` | `callable` | Hamiltonian operator. Must return `DiagOffdiagResult`. |
-| `pack` | `callable` | Maps a state batch to a 1-D integer index array. Must be injective. |
-
-**Returns** `(mat, sorted_active)` — a `scipy.sparse.csr_array` of shape
-`(n_active_states, n_active_states)`, and the sorted `pack` indices in the order
-the matrix rows/columns use, so
-`np.searchsorted(sorted_active, pack(some_state))` maps any state back to its
-matrix index.
-
----
-
-### `exact_diag`
-
-*`tachys.lattice.exact_diag`*
-
-```python
-exact_diag(state_full_hilbert, H, pack, k=1)
-```
-
-Build the sparse Hamiltonian matrix and compute its `k` lowest eigenvalues.
-
-Internally: applies `H` to every basis state, assembles a COO sparse matrix
-from diagonal and off-diagonal results, and calls `scipy.sparse.linalg.eigsh`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state_full_hilbert` | `State` | Batch containing every basis state in the Hilbert space. |
-| `H` | `callable` | Hamiltonian operator. Must return `DiagOffdiagResult`. |
-| `pack` | `callable` | Maps a state batch to a 1-D integer index array. Must be injective. |
-| `k` | `int` | Number of lowest eigenvalues to compute. Default `1`. |
-
-**Returns** `(eigenvalues, eigenvectors)`.  
-Shapes: `eigenvalues` is `(k,)` in ascending order; `eigenvectors` is `(n_states, k)`.
-
----
-
-### `spins_hilbert_space`
-
-*`tachys.lattice.exact_diag`*
-
-```python
-spins_hilbert_space(N, values=(-1, 1))
-```
-
-Generate the complete Hilbert space for `N` spin-½ sites as all 2^N basis states.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `N` | `int` | Number of spins. |
-| `values` | `tuple` | `(down, up)`. Default `(-1, 1)`. Use `(0, 1)` for binary encoding. |
-
-**Returns** `np.ndarray`, shape `(2^N, N)`.
-
----
-
-### `fermions_hilbert_space`
-
-*`tachys.lattice.exact_diag`*
-
-```python
-fermions_hilbert_space(Ns, Ne, Nbands=2)
-```
-
-Generate all valid fermionic occupation configurations: all ways to place `Ne`
-electrons on `Ns × Nbands` modes.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `Ns` | `int` | Number of lattice sites. |
-| `Ne` | `int` | Number of electrons. |
-| `Nbands` | `int` | Number of bands. Default `2`. |
-
-**Returns** `np.ndarray`, shape `(C(Ns·Nbands, Ne), Ns·Nbands)` of binary
-occupation vectors.
-</content>
+| Function | Description |
+|---|---|
+| `same_treedef(tree1, tree2)` | Whether two pytrees have the same structure, node types and static fields included. |
+| `same_treedef_and_avals(tree1, tree2)` | Whether, in addition, all leaves have the same shapes and dtypes. |
+| `as_column(x)` | A 1-D array as a column, of shape `(N, 1)`; other arrays unchanged. |

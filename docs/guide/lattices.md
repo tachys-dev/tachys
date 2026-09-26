@@ -3,9 +3,8 @@
 A `Lattice` describes the geometry of a finite two-dimensional cluster: a
 Bravais lattice spanned by two primitive vectors $\mathbf{a}_1$ and
 $\mathbf{a}_2$, a basis of `nb` sites in each unit cell, the number of cells
-along each direction, and the boundary conditions. It is immutable and lives on
-the host, as NumPy arrays. Hamiltonians and Monte Carlo moves read their bonds
-from it, and every `State` carries it as static metadata.
+along each direction, and the boundary conditions. Hamiltonians and Monte Carlo
+moves read their bonds from it, and every `State` carries it.
 
 ## Built-in lattices
 
@@ -132,9 +131,9 @@ factories take, see {doc}`hamiltonians`.
 ## Distance shells
 
 `lattice.shells(n)` groups the pairs of sites by distance and returns the `n`
-closest shells as `(distance, src, dst)` tuples, each pair counted once. It is
-a useful check on a list of bonds — the four displacements above must produce
-exactly the first shell, four bonds for each of the 16 corners:
+closest shells as `(distance, src, dst)` tuples, each pair counted once. It
+checks a list of bonds: the four displacements above must give exactly the
+first shell, four bonds for each of the 16 corners:
 
 ```python
 from tachys.lattice.lattice import Lattice

@@ -39,12 +39,10 @@ output head for the phase.
 
 ## Writing an ansatz
 
-Any `flax.linen.Module` works, provided `__call__` takes a batch of
-configurations, a `State` with a leading batch axis, and returns one
-log-amplitude per configuration. The module never sees a single configuration:
-when tachys evaluates one, as the optimizers do for the per-sample Jacobians,
-`WaveFunction` passes it on as a batch of one. `model.init` is called directly,
-so give it a batch too. A Jastrow wavefunction,
+Any `flax.linen.Module` works if its `__call__` takes a `State` holding a
+batch of configurations and returns one log-amplitude per configuration. The
+module never has to handle a single configuration: `WaveFunction` evaluates one
+as a batch of one. Call `model.init` with a batch too. A Jastrow wavefunction,
 $\log\psi(\sigma) = \sum_{i,j} \sigma_i W_{ij}\, \sigma_j$, takes a few lines:
 
 ```python
