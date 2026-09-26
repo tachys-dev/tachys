@@ -51,3 +51,10 @@ concepts
 foundation_models
 api
 ```
+
+```{toctree}
+:maxdepth: 1
+:caption: Additional Resources
+
+resources/vit_wavefunction
+```
