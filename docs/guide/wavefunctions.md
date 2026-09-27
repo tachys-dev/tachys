@@ -74,11 +74,12 @@ and `add_sign_rule` adds it to the log-amplitude:
 ```python
 from tachys.lattice.spins.sign_rules import add_sign_rule, MSR_log_phase_square
 
-apply_fn = add_sign_rule(MSR_log_phase_square, model.apply, L)
+apply_fn = add_sign_rule(MSR_log_phase_square, model.apply, lattice.L)
 wf = WaveFunction(params=params, apply_fn=apply_fn)
 ```
 
-`MSR_log_phase_square` takes the linear size `L` of an $L \times L$ cluster;
+`MSR_log_phase_square` takes the shape `(Lx, Ly)` of the cluster, here
+`lattice.L`, or the linear size `L` of an $L \times L$ one;
 `tachys.lattice.spins.sign_rules` also provides the Marshall rule of the chain
 and the 120° rule of the triangular lattice. Otherwise the phase is learned,
 which takes a complex output such as those of `SpinViT` and

@@ -678,11 +678,14 @@ network learns only a positive amplitude ({doc}`guide/wavefunctions`).
 | Function | Description |
 |---|---|
 | `add_sign_rule(sign_fn, apply_fn, L)` | Wraps `apply_fn` into `(params, state) -> apply_fn(params, state) + sign_fn(state.spins, L)`. |
-| `MSR_log_phase_square(spins, L)` | Marshall sign rule of the `L × L` square lattice: $i\pi N_\downarrow^A$, with $A$ the sites of even $x + y$. |
+| `MSR_log_phase_square(spins, L)` | Marshall sign rule of the square lattice: $i\pi N_\downarrow^A$, with $A$ the sites of even row + column. |
 | `MSR_log_phase_chain(spins, L)` | Marshall sign rule of a chain of `L` sites: $i\pi N_\downarrow^A$, with $A$ the even sites. |
-| `triangular_classical_log_phase(spins, L)` | 120° rule of the triangular lattice: $i\tfrac{2\pi}{3}\sum_{i\,\downarrow} c_i$, with $c_i$ = (row − column) mod 3. `L` is an `int` or `(Lx, Ly)`. |
+| `triangular_classical_log_phase(spins, L)` | 120° rule of the triangular lattice: $i\tfrac{2\pi}{3}\sum_{i\,\downarrow} c_i$, with $c_i$ = (row − column) mod 3. |
 
-Each returns a complex array of shape `(batch,)`.
+For the square and triangular lattices, `L` is the shape `(Lx, Ly)` of the
+cluster, such as `lattice.L`, or an `int` for an `L × L` cluster; the sites are
+numbered as in `Lattice`. Each function returns a complex array of shape
+`(batch,)`.
 
 ---
 

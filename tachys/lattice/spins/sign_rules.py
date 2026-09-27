@@ -41,15 +41,17 @@ def MSR_log_phase_square(spins, L):
     """
     Marshall sign rule as a log-phase: log((-1)^{N_down^A}) = i*pi*(N_down^A mod 2).
 
-    spins: array, shape (batch, Lx*Ly), S^z +1 (up) / -1 (down),
-           row-major flattened (site index = x*Ly + y).
-    L:     int (square) or (Lx, Ly) tuple.
+    spins: array, shape (batch, Lx*Ly), S^z +1 (up) / -1 (down), flattened to
+           match tachys's Lattice site-index convention: site index = i*Lx + j,
+           with i in [0, Ly) the cell coordinate along a2 and j in [0, Lx) along
+           a1 (see Lattice._build_sites), as for square(shape=(Lx, Ly)).
+    L:     int (square) or (Lx, Ly) tuple, e.g. lattice.L.
     Returns: complex array, shape (batch,).
     """
     Lx, Ly = _as_LxLy(L)
-    # A-sublattice = checkerboard sites with (x + y) % 2 == 0
-    sublattice_parity = (jnp.arange(Lx)[:, None] + jnp.arange(Ly)[None, :]) % 2
-    A_mask = (sublattice_parity == 0).astype(jnp.int32).flatten()   # (Lx*Ly,), 1 on A else 0
+    # A-sublattice = checkerboard sites with (i + j) % 2 == 0
+    sublattice_parity = (jnp.arange(Ly)[:, None] + jnp.arange(Lx)[None, :]) % 2  # (Ly, Lx)
+    A_mask = (sublattice_parity == 0).astype(jnp.int32).flatten()   # site index = i*Lx + j
 
     # up spins -> 0, down spins -> A_mask (counts only down spins on A)
     contrib = jnp.where(spins > 0, 0, A_mask)      # broadcasts to (batch, Lx*Ly)
