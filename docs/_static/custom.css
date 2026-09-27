@@ -35,3 +35,310 @@ h1, h2, h3 {
     font-weight: 700;
     letter-spacing: -0.03em;
 }
+
+/* Core Concepts: the VMC algorithm (left) beside the tachys code that runs
+   it (right), one step per row. The page drops the secondary sidebar, and
+   the table and every code box use the width it frees. */
+html[data-theme="light"],
+:root {
+    --vmc-code-bg: #f0f0f0;   /* Pygments "friendly" */
+}
+
+html[data-theme="dark"] {
+    --vmc-code-bg: #272822;   /* Pygments "monokai" */
+}
+
+.bd-main .bd-content .bd-article-container:has(table.vmc-algo) {
+    max-width: 100%;
+}
+
+/* The prose keeps the measure of the other pages. */
+.bd-article:has(table.vmc-algo) section > :not(section, .pst-scrollable-table-container, div[class*="highlight-"]) {
+    max-width: 50rem;
+}
+
+table.vmc-algo {
+    --gap: 1.1rem;   /* between the algorithm and the editor */
+    --radius: 0.6rem;
+    --titlebar: color-mix(in srgb, var(--pst-color-text-muted) 14%, var(--vmc-code-bg));
+    --dots: repeating-linear-gradient(to right, var(--pst-color-text-muted) 0 2px, transparent 2px 5px);
+    --hover: color-mix(in srgb, var(--pst-color-primary) 7%, transparent);
+    --hover-code: color-mix(in srgb, var(--pst-color-primary) 9%, var(--vmc-code-bg));
+    --file-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 1.5h6l3 3v10h-9z'/%3E%3Cpath d='M9.5 1.5v3h3'/%3E%3Cpath d='M6.8 8.2 5.2 9.9l1.6 1.7M9.2 8.2l1.6 1.7-1.6 1.7'/%3E%3C/svg%3E");
+}
+
+table.table.vmc-algo {
+    table-layout: fixed;
+    width: 100%;
+    border: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1.5rem 0 2rem;
+}
+
+table.vmc-algo thead th:nth-child(1) { width: 5%; }
+table.vmc-algo thead th:nth-child(2) { width: 28%; }
+table.vmc-algo thead th:nth-child(3) { width: 67%; }
+
+table.table.vmc-algo thead tr,
+table.table.vmc-algo tbody tr,
+table.table.vmc-algo tbody tr:nth-child(odd),
+table.table.vmc-algo tbody tr:nth-child(2n) {
+    background: none;
+    border: 0;
+}
+
+table.table.vmc-algo th,
+table.table.vmc-algo td {
+    border: 0;
+    padding: 0.55rem 1rem;
+    vertical-align: middle;
+    background: none;
+    box-shadow: none;
+}
+
+table.vmc-algo td p {
+    margin: 0;
+}
+
+/* The algorithm: a card made of the first two columns, one step per row. */
+table.table.vmc-algo td:nth-child(-n+2) {
+    border-top: 1px solid var(--pst-color-border);
+}
+
+table.table.vmc-algo th:nth-child(-n+2) {
+    border-top: 1px solid var(--pst-color-border);
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+table.table.vmc-algo :is(th, td):first-child {
+    border-left: 1px solid var(--pst-color-border);
+}
+
+table.table.vmc-algo :is(th, td):nth-child(2) {
+    border-right: 1px solid var(--pst-color-border);
+}
+
+table.table.vmc-algo th:first-child {
+    border-top-left-radius: var(--radius);
+}
+
+table.table.vmc-algo th:nth-child(2) {
+    border-top-right-radius: var(--radius);
+}
+
+table.table.vmc-algo tbody tr:last-child td:nth-child(-n+2) {
+    border-bottom: 1px solid var(--pst-color-border);
+}
+
+table.table.vmc-algo tbody tr:last-child td:first-child {
+    border-bottom-left-radius: var(--radius);
+}
+
+table.table.vmc-algo tbody tr:last-child td:nth-child(2) {
+    border-bottom-right-radius: var(--radius);
+}
+
+/* Step name above the equation. */
+table.vmc-algo td:nth-child(2) p:first-child:not(:only-child) {
+    margin-bottom: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+table.vmc-algo td:nth-child(2) mjx-container {
+    font-size: 110%;
+}
+
+/* Step numbers, linking to the sections below. */
+table.table.vmc-algo td:first-child {
+    padding-right: 0;
+    text-align: center;
+}
+
+table.vmc-algo td:first-child a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    background: var(--pst-color-primary);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+/* The code: an editor window set apart by a gutter, one continuous block
+   of numbered lines, with a dotted connector from each step to its code. */
+table.table.vmc-algo :is(th, td):nth-child(3) {
+    border-left: var(--gap) solid transparent;
+    border-right: 1px solid var(--pst-color-border);
+    background:
+        var(--dots) left center / var(--gap) 1px no-repeat border-box,
+        linear-gradient(var(--vmc-code-bg), var(--vmc-code-bg)) padding-box;
+}
+
+table.table.vmc-algo th:nth-child(3) {
+    border-top: 1px solid var(--pst-color-border);
+    border-top-right-radius: var(--radius);
+    border-top-left-radius: calc(var(--gap) + var(--radius)) var(--radius);
+    background: linear-gradient(var(--titlebar), var(--titlebar)) padding-box;
+    color: var(--pst-color-text-muted);
+    font-family: var(--pst-font-family-monospace);
+    font-size: 0.78rem;
+    font-weight: 400;
+}
+
+/* The title bar: a file icon and the file name, the language on the right. */
+table.vmc-algo th:nth-child(3) p {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+    color: var(--pst-color-text-base);
+}
+
+table.vmc-algo th:nth-child(3) p::before {
+    content: "";
+    flex: none;
+    width: 0.95rem;
+    height: 0.95rem;
+    background: var(--pst-color-primary);
+    -webkit-mask: var(--file-icon) center / contain no-repeat;
+    mask: var(--file-icon) center / contain no-repeat;
+}
+
+table.vmc-algo th:nth-child(3) p::after {
+    content: "Python";
+    margin-left: auto;
+    font-family: var(--pst-font-family-base);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+table.table.vmc-algo tbody tr:last-child td:nth-child(3) {
+    border-bottom: 1px solid var(--pst-color-border);
+    border-bottom-right-radius: var(--radius);
+    border-bottom-left-radius: calc(var(--gap) + var(--radius)) var(--radius);
+}
+
+table.vmc-algo div[class*="highlight-"],
+table.vmc-algo div.highlight,
+table.vmc-algo pre {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    min-height: 0;
+}
+
+table.vmc-algo pre {
+    font-size: 0.8rem;
+    line-height: 1.55;
+}
+
+table.vmc-algo pre .linenos {
+    display: inline-block;
+    width: 1.1rem;
+    margin-right: 0.8rem;
+    padding: 0;
+    color: var(--pst-color-text-muted);
+    opacity: 0.6;
+    text-align: right;
+    user-select: none;
+}
+
+table.vmc-algo button.copybtn {
+    display: none;
+}
+
+/* Hovering a row lights up both of its sides. */
+table.table.vmc-algo tbody tr:hover td:nth-child(-n+2) {
+    background: var(--hover);
+}
+
+table.table.vmc-algo tbody tr:hover td:nth-child(3) {
+    background:
+        var(--dots) left center / var(--gap) 1px no-repeat border-box,
+        linear-gradient(var(--hover-code), var(--hover-code)) padding-box;
+}
+
+/* Between 1280 and 1440px: a narrower algorithm and smaller code, so that
+   the longest line still fits. */
+@media (min-width: 1280px) and (max-width: 1439.98px) {
+    table.vmc-algo thead th:nth-child(1) { width: 4%; }
+    table.vmc-algo thead th:nth-child(2) { width: 25%; }
+    table.vmc-algo thead th:nth-child(3) { width: 71%; }
+
+    table.table.vmc-algo td:first-child {
+        padding-left: 0.4rem;
+    }
+
+    table.vmc-algo pre {
+        font-size: 0.76rem;
+    }
+}
+
+/* Narrow screens: a single card, the code of each step under its equation. */
+@media (max-width: 1279.98px) {
+    table.table.vmc-algo {
+        display: block;
+        border: 1px solid var(--pst-color-border);
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+
+    table.vmc-algo tbody {
+        display: block;
+    }
+
+    table.vmc-algo colgroup,
+    table.vmc-algo thead {
+        display: none;
+    }
+
+    table.table.vmc-algo tbody tr {
+        display: grid;
+        grid-template-columns: 2.6rem minmax(0, 1fr);
+        border-top: 1px solid var(--pst-color-border);
+    }
+
+    table.table.vmc-algo tbody tr:first-child {
+        border-top: 0;
+    }
+
+    table.table.vmc-algo tbody tr:nth-child(n) td:nth-child(n) {
+        display: block;
+        border: 0;
+        border-radius: 0;
+    }
+
+    table.table.vmc-algo td:first-child {
+        padding-left: 0.75rem;
+    }
+
+    table.table.vmc-algo tbody tr:nth-child(n) td:nth-child(3) {
+        grid-column: 1 / -1;
+        background: var(--vmc-code-bg);
+        overflow-x: auto;
+    }
+
+    table.table.vmc-algo tbody tr:hover td:nth-child(3) {
+        background: var(--hover-code);
+    }
+}
