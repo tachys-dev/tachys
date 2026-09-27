@@ -4,6 +4,7 @@
 
 # Variational Monte Carlo for quantum many-body systems
 
+[![Tests](https://github.com/tachys-dev/tachys/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/tachys-dev/tachys/actions/workflows/tests.yml?query=branch%3Amain)
 [![PyPI version](https://img.shields.io/pypi/v/tachys)](https://pypi.org/project/tachys/)
 
 **tachys** is a JAX library for finding the ground states of quantum lattice
