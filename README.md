@@ -14,7 +14,7 @@ optimize it with variational Monte Carlo — the same code runs on a laptop and
 across a multi-GPU cluster. It also trains foundation models: a single network
 covering a whole family of Hamiltonians, rather than one run per coupling.
 
-**Documentation:** https://tachys.org
+**Documentation:** https://tachys.org/quickstart.html
 
 ## Installation
 

@@ -51,4 +51,5 @@ api
 :caption: Additional Resources
 
 resources/vit_wavefunction
+resources/sbp_wavefunction
 ```
