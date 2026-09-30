@@ -1439,9 +1439,9 @@ key, state, wf, opt_state, history = train(
 
 `sample`, `compute_expectation` and the optimizers split the chains among all
 the devices of `jax.devices()`, so `N_mc` must be a multiple of their number.
-Run one process per device, launched with `mpirun` or `srun`: the optimizers
-assign their work by process, and with several devices in one process they
-return wrong updates.
+Run one process per device, launched with `mpirun` or `srun`
+({doc}`parallel`): the optimizers assign their work by process, and with
+several devices in one process they return wrong updates.
 
 Importing `tachys`
 

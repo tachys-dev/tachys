@@ -95,6 +95,6 @@ loop feeds it back at every step, and checkpoints store it.
 
 With several devices, the chains are split evenly among them, so `N_mc` must be
 a multiple of the number of devices. Run one process per device, for instance
-with `mpirun` or `srun` ({ref}`api-parallelism`). The same `N_mc` sets
+with `mpirun` or `srun` ({doc}`../parallel`). The same `N_mc` sets
 the size of the sample for every energy estimate, and of the linear system
 solved by the optimizer ({doc}`optimization`).

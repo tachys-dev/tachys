@@ -43,6 +43,7 @@ quickstart
 guide/index
 concepts
 foundation_models
+parallel
 api
 ```
 

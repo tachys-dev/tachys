@@ -192,4 +192,5 @@ for step in range(N_steps):
   lattices and Hamiltonians to other ansätze, moves and optimizer settings.
 - {doc}`concepts`: the data types and functions used above.
 - {doc}`foundation_models`: one wavefunction trained on many Hamiltonians.
+- {doc}`parallel`: the same scripts on several GPUs, on one node or many.
 - {doc}`api`: the full reference.
