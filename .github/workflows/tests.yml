@@ -6,7 +6,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Ubuntu 24.04 ships Open MPI 4; JAX does not detect the processes of Open MPI 5.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -16,10 +17,12 @@ jobs:
           cache: pip
 
       - name: Install OpenMPI
-        run: sudo apt-get install -y openmpi-bin libopenmpi-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openmpi-bin
 
       - name: Install dependencies
-        run: pip install -e ".[test]" mpi4py
+        run: pip install -e ".[test]"
 
       - name: Run tests
         run: pytest tests/ -v
