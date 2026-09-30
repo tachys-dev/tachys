@@ -188,9 +188,9 @@ for step in range(N_steps):
 
 ## Next steps
 
+- {doc}`concepts`: the data types and functions used above.
 - {doc}`guide/index`: each of the five components in depth, from custom
   lattices and Hamiltonians to other ansätze, moves and optimizer settings.
-- {doc}`concepts`: the data types and functions used above.
 - {doc}`foundation_models`: one wavefunction trained on many Hamiltonians.
 - {doc}`parallel`: the same scripts on several GPUs, on one node or many.
 - {doc}`api`: the full reference.

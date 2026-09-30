@@ -34,6 +34,7 @@ pip install "tachys[cuda]"    # GPU, with JAX for CUDA 12
 :caption: Getting Started
 
 quickstart
+concepts
 ```
 
 ```{toctree}
@@ -41,7 +42,6 @@ quickstart
 :caption: Documentation
 
 guide/index
-concepts
 foundation_models
 parallel
 api

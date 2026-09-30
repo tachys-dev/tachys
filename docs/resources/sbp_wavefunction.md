@@ -285,40 +285,6 @@ params = model.init(jax.random.key(1), state)
 model.apply(params, state).shape        # (200,), complex128
 ```
 
-### Translation invariance
-
-A translation $T$ permutes the rows and the columns of
-$f_{R_\uparrow R_\downarrow}$, so $\Psi(Tn) = \pm\Psi(n)$. The sign is the
-fermionic sign of $|Tn\rangle$ relative to $T|n\rangle$, which reorders the
-creation operators of the occupied modes; `sign_permutation(n, T)`, in
-`tachys.lattice.symmetries`, computes it, with `T[i]` the image of site `i`.
-That the ratio equals this sign, for every configuration, is the statement
-$T|\Psi\rangle = |\Psi\rangle$. For a translation by one site along $x$, with
-the random parameters above:
-
-```python
-import numpy as np
-import jax
-import jax.numpy as jnp
-from tachys.lattice.symmetries import sign_permutation
-
-occ = state.occupations.reshape(-1, 2, L, L)                    # occ[:, σ, y, x]
-translated = state.replace(occupations=jnp.roll(occ, 1, axis=3).reshape(-1, 2 * L * L))
-ratio = jnp.exp(model.apply(params, translated)
-                - model.apply(params, state))                   # Ψ(Tn) / Ψ(n)
-
-x, y = np.arange(L * L) % L, np.arange(L * L) // L              # site i = x + L * y
-T = (x + 1) % L + L * y                                         # T[i]: image of site i
-sign = jax.vmap(sign_permutation, in_axes=(0, None))(state.occupations, T)
-print(ratio[:6].real)
-print(jnp.allclose(ratio, sign))
-```
-
-```text
-[-1. -1. -1.  1. -1.  1.]
-True
-```
-
 ## Ground-state optimization
 
 The script follows the {doc}`../quickstart`, on an $8 \times 8$ lattice with
