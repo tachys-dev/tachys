@@ -6,10 +6,10 @@ own.
 
 | Component | Page | Main objects |
 |---|---|---|
-| Lattice | {doc}`lattices` | `square`, `Lattice.create`, `lattice.bonds` |
-| Hamiltonian | {doc}`hamiltonians` | `Sz`, `Splus`, `Cup_dag`, `heisenberg_hamiltonian` |
-| Initial configurations | {doc}`configurations` | `SpinState`, `FermionState`, `init_config_fixed_magn` |
-| Wavefunction | {doc}`wavefunctions` | `WaveFunction`, `SpinViT`, `FermionicTransformer` |
+| Lattice | {doc}`lattice` | `square`, `Lattice.create`, `lattice.bonds` |
+| Hamiltonian | {doc}`hamiltonian` | `Sz`, `Splus`, `Cup_dag`, `heisenberg_hamiltonian` |
+| Initial configuration | {doc}`configuration` | `SpinState`, `FermionState`, `init_config_fixed_magn` |
+| Wavefunction | {doc}`wavefunction` | `WaveFunction`, `SpinViT`, `FermionicTransformer` |
 | Monte Carlo move | {doc}`sampling` | `sample`, `BondExchange`, `SpinFlip` |
 | Optimization step | {doc}`optimization` | `SR`, `MARCH`, `train` |
 
@@ -20,10 +20,10 @@ uses, except those of the quickstart scripts, such as `lattice`, `key`, `N_mc`,
 ```{toctree}
 :hidden:
 
-lattices
-hamiltonians
-configurations
-wavefunctions
+lattice
+hamiltonian
+configuration
+wavefunction
 sampling
 optimization
 ```

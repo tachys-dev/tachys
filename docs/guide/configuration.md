@@ -1,4 +1,4 @@
-# Initial Configurations
+# Initial Configuration
 
 `sample` advances `N_mc` Markov chains in parallel and needs a starting
 configuration for each. The configurations are stored in a `State`, whose
@@ -70,7 +70,7 @@ state = FermionState(occupations=occupations, Ne=Ne, lattice=lattice)
 Any integer array of the right shape can seed the chains, which covers the
 cases the helpers do not, such as an odd number of electrons. To start every
 chain from the Néel state of the $4 \times 4$ lattice, whose site in column $x$
-and row $y$ has index $x + 4y$ ({doc}`lattices`):
+and row $y$ has index $x + 4y$ ({doc}`lattice`):
 
 ```python
 import numpy as np

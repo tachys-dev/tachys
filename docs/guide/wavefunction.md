@@ -1,4 +1,4 @@
-# Wavefunctions
+# Wavefunction
 
 The variational wavefunction is a Flax module that maps a batch of
 configurations to the logarithm of their amplitudes, $\log\psi(x)$: one complex

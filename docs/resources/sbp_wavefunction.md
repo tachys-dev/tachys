@@ -104,7 +104,7 @@ the two sites, and a trainable inverse length $\gamma_{\sigma\sigma'}$.
 In the code, a displacement is labelled like a site: the displacement
 $\mathbf{r}_i - \mathbf{r}_j = (dx, dy)$, modulo $L$, gets the index
 `k = dx + L * dy` of the site in column $dx$ and row $dy$
-({doc}`../guide/lattices`). `displacements(L)` returns `k[i, j]` for every pair
+({doc}`../guide/lattice`). `displacements(L)` returns `k[i, j]` for every pair
 of sites and the length `d[k]` of every displacement. The weights are stored
 per displacement, `alpha[σ, σ', head, k]`; indexing with `k` spreads them over
 all pairs of sites, and the `einsum` sums over $\sigma'$ and $j$, as in the
@@ -243,7 +243,7 @@ class PairingHead(nn.Module):
 
 `SBP` chains the three steps. Like every tachys ansatz, it takes a state
 holding a batch of configurations, here a `FermionState`, and returns one
-log-amplitude per configuration ({doc}`../guide/wavefunctions`). It reads the
+log-amplitude per configuration ({doc}`../guide/wavefunction`). It reads the
 lattice size from the configurations and the number of electrons from the
 state.
 
@@ -289,7 +289,7 @@ model.apply(params, state).shape        # (200,), complex128
 
 The script follows the {doc}`../quickstart`, on an $8 \times 8$ lattice with
 $N_e = 56$ electrons. `hubbard_hamiltonian` takes the hopping amplitude of each
-bond direction ({doc}`../guide/hamiltonians`). The SBP has $n_l = 2$ layers,
+bond direction ({doc}`../guide/hamiltonian`). The SBP has $n_l = 2$ layers,
 $h = 4$ heads and $d = 32$, for 25,441 parameters. The pairing matrix is real,
 so the sign of $\Psi$ does not depend continuously on the parameters, and the
 optimizer runs in real mode ({doc}`../guide/optimization`); it is MARCH, as in
@@ -392,7 +392,7 @@ longer than half the largest distance of the cluster gives the order
 parameter, $\Delta^2_{SC}$.
 
 Each operator below is averaged over the $N$ positions of the origin, with
-arrays of sites ({doc}`../guide/hamiltonians`): `shift(dx, dy)` gives the site
+arrays of sites ({doc}`../guide/hamiltonian`): `shift(dx, dy)` gives the site
 $\mathbf{r}_i + (dx, dy)$ for every site $i$. `compute_observables` runs 2
 sampling steps, its second argument, and measures all the operators on the
 configurations of each step.

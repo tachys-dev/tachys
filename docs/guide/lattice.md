@@ -1,4 +1,4 @@
-# Lattices
+# Lattice
 
 A `Lattice` describes the geometry of a finite two-dimensional cluster: a
 Bravais lattice spanned by two primitive vectors $\mathbf{a}_1$ and
@@ -126,7 +126,7 @@ for delta, b_from, b_to in lieb_bonds:
 ```
 
 The same displacements and sublattice indices are what the Hamiltonian
-factories take, see {doc}`hamiltonians`.
+factories take, see {doc}`hamiltonian`.
 
 ## Distance shells
 

@@ -53,4 +53,5 @@ api
 
 resources/vit_wavefunction
 resources/sbp_wavefunction
+resources/pfaffian_wavefunction
 ```

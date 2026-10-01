@@ -1,4 +1,4 @@
-# Hamiltonians
+# Hamiltonian
 
 A Hamiltonian in tachys is an operator: applied to a batch of configurations
 $x$, it returns the configurations $x'$ that it connects to each of them,
@@ -57,7 +57,7 @@ $$
 has $J_{ij} = J_1$ between nearest neighbours and $J_{ij} = J_2$ across the
 diagonals. On an $L \times L$ square lattice, the site in column $x$ and row
 $y$ has index $x + L\,y$: this is the numbering of `square(shape=(L, L))`
-({doc}`lattices`), used by the states of the quickstart. With periodic
+({doc}`lattice`), used by the states of the quickstart. With periodic
 boundaries, the coordinates are taken modulo $L$. Pairing every site with its
 neighbours to the right and above, and with its two diagonal neighbours on the
 right, counts each bond once:
@@ -176,7 +176,7 @@ for x in range(L):
 
 `Cup_dag(i) * Cup(j)` is $c^\dagger_{i\uparrow}c_{j\uparrow}$, in the same
 order. The fermionic operators include the Jordan–Wigner sign, with the modes
-ordered as in {doc}`configurations`.
+ordered as in {doc}`configuration`.
 
 A repulsion $V$ between electrons on neighbouring sites,
 $V\sum_{\langle i,j\rangle} n_i n_j$ with $n_i = n_{i\uparrow} + n_{i\downarrow}$,
@@ -202,7 +202,7 @@ for x in range(L):
 ## Built-in models
 
 The three models above are also provided as factories, on any lattice and with
-any list of bonds. They take a `Lattice` ({doc}`lattices`) in place of the
+any list of bonds. They take a `Lattice` ({doc}`lattice`) in place of the
 explicit indices, and build the same operators with index arrays:
 
 | Factory | Hamiltonian |

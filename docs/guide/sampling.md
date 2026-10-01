@@ -26,7 +26,7 @@ returns the new configurations, their log-amplitudes, which
 
 A move must let the chains reach every configuration of the sector, and keep
 the quantum numbers the Hamiltonian conserves — otherwise the chains leave the
-sector set by the {doc}`initial configurations <configurations>`.
+sector set by the {doc}`initial configurations <configuration>`.
 
 | Move | Configurations | Proposal | Conserves |
 |---|---|---|---|
@@ -41,7 +41,7 @@ sector set by the {doc}`initial configurations <configurations>`.
 `tachys.lattice.fermions.fermion_action`.
 
 `BondExchange` and `FermionSpinExchange` draw their bonds from the distance
-shells of the lattice ({doc}`lattices`): `max_dist=1`, the default, uses
+shells of the lattice ({doc}`lattice`): `max_dist=1`, the default, uses
 nearest neighbours, and `max_dist=2` adds the next shell, which helps when the
 Hamiltonian couples further neighbours. `BondFlip` takes cell displacements, as
 `lattice.bonds` does.

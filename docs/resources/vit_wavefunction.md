@@ -38,7 +38,7 @@ maps it to $\log\psi(\sigma)$ in three steps:
 ## 1. Embedding
 
 A batch of configurations has shape `(batch, L * L)`: the spin of the site in
-column $x$ and row $y$ is at index $x + L\,y$ ({doc}`../guide/lattices`).
+column $x$ and row $y$ is at index $x + L\,y$ ({doc}`../guide/lattice`).
 `extract_patches2d` cuts each configuration into $b \times b$ patches: patch
 $i = (L/b)\,P + Q$ holds the sites with $\lfloor y/b \rfloor = P$ and
 $\lfloor x/b \rfloor = Q$. `Embed` applies the same dense layer to every patch.
@@ -300,7 +300,7 @@ in `SpinViT`, $\mathbf{z}$ and both parts go through layer normalization.
 
 `ViT` chains the three steps. Like every tachys ansatz, it takes a `SpinState`,
 holding a batch of configurations, and returns one log-amplitude per
-configuration ({doc}`../guide/wavefunctions`).
+configuration ({doc}`../guide/wavefunction`).
 
 ```python
 import jax.numpy as jnp
@@ -495,7 +495,7 @@ where $T_{t_x, t_y}$ translates the configuration by $t_x$ columns and $t_y$
 rows, projects the ViT onto this sector. Together with the invariance under
 translations by $b$ sites, the sum makes $\psi_{\mathrm{sym}}$ invariant under
 every translation, rotation and reflection of the lattice. `symmetrize_wf`
-evaluates the 32 terms ({doc}`../guide/wavefunctions`), and the translation by
+evaluates the 32 terms ({doc}`../guide/wavefunction`), and the translation by
 one site now leaves the amplitudes unchanged:
 
 ```python

@@ -15,13 +15,13 @@ optimization loop is the same.
 A script is built from five components, each covered on its own page of the
 {doc}`guide/index`:
 
-1. **{doc}`Lattice <guide/lattices>` and
-   {doc}`Hamiltonian <guide/hamiltonians>`.** The lattice gives the sites and
+1. **{doc}`Lattice <guide/lattice>` and
+   {doc}`Hamiltonian <guide/hamiltonian>`.** The lattice gives the sites and
    the bonds; the Hamiltonian is a sum of spin or fermionic operators on them.
-2. **{doc}`Initial configurations <guide/configurations>`.** One per Markov
+2. **{doc}`Initial configuration <guide/configuration>`.** One per Markov
    chain, drawn at random with the conserved quantum numbers fixed: the total
    magnetization for spins, the number of electrons of each spin for fermions.
-3. **{doc}`Wavefunction <guide/wavefunctions>`.** Any Flax module that returns
+3. **{doc}`Wavefunction <guide/wavefunction>`.** Any Flax module that returns
    $\log\psi$; the scripts use transformer ansätze of the library.
    `WaveFunction` pairs its parameters with its `apply` function.
 4. **{doc}`Monte Carlo move <guide/sampling>`.** The rule that proposes a new
@@ -114,7 +114,7 @@ with the learning rate `lr`.
 
 The 30 steps take about ten seconds on a laptop CPU and show the energy
 decreasing. Reaching the ground state, $E/N = -0.52862$ on this lattice
-({doc}`guide/hamiltonians`), takes more steps and a larger network, as in
+({doc}`guide/hamiltonian`), takes more steps and a larger network, as in
 {doc}`resources/vit_wavefunction`.
 
 ## Fermions: the Hubbard model

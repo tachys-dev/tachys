@@ -103,9 +103,9 @@ sites. The network maps it to a complex log-amplitude $\log\psi_\theta(x)$:
 the real part is $\log|\psi_\theta(x)|$, the imaginary part the phase.
 
 A `State` holds the $N_{mc}$ configurations in an array whose leading axis runs
-over the chains, with the `Lattice` ({doc}`guide/lattices`) as static
+over the chains, with the `Lattice` ({doc}`guide/lattice`) as static
 metadata. A `WaveFunction` pairs the parameters $\theta$ with the `apply`
-function of the network ({doc}`guide/wavefunctions`):
+function of the network ({doc}`guide/wavefunction`):
 
 ```python
 log_psi = wf.apply_fn(wf.params, state)      # log ψ_θ(x_i), shape (N_mc,)
@@ -152,7 +152,7 @@ $$
 `compute_expectation` returns the local energies, their mean, and the mean of
 $|E_L|^2$. The variance
 $\sigma^2 = \langle |E_L|^2 \rangle - |\langle E_L \rangle|^2$ vanishes for an
-eigenstate. Any operator can take the place of `H` ({doc}`guide/hamiltonians`).
+eigenstate. Any operator can take the place of `H` ({doc}`guide/hamiltonian`).
 
 ```python
 E_L, e_mean, e2_mean = compute_expectation(H, wf, state, log_amps)

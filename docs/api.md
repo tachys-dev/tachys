@@ -191,7 +191,7 @@ class _Operator(*, coupling=1.0)
 
 The base class of the elementary operators. A subclass declares the fields of
 one term, such as its sites, and implements `apply`. Operators combine into
-Hamiltonians like the symbols of a formula ({doc}`guide/hamiltonians`).
+Hamiltonians like the symbols of a formula ({doc}`guide/hamiltonian`).
 
 | Member | Description |
 |---|---|
@@ -673,7 +673,7 @@ of shape `(batch, seq_len, d_model)` to one of the same shape.
 *`tachys.lattice.spins.sign_rules`*
 
 A known sign structure, added to the log-amplitude as a phase, so that the
-network learns only a positive amplitude ({doc}`guide/wavefunctions`).
+network learns only a positive amplitude ({doc}`guide/wavefunction`).
 
 | Function | Description |
 |---|---|
@@ -1365,7 +1365,7 @@ shows better whether the state is drifting away now.
 *`tachys.lattice.exact_diag`*
 
 For clusters small enough to hold the whole Hilbert space;
-{doc}`guide/hamiltonians` has an example.
+{doc}`guide/hamiltonian` has an example.
 
 | Function | Description |
 |---|---|
