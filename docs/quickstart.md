@@ -186,11 +186,20 @@ for step in range(N_steps):
     print(f"step {step:3d}  E/N = {jnp.real(e_mean) / N: .4f}")
 ```
 
+```{note}
+`FermionicTransformer` is a backflow determinant: a Slater determinant whose
+orbitals a transformer computes from the configuration. For the study of the
+Hubbard model, we suggest the
+{doc}`Symmetry-Preserving Backflow Pairing (SBP) wave function <resources/sbp_wavefunction>`.
+```
+
 ## Next steps
 
 - {doc}`concepts`: the data types and functions used above.
 - {doc}`guide/index`: each of the five components in depth, from custom
   lattices and Hamiltonians to other ansätze, moves and optimizer settings.
+- {doc}`ground_state_training`: `train`, a function that runs the whole
+  optimization, with the run logged to Weights & Biases.
 - {doc}`foundation_models`: one wavefunction trained on many Hamiltonians.
 - {doc}`parallel`: the same scripts on several GPUs, on one node or many.
 - {doc}`api`: the full reference.

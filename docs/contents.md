@@ -42,6 +42,7 @@ concepts
 :caption: Documentation
 
 guide/index
+ground_state_training
 foundation_models
 parallel
 api

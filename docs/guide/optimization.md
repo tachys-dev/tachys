@@ -151,3 +151,4 @@ key, state, wf, opt_state, history = train(
 Biases run as `wandb_run`, `train` logs them there and writes checkpoints. To
 resume, restore the checkpoint with `tachys.checkpoint.load_checkpoint` and
 pass the optimizer state and the step reached as `opt_state` and `start_step`.
+{doc}`../ground_state_training` shows a complete project.

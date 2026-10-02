@@ -342,3 +342,10 @@ table.table.vmc-algo tbody tr:hover td:nth-child(3) {
         background: var(--hover-code);
     }
 }
+
+/* Screenshots (`:class: screenshot` of a figure, set on its img): a thin
+   frame, so that light images stand out in both themes. */
+img.screenshot {
+    border: 1px solid var(--pst-color-border);
+    border-radius: 6px;
+}
