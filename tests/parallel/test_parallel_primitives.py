@@ -4,6 +4,10 @@ These tests run in a single process and verify that the core parallel
 primitives (mesh, n_devices, rank, hard_shard, all_unshard) are
 consistent with the underlying JAX device configuration.
 """
+import os
+import subprocess
+import sys
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -31,6 +35,22 @@ def test_mesh_axis_name_is_i():
 def test_mesh_size_matches_n_devices():
     from tachys.parallel import mesh, n_devices
     assert mesh.size == n_devices
+
+
+def test_several_gpus_per_process_raise():
+    """Importing tachys in a process that sees several GPUs raises."""
+    code = (
+        "import jax\n"
+        "jax.default_backend = lambda: 'gpu'\n"
+        "jax.local_device_count = lambda backend=None: 2\n"
+        "import tachys\n"
+    )
+    env = os.environ.copy()
+    env["JAX_PLATFORMS"] = "cpu"
+    proc = subprocess.run([sys.executable, "-c", code], env=env,
+                          capture_output=True, text=True, timeout=120)
+    assert proc.returncode != 0
+    assert "one process per GPU" in proc.stderr
 
 
 # ---------------------------------------------------------------------------
