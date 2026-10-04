@@ -51,6 +51,9 @@ html_additional_pages = {
 # toctrees in contents.md; there are no navigation links in a top bar.
 html_theme = "sphinx_book_theme"
 html_title = "tachys"
+# The browser-tab icon: the mark alone, as on the standalone pages; the wordmark
+# (logo.svg) is unreadable at tab size.
+html_favicon = "_static/logo-mark.svg"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_show_sourcelink = False
