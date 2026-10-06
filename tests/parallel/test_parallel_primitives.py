@@ -11,6 +11,8 @@ import sys
 import jax
 import jax.numpy as jnp
 import pytest
+from jax import shard_map
+from jax.sharding import PartitionSpec as P
 
 
 # ---------------------------------------------------------------------------
@@ -54,8 +56,17 @@ def test_several_gpus_per_process_raise():
 
 
 # ---------------------------------------------------------------------------
-# hard_shard
+# hard_shard (inside shard_map over 'i', like every caller)
 # ---------------------------------------------------------------------------
+
+def _hard_shard_on_mesh(x):
+    """Every device's hard_shard chunk of the replicated x, in device order."""
+    from tachys.parallel import mesh, hard_shard
+
+    f = shard_map(hard_shard, mesh=mesh, in_specs=P(), out_specs=P('i'),
+                  check_vma=False)
+    return jax.jit(f)(x)
+
 
 @pytest.mark.parametrize("total,dtype", [
     (8,  jnp.float32),
@@ -64,35 +75,29 @@ def test_several_gpus_per_process_raise():
 ])
 def test_hard_shard_shape(total, dtype):
     """hard_shard returns exactly 1/n_devices of the leading axis."""
-    from tachys.parallel import n_devices, hard_shard
+    from tachys.parallel import n_devices
 
     x = jnp.ones(total, dtype=dtype)
-    chunk = hard_shard(x)
+    chunk = _hard_shard_on_mesh(x).addressable_shards[0].data
     assert chunk.shape[0] == total // n_devices
 
 
 @pytest.mark.parametrize("total", [8, 16])
 def test_hard_shard_correct_slice(total):
-    """hard_shard returns this rank's contiguous slice of the global array."""
-    from tachys.parallel import hard_shard, n_devices, rank
-
+    """Device d gets the d-th contiguous chunk, so the chunks rebuild the array."""
     x = jnp.arange(total, dtype=jnp.float64)
-    chunk_size = total // n_devices
-    expected = x[rank * chunk_size : (rank + 1) * chunk_size]
-    assert jnp.array_equal(hard_shard(x), expected)
+    assert jnp.array_equal(_hard_shard_on_mesh(x), x)
 
 
 def test_hard_shard_2d():
     """hard_shard slices the leading axis only; inner shape is preserved."""
-    from tachys.parallel import hard_shard, n_devices, rank
+    from tachys.parallel import n_devices
 
     total, cols = 16, 4
     x = jnp.arange(total * cols, dtype=jnp.float64).reshape(total, cols)
-    chunk_size = total // n_devices
-    expected = x[rank * chunk_size : (rank + 1) * chunk_size]
-    result = hard_shard(x)
-    assert result.shape == (chunk_size, cols)
-    assert jnp.array_equal(result, expected)
+    result = _hard_shard_on_mesh(x)
+    assert result.addressable_shards[0].data.shape == (total // n_devices, cols)
+    assert jnp.array_equal(result, x)
 
 
 # ---------------------------------------------------------------------------

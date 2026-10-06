@@ -3,7 +3,9 @@
 Runs the same 5-step SR loops as test_sr_loop_5_steps and test_sr_real_loop_5_steps
 (both complex and real modes) under the current JAX device configuration, once
 with the default optimizer and once with ``dtype=float64``, whose Jacobian shift
-must be identical on every process for the two to agree.  Results
+must be identical on every process for the two to agree.  It also records
+every process's sha256 of the lowered SR and MARCH steps, which must agree too
+(XLA's multi-process GPU autotuning hangs when the programs differ).  Results
 are written as JSON to the path given as the first command-line argument; only
 rank 0 writes the file.
 
@@ -12,6 +14,7 @@ Typical invocation from the project root:
     JAX_PLATFORMS=cpu mpirun --oversubscribe -np 4 \\
         python tests/parallel/run_sr_loop.py /tmp/sr_results.json
 """
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -33,6 +36,8 @@ if str(_TESTS_ROOT) not in sys.path:
 
 import jax
 import jax.numpy as jnp
+import numpy as np
+from jax.experimental.multihost_utils import process_allgather
 
 # Importing any tachys sub-module triggers tachys/__init__.py, which calls
 # jax.distributed.initialize() when the MPI environment is detected and
@@ -47,7 +52,7 @@ from tachys.lattice.spins.spin_action import SpinFlip
 from tachys.lattice.spins.spin_state import SpinState
 from tachys.lattice.lattice_database import square
 from tachys.montecarlo import sample
-from tachys.optimizer import SR
+from tachys.optimizer import MARCH, SR
 from tachys.parallel import rank
 from tachys.wavefunction import WaveFunction
 
@@ -99,6 +104,19 @@ def _run_loop(complex_mode: bool, dtype=None) -> dict:
     return {"energies": energies, "final_params": final_params}
 
 
+def _program_digests() -> list:
+    """Every process's sha256 of the lowered SR and MARCH steps, gathered."""
+    model = SpinRBM(hidden_units=1, dtype=jnp.float64, complex=False)
+    state = SpinState(spins=frozen_config("square16_nmc16"), lattice=square(shape=(L, L)))
+    wf = WaveFunction(params=frozen_params("square16_1hidden_real"), apply_fn=model.apply)
+    E_L = jnp.zeros(N_mc, dtype=jnp.complex128)
+    text = ""
+    for opt in (SR(diag_shift=1e-4, mode="real"), MARCH(diag_shift=1e-4, mode="real")):
+        text += type(opt)._call.lower(opt, opt.init(wf.params), state, wf, E_L).as_text()
+    digest = np.frombuffer(hashlib.sha256(text.encode()).digest(), dtype=np.uint8)
+    return np.asarray(process_allgather(digest)).tolist()
+
+
 output_path = sys.argv[1]
 
 results = {
@@ -106,6 +124,7 @@ results = {
     "real":    _run_loop(complex_mode=False),
     "complex_float64": _run_loop(complex_mode=True, dtype=jnp.float64),
     "real_float64":    _run_loop(complex_mode=False, dtype=jnp.float64),
+    "program_digests": _program_digests(),
 }
 
 if rank == 0:

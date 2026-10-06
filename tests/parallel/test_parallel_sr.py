@@ -10,7 +10,8 @@ once for the whole module and parses the JSON written by rank 0.
 The expected energies and final parameters are identical to those used in
 tests/optimizer/test_sr.py, confirming that the 4-process distributed run
 is numerically equivalent to the serial run. The same loops rerun with the
-optimizer's ``dtype=float64`` must match the default ones.
+optimizer's ``dtype=float64`` must match the default ones, and every process
+must lower the same optimizer step.
 
 The entire module is skipped automatically when ``mpirun`` is not found on PATH.
 """
@@ -181,3 +182,17 @@ def test_float64_dtype_matches_the_default_loop(parallel_results, mode):
     for key, expected in ref["final_params"].items():
         diff = jnp.max(jnp.abs(jnp.array(got["final_params"][key]) - jnp.array(expected)))
         assert diff < 1e-10, f"{mode} {key}: max deviation {float(diff):.2e}"
+
+
+# ---------------------------------------------------------------------------
+# One program on every process
+# ---------------------------------------------------------------------------
+
+@pytest.mark.mpi
+def test_optimizer_program_identical_on_every_process(parallel_results):
+    """Every process lowers the same SR and MARCH step. A rank-dependent one
+    (jax.process_index() baked in as a constant) hangs XLA's multi-process
+    GPU autotuning in the first compile."""
+    digests = parallel_results["program_digests"]
+    assert len(digests) == 4
+    assert all(d == digests[0] for d in digests), "processes lowered different programs"

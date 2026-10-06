@@ -16,9 +16,8 @@ needed. When the script imports tachys, the processes connect to each other and
 each takes one GPU of its node; `jax.devices()` then lists the GPUs of all the
 processes, and the chains are divided among them. Three requirements follow:
 
-- **One process per GPU.** Each node runs as many processes as it has GPUs:
-  the optimizers would give wrong updates if a process used several GPUs, so
-  importing tachys in such a process raises an error.
+- **One process per GPU.** Each node runs as many processes as it has GPUs;
+  importing tachys in a process that sees several GPUs raises an error.
 - **`N_mc` is a multiple of the number of GPUs**, `n_devices` in
   `tachys.parallel`, so that every GPU holds the same number of chains.
 - **tachys is imported before any JAX array is created**, since JAX can connect

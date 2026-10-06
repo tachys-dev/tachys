@@ -13,7 +13,7 @@ import jax
 import jax.numpy as jnp
 from jax.scipy.linalg import solve_triangular
 
-from tachys.parallel import n_devices, rank
+from tachys.parallel import n_devices
 from tachys.lattice.foundation.foundation_state import FoundationState
 from tachys.lattice.foundation.collectives import grouped_mean
 from tachys.lattice.state_array import get_n_mc, get_n_mc_local
@@ -304,14 +304,19 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
         J = jacobian_fn(params, s)
         return J if shift is None else jax.tree.map(jnp.subtract, J, shift)
 
-    # Distribute upper-triangular pairs across devices.
+    # Distribute upper-triangular pairs across devices. The table holds every
+    # device's share and is indexed by axis_index, so all processes compile the
+    # same program. Each share is padded with its own first pair (so all devices
+    # run the same iters): re-setting a block on the same device is harmless,
+    # whereas a pair repeated on another device would be summed twice by the psum.
     pairs = list(combinations_with_replacement(range(N_batches), 2))
     n_pairs = len(pairs)
     pairs_per_device = (n_pairs + n_devices - 1) // n_devices
-    device_pairs = pairs[rank * pairs_per_device : (rank + 1) * pairs_per_device]
-    if len(device_pairs) < pairs_per_device:    # pad so all devices run same iters
-        device_pairs += [device_pairs[0]] * (pairs_per_device - len(device_pairs))
-    device_pairs = jnp.array(device_pairs)
+    table = []
+    for d in range(n_devices):
+        share = pairs[d * pairs_per_device : (d + 1) * pairs_per_device]
+        table.append(share + [share[0]] * (pairs_per_device - len(share)))
+    device_pairs = jnp.array(table)[jax.lax.axis_index('i')]
 
     if mode == "complex":
         ntk = jnp.zeros((N_batches, N_mc_per_batch, N_batches, N_mc_per_batch, 2, 2))

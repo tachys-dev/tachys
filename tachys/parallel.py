@@ -8,7 +8,7 @@ mesh      = Mesh(jax.devices(), ('i',))
 n_devices = len(jax.devices())
 rank = jax.process_index()
 
-# hard_shard and the NTK use rank as a device index: one device per process.
+# One GPU per process is the only multi-GPU layout that has been run.
 # CPU is exempt, for the tests that force several CPU devices into one process.
 if jax.default_backend() != "cpu" and jax.local_device_count() > 1:
     _n = jax.local_device_count()
@@ -32,10 +32,15 @@ def promote_to_pytree(f):
 
 @promote_to_pytree
 def hard_shard(array):
+    """This device's contiguous chunk of the leading axis; call inside shard_map over 'i'.
+
+    The offset is axis_index('i'), not the Python int rank, so every process compiles
+    the same program (XLA's multi-process GPU autotuning hangs otherwise).
+    """
     lenght = array.shape[0]
-    
+
     assert lenght % n_devices == 0
 
     lenght_per_proc = lenght // n_devices
-    start, end = rank * lenght_per_proc, (rank+1) * lenght_per_proc
-    return array[start:end]
+    start = jax.lax.axis_index('i') * lenght_per_proc
+    return jax.lax.dynamic_slice_in_dim(array, start, lenght_per_proc)

@@ -1458,7 +1458,7 @@ Importing `tachys`
 | `rank` | Index of this process, `jax.process_index()`. |
 | `MASTER` | Rank of the process that prints, logs and reads the configuration: `0`. |
 | `all_unshard(pytree)` | Replicates every array of `pytree` on all devices. |
-| `hard_shard(pytree)` | The part of every array that belongs to this process: the `rank`-th of `n_devices` equal parts of its first axis. |
+| `hard_shard(pytree)` | Inside `shard_map` over `'i'`, the part of every array that belongs to this device: the `axis_index('i')`-th of `n_devices` equal parts of its first axis. |
 | `promote_to_pytree(f)` | Turns a function of one array into a function of a pytree of arrays. |
 
 ## Utilities
