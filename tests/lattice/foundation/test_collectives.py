@@ -25,7 +25,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from jax.experimental.shard_map import shard_map
+from jax import shard_map
 from jax.sharding import PartitionSpec as P
 
 from tachys.parallel import mesh, n_devices
