@@ -22,7 +22,7 @@ if str(_ROOT) not in sys.path:
 
 import jax
 import jax.numpy as jnp
-from jax.experimental.shard_map import shard_map
+from jax import shard_map
 from jax.sharding import PartitionSpec as P
 
 from tachys.parallel import mesh, n_devices
