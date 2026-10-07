@@ -1,3 +1,6 @@
+import importlib.util
+import os
+import warnings
 from functools import partial
 from typing import Any, Callable, NamedTuple, Optional
 
@@ -8,10 +11,9 @@ from jax.sharding import PartitionSpec as P
 from jax import shard_map
 
 from tachys.parallel import mesh, n_devices, hard_shard
+from tachys.optimizer import _kernels
 from tachys.optimizer._kernels import (
     _matmul_precision,
-    linear_solver_cholesky,
-    compute_ntk,
     center_sr_solution,
 )
 from tachys.lattice.foundation.foundation_state import FoundationState
@@ -19,6 +21,57 @@ from tachys.lattice.foundation.collectives import grouped_mean
 from tachys.lattice.state_array import get_n_mc, get_n_mc_local
 from tachys.utils import _cast_floating_to
 
+
+# ─── Kernel backend ───────────────────────────────────────────────────────────
+def _select_kernels():
+    """The kernel backend named by the environment variable TACHYS_KERNELS.
+
+    "default" (or unset): ``_kernels``, which builds the whole NTK on every
+    device and solves it there. "distributed": ``_kernels_distributed``, which
+    keeps each device's rows of the NTK and solves the row-sharded system with
+    JAXMg across all GPUs. It needs several GPUs, one per process, so on CPU or
+    on a single GPU the default backend is used, with a warning.
+    """
+    name = os.environ.get("TACHYS_KERNELS") or "default"
+    if name == "default":
+        return _kernels
+    if name != "distributed":
+        raise ValueError(
+            f"TACHYS_KERNELS={name!r} is not a kernel backend: use 'default' or 'distributed'."
+        )
+    if jax.default_backend() == "cpu" or n_devices == 1:
+        warnings.warn(
+            f"TACHYS_KERNELS=distributed needs several GPUs, one per process, but found "
+            f"{n_devices} {jax.default_backend().upper()} device(s): using the default kernels.",
+            stacklevel=2,
+        )
+        return _kernels
+    if importlib.util.find_spec("jaxmg") is None:
+        raise ImportError(
+            "TACHYS_KERNELS=distributed solves with JAXMg, which is not installed: "
+            'pip install "tachys[jaxmg]"'
+        )
+    from tachys.optimizer import _kernels_distributed
+    return _kernels_distributed
+
+
+# Read once, at import. Reach backend functions as `kernels.<name>` when the
+# step is traced, never by importing them by name.
+kernels = _select_kernels()
+
+#TODO: remove this and only rely on environment variable
+
+def set_kernels(backend):
+    """Switch the kernel backend, e.g. to compare ``_kernels`` with
+    ``_kernels_distributed`` in one process.
+
+    ``kernels`` is read when a step is traced, so the jit caches are cleared
+    too: a step already compiled for the other backend would be reused
+    otherwise.
+    """
+    global kernels
+    kernels = backend
+    jax.clear_caches()
 
 # ─── Optimizer states ─────────────────────────────────────────────────────────
 
@@ -126,12 +179,17 @@ def _build_ntk(
     N_mc_local: int,
     V: Optional[Any] = None,
     dtype: Any = None,
+    backend: Any = None,
 ) -> jax.Array:
     """Natural tangent kernel matrix, normalized by total chain count.
 
     Pass V (bias-corrected second moment) to enable MARCH preconditioning.
+    ``backend`` is the kernel module that builds it, ``kernels`` by default:
+    the replicated NTK of ``_kernels``, or this device's rows of it with
+    ``_kernels_distributed``.
     """
-    ntk = compute_ntk(state, wf, mode, weights=weights, V=V, nbatches=nbatches, dtype=dtype)
+    backend = kernels if backend is None else backend
+    ntk = backend.compute_ntk(state, wf, mode, weights=weights, V=V, nbatches=nbatches, dtype=dtype)
     return ntk / (N_mc_local * n_devices)
 
 
@@ -144,7 +202,7 @@ def _parameter_updates(
     eps: jax.Array,
     ntk: jax.Array,
     weights: Optional[jax.Array],
-    solver: Callable = linear_solver_cholesky,
+    solver: Optional[Callable] = None,
     dtype: Any = None,
 ) -> Any:
     """Solve the linear system and map the solution back to parameter space.
@@ -154,13 +212,18 @@ def _parameter_updates(
 
     ``solver`` is called as ``solver(ntk, eps, diag_shift, mode)`` and must return
     the layout ``center_sr_solution`` expects: ``(M,)`` in mode="real", ``(2M,)``
-    holding ``[u, v]`` in mode="complex". Defaults to the Cholesky solver; the
-    real-time dynamics driver passes ``linear_solver_eigh`` instead (see
-    tachys.dynamics.tdvp), which regularizes by discarding small eigenvalues.
+    holding ``[u, v]`` in mode="complex", replicated. Defaults to the Cholesky
+    solver of the kernel backend, ``kernels.linear_solver_cholesky``, which
+    takes the NTK in the layout of that backend's ``compute_ntk``. The
+    real-time dynamics driver passes ``_kernels.linear_solver_eigh`` instead
+    (see tachys.dynamics.tdvp), which regularizes by discarding small
+    eigenvalues.
 
     With a ``dtype``, only the VJP runs in it: the solution is cast to the
     dtype of the ansatz output for it, and the updates back to the parameters'.
     """
+    if solver is None:
+        solver = kernels.linear_solver_cholesky
     sr_solution = solver(ntk, eps, diag_shift, mode)
     sr_solution = center_sr_solution(sr_solution, state, mode, weights)
     sr_solution = hard_shard(sr_solution)
