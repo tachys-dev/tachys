@@ -285,24 +285,18 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
     # vmap over samples: leaves become (N_mc, 2, *leaf_shape) or (N_mc, *leaf_shape).
     jacobian_fn = jax.vmap(jax.jacobian(_f), in_axes=(None, 0))
 
-    # With a reduced-precision dtype, every Jacobian is shifted by one constant,
-    # an estimate of its mean, before the contraction. center_ntk's centering
-    # (plain, weighted or per-system) is blind to a constant shift, so in exact
-    # arithmetic the NTK is unchanged. In float32 it is not: centering the
-    # contracted NTK cancels the Jacobian's common part only after rounding,
-    # losing (|mean|/std)^2 in relative precision -- 1.4e-3 on the centered NTK
-    # at mean/std = 30. The estimate is the first batch of every device,
-    # pmean'd so that every device shifts by the same constant.
-    shift = None
-    if dtype is not None:
-        first_batch = jax.tree.map(lambda x: x[:N_mc_per_batch], state)
-        with _matmul_precision(dtype):
-            J0 = jacobian_fn(params, first_batch)
-        shift = jax.tree.map(lambda x: jax.lax.pmean(jnp.mean(x, axis=0), 'i'), J0)
+    # Centering is blind to a constant shift of the Jacobian, but centering the
+    # contracted kernel cancels its mean only up to eps * sum_k w_k mean_k^2,
+    # w_k the kernel weight of parameter k: unbounded for a constant column. So
+    # every Jacobian is first shifted by its mean over the first 16 walkers of
+    # each device, pmean'd to one constant; a whole batch would raise peak memory.
+    head = jax.tree.map(lambda x: x[:min(N_mc_per_batch, 16)], state)
+    with _matmul_precision(dtype):
+        J0 = jacobian_fn(params, head)
+    shift = jax.tree.map(lambda x: jax.lax.pmean(jnp.mean(x, axis=0), 'i'), J0)
 
     def jacobian(s):
-        J = jacobian_fn(params, s)
-        return J if shift is None else jax.tree.map(jnp.subtract, J, shift)
+        return jax.tree.map(jnp.subtract, jacobian_fn(params, s), shift)
 
     # Distribute upper-triangular pairs across devices. The table holds every
     # device's share and is indexed by axis_index, so all processes compile the

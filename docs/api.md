@@ -994,7 +994,7 @@ The building blocks of the optimizers, for writing new ones. They run inside
 | Function | Description |
 |---|---|
 | `compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1, dtype=None)` | The centred kernel $N_{mc}\,\bar O\,\bar O^T$: `ntk_parallel_fn`, then `center_ntk`, then the optional scaling of rows and columns by $\sqrt{w}$. |
-| `ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None)` | The kernel of the whole batch before centring, of shape `(N_mc, N_mc)`, or `(N_mc, N_mc, 2, 2)` in `"complex"` mode, with the Jacobian contractions split among the devices. `V` is the rescaling of MARCH. |
+| `ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None)` | The kernel of the whole batch before centring, of shape `(N_mc, N_mc)`, or `(N_mc, N_mc, 2, 2)` in `"complex"` mode, with the Jacobian contractions split among the devices. Every Jacobian is first shifted by its mean over the first 16 walkers of each device: the centring removes any such constant exactly, and subtracting it before the contraction keeps the cancellation of the mean out of the rounding. `V` is the rescaling of MARCH. |
 | `center_ntk(ntk, weights, state)` | Subtracts the row, column and global means; per system for a `FoundationState`. |
 | `linear_solver_cholesky(ntk, eps, diag_shift, mode="complex")` | Solves $(K + \lambda I)\,x = \varepsilon$ by Cholesky decomposition. In `"complex"` mode, as a real system of twice the size, returning `[u, v]` with $x = u + iv$. A failed solve returns zeros. |
 | `linear_solver_eigh(ntk, eps, diag_shift, mode="complex", rcond=1e-8, atol=0.0)` | The same system, by diagonalization: eigenvalues below `max(rcond * λ_max, atol)` are discarded, and `diag_shift` is added to the others. Used by `TDVP`. |

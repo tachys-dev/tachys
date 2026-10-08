@@ -191,12 +191,11 @@ class _BaseOptimizer(struct.PyTreeNode):
                  estimators instead. Static field. ``None`` (default) evaluates
                  in the dtype the parameters are stored in. A dtype (e.g.
                  ``jnp.float32``, or ``"float32"`` straight from a config) casts
-                 the parameters and the state to it for those evaluations, runs
-                 their matmuls at full precision (JAX's default for float32 on
-                 recent NVIDIA GPUs is TF32), and shifts the Jacobian before the
-                 contraction (see ``ntk_parallel_fn``). The NTK and its solve
-                 stay in float64, and the updates come back in the parameters'
-                 own dtype. float32 rounding moves the NTK's eigenvalues by
+                 the parameters and the state to it for those evaluations and
+                 runs their matmuls at full precision (JAX's default for float32
+                 on recent NVIDIA GPUs is TF32). The NTK and its solve stay in
+                 float64, and the updates come back in the parameters' own
+                 dtype. float32 rounding moves the NTK's eigenvalues by
                  about 1e-8 of the largest one, so a smaller ``diag_shift`` can
                  leave the shifted NTK indefinite. The Cholesky solve then fails
                  and, as for any failed solve, the SR step is silently zero

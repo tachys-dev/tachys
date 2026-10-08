@@ -2,8 +2,7 @@
 
 Runs the same 5-step SR loops as test_sr_loop_5_steps and test_sr_real_loop_5_steps
 (both complex and real modes) under the current JAX device configuration, once
-with the default optimizer and once with ``dtype=float64``, whose Jacobian shift
-must be identical on every process for the two to agree.  It also records
+with the default optimizer and once with ``dtype=float64``.  It also records
 every process's sha256 of the lowered SR and MARCH steps, which must agree too
 (XLA's multi-process GPU autotuning hangs when the programs differ).  Results
 are written as JSON to the path given as the first command-line argument; only
