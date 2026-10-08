@@ -22,7 +22,7 @@ from tachys.utils import _cast_floating_to
 # The NTK built by compute_ntk is replicated on every device, and the solvers
 # below solve it there, inside the optimizer step's shard_map. The other kernel
 # backend, _kernels_distributed, keeps only each device's rows of it instead;
-# the optimizers reach either through `optimizers.kernels`.
+# the optimizers' `kernels` field picks one.
 
 
 def _matmul_precision(dtype):

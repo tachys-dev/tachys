@@ -63,6 +63,8 @@ class TDVP(_BaseOptimizer, kw_only=True):
     dtype      : precision of the Jacobian, NTK contraction and VJP, as for the
                  SR-family optimizers. Static field; ``None`` keeps the
                  parameters' own dtype.
+    kernels    : must be ``"default"``: the eigh solver needs the whole NTK on
+                 every device. Static field.
     rcond      : relative eigenvalue cutoff -- eigenvalues at or below
                  ``rcond * lambda_max`` are discarded, capping the condition
                  number of the retained subspace at ``1 / rcond``. The single
@@ -77,6 +79,11 @@ class TDVP(_BaseOptimizer, kw_only=True):
     atol: float = 0.0
 
     def __post_init__(self):
+        if self.kernels != "default":
+            raise ValueError(
+                f"TDVP requires kernels='default', got kernels={self.kernels!r}: its eigh "
+                "solver needs the whole NTK on every device."
+            )
         super().__post_init__()
         if self.mode != "complex":
             raise ValueError(

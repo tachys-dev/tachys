@@ -1,6 +1,6 @@
 """Kernel backend that keeps the NTK row-sharded and solves it with JAXMg.
 
-Selected with ``TACHYS_KERNELS=distributed`` (see ``optimizers.kernels``). The
+Selected with ``kernels="distributed"`` on SR, SPRING or MARCH. The
 default backend, ``_kernels``, psums the whole NTK onto every device and solves
 it there. Here each device builds and keeps only its own rows of the kernel, and
 JAXMg's ``potrs_shardmap_ctx`` (cuSOLVERMp, one process per GPU) solves the
@@ -9,8 +9,8 @@ place, inside the optimizer step's shard_map over 'i'. They take the same
 arguments and return the solution in the same layout, so the rest of the step
 (centring, VJP, momentum) is shared.
 
-Only the Cholesky solver of SR, SPRING and MARCH is distributed so far. TDVP
-builds its kernel with ``_kernels`` whichever backend is selected.
+Only the Cholesky solver of SR, SPRING and MARCH is distributed so far. TDVP,
+which solves with eigh, takes ``kernels="default"`` only.
 
 Row order
 ---------
@@ -226,7 +226,7 @@ def _jaxmg():
         import jaxmg
     except ImportError as err:
         raise ImportError(
-            "TACHYS_KERNELS=distributed solves with JAXMg, which is not installed: "
+            "kernels='distributed' solves with JAXMg, which is not installed: "
             'pip install "tachys[jaxmg]"'
         ) from err
     # potrs_jit_ctx came with the potrs_shardmap_ctx that takes local blocks;
@@ -234,7 +234,7 @@ def _jaxmg():
     if not hasattr(jaxmg, "potrs_jit_ctx"):
         raise ImportError(
             f"JAXMg {jaxmg.__version__} has no potrs_shardmap_ctx that solves on "
-            "local blocks inside shard_map, which TACHYS_KERNELS=distributed needs."
+            "local blocks inside shard_map, which kernels='distributed' needs."
         )
     return jaxmg
 

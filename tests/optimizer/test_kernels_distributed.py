@@ -8,9 +8,7 @@ it is checked here against the default backend, with the module-scoped
         python tests/optimizer/run_kernels_distributed.py <tmpfile>
 
 once: four devices in one process, with the one JAXMg call (``_potrs``)
-replaced by a jnp solve of the gathered system. The backend switch
-(TACHYS_KERNELS) is run in subprocesses too, since it is read when
-tachys.optimizer is imported.
+replaced by a jnp solve of the gathered system.
 """
 import json
 import os
@@ -19,6 +17,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import jax
 import pytest
 
 _RUNNER = Path(__file__).parent / "run_kernels_distributed.py"
@@ -33,7 +32,6 @@ def results():
         env = os.environ.copy()
         env["JAX_PLATFORMS"] = "cpu"
         env["XLA_FLAGS"] = f"--xla_force_host_platform_device_count={_FORCED_DEVICE_COUNT}"
-        env.pop("TACHYS_KERNELS", None)
 
         proc = subprocess.run(
             [sys.executable, str(_RUNNER), output_path],
@@ -61,8 +59,7 @@ def test_runner_used_forced_device_count(results):
 
 # Maximum relative errors against the default backend. The NTK is the same
 # contractions, only reduced in another order; in "complex" mode the default
-# Cholesky solves by Schur complement, the distributed one in one piece. TDVP
-# keeps the default kernels, so its updates must agree exactly.
+# Cholesky solves by Schur complement, the distributed one in one piece.
 _TOLERANCES = {"layout": 0.0, "ntk": 1e-12, "solvers": 1e-12, "updates": 1e-10}
 
 
@@ -76,8 +73,8 @@ def test_matches_the_default_backend(results, group):
               FoundationState whose systems are spread over all the devices).
     solvers : the Cholesky solve, inside shard_map, on a random kernel.
     updates : two steps of SR/SPRING/MARCH (real/complex, weighted or not, and
-              a FoundationState) through the optimizers' own step, and of TDVP,
-              which keeps the default kernels.
+              a FoundationState) through the optimizers' own step, with
+              kernels="default" and kernels="distributed" in one process.
     """
     tol = _TOLERANCES[group]
     worst = {name: err for name, err in results[group].items() if not err <= tol}
@@ -90,47 +87,42 @@ def test_failed_cholesky_gives_a_zero_step(results):
     assert results["not_pd_max_abs"] == 0.0
 
 
-# ─── The backend switch ───────────────────────────────────────────────────────
+# ─── The kernels field ────────────────────────────────────────────────────────
 
-def _import_optimizers(tachys_kernels):
-    """Import tachys.optimizer in a fresh process with TACHYS_KERNELS set."""
-    code = (
-        "import warnings\n"
-        "with warnings.catch_warnings(record=True) as caught:\n"
-        "    warnings.simplefilter('always')\n"
-        "    from tachys.optimizer import optimizers\n"
-        "print('KERNELS=' + optimizers.kernels.__name__)\n"
-        "print('WARNINGS=' + ' | '.join(str(w.message) for w in caught))\n"
-    )
-    env = os.environ.copy()
-    env["JAX_PLATFORMS"] = "cpu"
-    env["TACHYS_KERNELS"] = tachys_kernels
-    return subprocess.run([sys.executable, "-c", code], env=env,
-                          capture_output=True, text=True, timeout=120)
+def test_default_kernels():
+    from tachys.optimizer import SR, _kernels
+    optimizer = SR(diag_shift=1e-3, mode="real")
+    assert optimizer.kernels == "default"
+    assert optimizer._backend is _kernels
 
 
-def _value(stdout, key):
-    return next(line[len(key) + 1:] for line in stdout.splitlines() if line.startswith(key + "="))
+def test_distributed_falls_back_on_a_single_device(monkeypatch):
+    from tachys.optimizer import SR, optimizers
+    monkeypatch.setattr(optimizers, "n_devices", 1)
+    with pytest.warns(UserWarning, match="kernels='distributed' needs several devices"):
+        optimizer = SR(diag_shift=1e-3, mode="real", kernels="distributed")
+    assert optimizer.kernels == "default"
 
 
-def test_default_backend_without_the_variable():
-    proc = _import_optimizers("default")
-    assert proc.returncode == 0, proc.stderr
-    assert _value(proc.stdout, "KERNELS") == "tachys.optimizer._kernels"
+def test_kernels_is_a_static_field(monkeypatch):
+    """It is part of the jit cache key, so both backends compile side by side."""
+    from tachys.optimizer import SR, _kernels_distributed, optimizers
+    monkeypatch.setattr(optimizers, "n_devices", _FORCED_DEVICE_COUNT)
+    optimizer = SR(diag_shift=1e-3, mode="real", kernels="distributed")
+    assert optimizer._backend is _kernels_distributed
+    assert jax.tree.structure(optimizer) != jax.tree.structure(optimizer.replace(kernels="default"))
 
 
-def test_distributed_falls_back_on_cpu_with_a_warning():
-    """JAXMg needs GPUs: on CPU the same script runs with the default kernels."""
-    proc = _import_optimizers("distributed")
-    assert proc.returncode == 0, proc.stderr
-    assert _value(proc.stdout, "KERNELS") == "tachys.optimizer._kernels"
-    assert "TACHYS_KERNELS=distributed needs several GPUs" in _value(proc.stdout, "WARNINGS")
+def test_unknown_kernels_raise():
+    from tachys.optimizer import SR
+    with pytest.raises(ValueError, match="kernels='jaxmg'"):
+        SR(diag_shift=1e-3, mode="real", kernels="jaxmg")
 
 
-def test_unknown_backend_raises():
-    proc = _import_optimizers("jaxmg")
-    assert proc.returncode != 0
-    assert "TACHYS_KERNELS='jaxmg'" in proc.stderr
+def test_tdvp_rejects_distributed():
+    from tachys.dynamics import TDVP
+    with pytest.raises(ValueError, match="TDVP requires kernels='default'"):
+        TDVP(mode="complex", kernels="distributed")
 
 
 # ─── Tile size ────────────────────────────────────────────────────────────────

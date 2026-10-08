@@ -37,7 +37,6 @@ from jax.sharding import NamedSharding, PartitionSpec as P
 
 from testing_ansatz import FermionFoundationRBM, SpinRBM, frozen_params
 from testing_configs import frozen_config
-from tachys.dynamics import TDVP
 from tachys.lattice.fermions.hamiltonians.hubbard import hubbard_square_pbc
 from tachys.lattice.foundation.foundation_state import FermionFoundationState
 from tachys.lattice.foundation.operators import combine_systems, extract_system_couplings
@@ -45,7 +44,7 @@ from tachys.lattice.lattice_database import square
 from tachys.lattice.operator.local_estimator import compute_expectation, local_estimator
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from tachys.lattice.spins.spin_state import SpinState
-from tachys.optimizer import MARCH, SPRING, SR, optimizers
+from tachys.optimizer import MARCH, SPRING, SR
 from tachys.optimizer import _kernels
 from tachys.optimizer import _kernels_distributed as dist
 from tachys.parallel import hard_shard, mesh, n_devices
@@ -243,7 +242,7 @@ def check_solvers():
     return out, float(jnp.max(jnp.abs(sol)))
 
 
-# ─── 4. Optimizer and TDVP updates, default vs distributed backend ────────────
+# ─── 4. Optimizer updates, default vs distributed backend ─────────────────────
 
 def two_steps(optimizer, H, state, wf, weights, local_energies):
     """(updates, opt_state) of two consecutive steps, so that the SPRING and
@@ -262,34 +261,25 @@ def foundation_local_energies(H, state, wf):
     return compute_expectation(H, wf, state, wf.apply_fn(wf.params, state))[0]
 
 
-def run_updates():
-    """Every update case, with whatever backend optimizers.kernels is set to."""
+def run_updates(kernels):
+    """Every update case, with the optimizers' ``kernels`` set to ``kernels``."""
     results = {}
     for mode in ("real", "complex"):
         H, state, wf = spin_setup(mode)
         for name, make in (("SR", SR), ("SPRING", SPRING), ("MARCH", MARCH)):
             for wname, weights in (("", None), ("_weighted", WEIGHTS)):
-                optimizer = make(diag_shift=DIAG_SHIFT, mode=mode, nbatches=2)
+                optimizer = make(diag_shift=DIAG_SHIFT, mode=mode, nbatches=2, kernels=kernels)
                 results[f"{name}_{mode}{wname}"] = two_steps(optimizer, H, state, wf, weights,
                                                             spin_local_energies)
         fH, fstate, fwf = foundation_setup()
-        results[f"SR_foundation_{mode}"] = two_steps(SR(diag_shift=DIAG_SHIFT, mode=mode), fH, fstate,
-                                                     fwf, None, foundation_local_energies)
-
-    # TDVP keeps the default kernels under either backend: no difference.
-    H, state, wf = spin_setup("complex")
-    for wname, weights in (("", None), ("_weighted", WEIGHTS)):
-        results[f"TDVP{wname}"] = two_steps(TDVP(mode="complex"), H, state, wf, weights,
-                                            spin_local_energies)
+        results[f"SR_foundation_{mode}"] = two_steps(SR(diag_shift=DIAG_SHIFT, mode=mode, kernels=kernels),
+                                                     fH, fstate, fwf, None, foundation_local_energies)
     return results
 
 
 def check_updates():
-    optimizers.set_kernels(_kernels)
-    ref = run_updates()
-    optimizers.set_kernels(dist)
-    got = run_updates()
-    optimizers.set_kernels(_kernels)
+    ref = run_updates("default")
+    got = run_updates("distributed")
     return {name: max(rel_err(g[0], r[0]) for g, r in zip(got[name], ref[name])) for name in ref}
 
 
