@@ -15,19 +15,30 @@ Reference variational energies for frustrated lattice models — pick a model, a
 lattice geometry and a size on the <a href="benchmarks.html">benchmarks page</a>.
 ```
 
-**tachys** is a JAX library for finding the ground states of quantum lattice
-models with neural-network wavefunctions. Build a Hamiltonian by composing
-spin and fermionic operators, use any Flax network as the wavefunction, and
-optimize it with variational Monte Carlo — the same code runs on a laptop and
-across a multi-GPU cluster. It also trains foundation models: a single network
-covering a whole family of Hamiltonians, rather than one run per coupling.
+**tachys** is a variational Monte Carlo library developed in JAX with one
+central aim: bringing neural-network quantum states (NQS) to realistic quantum
+materials. To reach the system sizes that real materials demand, the code is
+engineered to scale across {doc}`large GPU clusters <parallel>` and has been
+benchmarked on systems with up to 1,000 electrons, a scale already meaningful
+for studying unconventional superconductors. With the same focus on realistic
+materials, tachys can treat itinerant fermions and localized spins within a
+single Hamiltonian, as required by
+{doc}`Kondo lattice models <resources/pfaffian_wavefunction>` of heavy-fermion
+compounds. It also supports {doc}`Foundation NQS <foundation_models>`, in which
+one network is trained across an entire family of Hamiltonians, allowing the
+parameter space relevant to a given material to be explored in a single
+optimization.
 
 ## Installation
 
 ```bash
-pip install tachys            # CPU
-pip install "tachys[cuda]"    # GPU, with JAX for CUDA 12
+pip install tachys              # CPU
+pip install "tachys[cuda13]"    # GPU, with JAX for CUDA 13
+pip install "tachys[cuda12]"    # GPU, with JAX for CUDA 12
 ```
+
+On GPUs, choose the CUDA version that the NVIDIA driver supports: the header of
+`nvidia-smi` shows the highest one.
 
 ```{toctree}
 :maxdepth: 1

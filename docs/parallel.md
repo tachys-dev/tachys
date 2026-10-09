@@ -1,6 +1,7 @@
 # Parallel Jobs
 
-The same tachys script runs on one GPU or on many. The $N_{mc}$ Markov chains
+The same tachys script runs on one GPU or across a large GPU cluster, for the
+system sizes that realistic materials demand. The $N_{mc}$ Markov chains
 are divided evenly among the GPUs: each GPU advances its own chains and
 evaluates their local energies and log-derivatives, while the energy and the
 parameter update are computed from the samples of all GPUs, as on a single
@@ -57,7 +58,7 @@ script `job.sh` runs `main.py` on the 4 GPUs of one node:
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/%x.%j.out
 
-source $HOME/venvs/tachys/bin/activate    # Python environment with tachys[cuda]
+source $HOME/venvs/tachys/bin/activate    # Python environment with tachys[cuda13]
 
 srun python main.py
 ```
@@ -85,7 +86,7 @@ On several nodes, only `--nodes` changes. For two nodes with 4 GPUs each:
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/%x.%j.out
 
-source $HOME/venvs/tachys/bin/activate    # Python environment with tachys[cuda]
+source $HOME/venvs/tachys/bin/activate    # Python environment with tachys[cuda13]
 
 srun python main.py
 ```

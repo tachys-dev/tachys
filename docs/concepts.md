@@ -17,7 +17,8 @@ sampling, local estimators and parameter updates. A VMC run is a plain Python
 loop that calls them, one per step of the algorithm, and the same functions are
 the building blocks of {ref}`other algorithms <vmc-reuse>`. They take immutable
 JAX pytrees and return new ones; they are compiled with `jit` and run in
-parallel on all available devices.
+parallel on all available devices, from one CPU to a large GPU cluster
+({doc}`parallel`).
 
 :::{list-table}
 :header-rows: 1
@@ -98,11 +99,12 @@ carry of a `jax.lax.scan`; nothing is stored anywhere else. The
 
 ## The variational state
 
-A configuration $x$ holds the spins, or the occupation numbers, of the $N_s$
-sites. The network maps it to a complex log-amplitude $\log\psi_\theta(x)$:
+A configuration $x$ holds the spins or the occupation numbers of the $N_s$
+sites, or both, as in Kondo lattice models ({doc}`guide/configuration`). The
+network maps it to a complex log-amplitude $\log\psi_\theta(x)$:
 the real part is $\log|\psi_\theta(x)|$, the imaginary part the phase.
 
-A `State` holds the $N_{mc}$ configurations in an array whose leading axis runs
+A `State` holds the $N_{mc}$ configurations in arrays whose leading axis runs
 over the chains, with the `Lattice` ({doc}`guide/lattice`) as static
 metadata. A `WaveFunction` pairs the parameters $\theta$ with the `apply`
 function of the network ({doc}`guide/wavefunction`):

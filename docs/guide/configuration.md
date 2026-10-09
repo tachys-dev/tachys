@@ -65,6 +65,15 @@ occupations, N_up, N_down = init_config_spinful(
 state = FermionState(occupations=occupations, Ne=Ne, lattice=lattice)
 ```
 
+## Spins and fermions
+
+Models of itinerant electrons and localized spins, such as the Kondo lattice
+model ({doc}`hamiltonian`), need a state that holds both an array
+`occupations`, as in `FermionState`, and an array `spins`, as in `SpinState`.
+The {doc}`../resources/pfaffian_wavefunction` defines one, `KondoState`, a
+subclass of `State`, and draws its configurations with `init_config_spinful`
+and `init_config_fixed_magn`.
+
 ## Custom configurations
 
 Any integer array of the right shape can seed the chains, which covers the

@@ -17,7 +17,7 @@ configuration file below. This tutorial needs a W&B account, see the
 [W&B quickstart](https://docs.coreweave.com/quickstart/).
 
 ```bash
-pip install "tachys[wandb]"     # tachys[cuda,wandb] on GPUs
+pip install "tachys[wandb]"     # tachys[cuda13,wandb] or tachys[cuda12,wandb] on GPUs
 wandb login
 ```
 
@@ -347,7 +347,7 @@ parameters of `vmc_config.yaml` on the 8 GPUs of one node ({doc}`parallel`):
 #SBATCH --time=24:00:00
 #SBATCH --output=log_output/%x.o%j
 
-source $HOME/venvs/tachys/bin/activate    # Python environment with tachys[cuda,wandb]
+source $HOME/venvs/tachys/bin/activate    # Python environment with tachys[cuda13,wandb]
 export WANDB_MODE=offline
 
 srun python main.py
