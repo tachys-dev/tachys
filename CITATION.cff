@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use tachys in your research, please cite it as below."
+type: software
+title: "tachys: Variational Monte Carlo for quantum many-body systems"
+abstract: >-
+  tachys is a variational Monte Carlo library developed in JAX with one
+  central aim: bringing neural-network quantum states (NQS) to realistic
+  quantum materials.
+authors:
+  - family-names: Rende
+    given-names: Riccardo
+  - family-names: Viteritti
+    given-names: Luciano Loris
+repository-code: "https://github.com/tachys-dev/tachys"
+url: "https://tachys.org"
+license: Apache-2.0
+keywords:
+  - jax
+  - neural quantum states
+  - variational monte carlo
+  - quantum many-body
+preferred-citation:
+  type: software
+  title: "tachys: Variational Monte Carlo for quantum many-body systems"
+  authors:
+    - family-names: Rende
+      given-names: Riccardo
+    - family-names: Viteritti
+      given-names: Luciano Loris
+  year: 2026
+  url: "https://github.com/tachys-dev/tachys"
