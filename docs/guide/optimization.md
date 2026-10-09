@@ -129,26 +129,3 @@ $\sigma^2 = \langle |E_L|^2 \rangle - |\langle E_L \rangle|^2$, which vanishes
 for an exact eigenstate. It measures convergence without reference to the
 unknown exact energy; its dimensionless form, the V-score
 $N_s\,\sigma^2 / \langle E_L \rangle^2$, compares different systems.
-
-## The `train` driver
-
-`train` (`tachys.ground_state_training`) runs the same loop and prints, at
-every step, the energy per site, the variance, the V-score, the acceptance and
-the timings:
-
-```python
-from tachys.ground_state_training import train
-from tachys.optimizer import shifted_cosine_decay
-
-N_steps = 30
-lr_schedule = shifted_cosine_decay(init_value=0.03, decay_steps=N_steps)
-key, state, wf, opt_state, history = train(
-    key, H, state, wf, optimizer, action, N_steps, lr_schedule, N_mc,
-)
-```
-
-`history` holds the same quantities, one entry per step. Given a Weights &
-Biases run as `wandb_run`, `train` logs them there and writes checkpoints. To
-resume, restore the checkpoint with `tachys.checkpoint.load_checkpoint` and
-pass the optimizer state and the step reached as `opt_state` and `start_step`.
-{doc}`../ground_state_training` shows a complete project.
