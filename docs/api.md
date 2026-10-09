@@ -888,6 +888,7 @@ and share the fields of their base class, `_BaseOptimizer`
 | `mode` | `"complex"`: the real and imaginary parts of $\log\psi$ enter as separate rows, and the phase is optimized. `"real"`: only $\log\vert\psi\vert$ enters, which is exact when the phase does not depend on the parameters. Static. |
 | `nbatches` | Number of chunks in which each device evaluates the Jacobian, to limit memory. Static; default `1`. |
 | `dtype` | Precision of the network evaluations in the update: the Jacobians, their contraction into the kernel, and the map back to parameter space. Static; default `None`, the dtype of the parameters. With `jnp.float32` (or `"float32"`), they run in single precision, with full-precision matmuls rather than TF32; the kernel and its solve stay in double precision. Single precision shifts the eigenvalues of the kernel by about $10^{-8}$ of the largest one: with a smaller `diag_shift`, the solve can fail, and a failed solve gives a zero step. |
+| `kernels` | Where the kernel is built and solved. `"default"`: the whole kernel on every device. `"distributed"`: each device keeps its own rows, and JAXMg solves the system across the GPUs, one per process, so that no device holds the whole kernel. With a single device, `"distributed"` falls back to `"default"`, with a warning. Static; default `"default"`. |
 
 The parameters must be real in both modes; a complex parameter gets a zero
 update. `optimizer(E_L, opt_state, state, wf, weights=None)` also takes
@@ -906,7 +907,7 @@ $2/\sqrt{N_{mc}}$.
 *`tachys.optimizer`*
 
 ```python
-class SR(diag_shift, mode, nbatches=1, dtype=None)
+class SR(diag_shift, mode, nbatches=1, dtype=None, kernels="default")
 ```
 
 Stochastic reconfiguration:
@@ -926,7 +927,7 @@ in `"complex"` mode) and a vector-Jacobian product. `init` returns an empty
 *`tachys.optimizer`*
 
 ```python
-class SPRING(diag_shift, mode, nbatches=1, dtype=None, *, mu=0.9)
+class SPRING(diag_shift, mode, nbatches=1, dtype=None, kernels="default", *, mu=0.9)
 ```
 
 SR with momentum `mu`, from Goldshlager, Abrahamsen & Lin,
@@ -950,7 +951,7 @@ start.
 *`tachys.optimizer`*
 
 ```python
-class MARCH(diag_shift, mode, nbatches=1, dtype=None, *, mu=0.95, beta=0.995)
+class MARCH(diag_shift, mode, nbatches=1, dtype=None, kernels="default", *, mu=0.95, beta=0.995)
 ```
 
 SPRING with a rescaling of each parameter, in the spirit of Adam's second
@@ -1225,7 +1226,7 @@ each stage. The ansatz must be complex, since the evolution creates a phase.
 *`tachys.dynamics`*
 
 ```python
-class TDVP(*, diag_shift=0.0, mode, nbatches=1, dtype=None, rcond=1e-8, atol=0.0)
+class TDVP(*, diag_shift=0.0, mode, nbatches=1, dtype=None, kernels="default", rcond=1e-8, atol=0.0)
 ```
 
 The velocity $\dot\theta$, called like an optimizer:
@@ -1240,6 +1241,7 @@ reverse time.
 | `atol` | Absolute lower bound of that cutoff. Default `0.0`. |
 | `diag_shift` | Added to the eigenvalues that are kept. Default `0.0`. |
 | `mode` | Must be `"complex"`. |
+| `kernels` | Must be `"default"`: the eigenvalue solve needs the whole kernel on every device. |
 | `nbatches`, `dtype` | As for the optimizers. |
 
 `init` returns an empty `TDVPState()`.
