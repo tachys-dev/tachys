@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tachys — Neural quantum states in JAX</title>
-<meta name="description" content="A JAX library for variational Monte Carlo with neural quantum states, applied to quantum many-body systems. Hamiltonians are callables, states are pytrees, and the optimization loop is explicit.">
+<meta name="description" content="A variational Monte Carlo library in JAX that brings neural-network quantum states to realistic quantum materials, at the scale of large GPU clusters.">
 <link rel="icon" href="_static/logo-mark.svg" type="image/svg+xml">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -173,8 +173,10 @@ nav.top.scrolled{
 
 /* ── feature strip ── */
 .feat{background:var(--surface);border-bottom:1px solid var(--border);padding:3.5rem 0}
+.feat-head{text-align:center;margin-bottom:2rem}
+.feat-head .lead-p{margin:0 auto}
 .feat-grid{
-  display:grid;grid-template-columns:repeat(3,1fr);
+  display:grid;grid-template-columns:repeat(4,1fr);
   gap:2px;background:var(--border);
   border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;
 }
@@ -199,6 +201,7 @@ nav.top.scrolled{
 .fc-icon.b{background:rgba(26,95,235,.1);color:var(--blue)}
 .fc-icon.v{background:rgba(124,58,237,.1);color:var(--violet)}
 .fc-icon.g{background:rgba(16,185,129,.1);color:var(--green)}
+.fc-icon.o{background:rgba(217,119,6,.1);color:var(--orange)}
 .fc h3{font-size:1rem;margin-bottom:.4rem}
 .fc p{font-size:.875rem;color:var(--muted);max-width:none}
 .count{font-variant-numeric:tabular-nums}
@@ -324,6 +327,11 @@ footer a{color:#6B7FA0}
 .reveal[data-d="1"]{transition-delay:.08s}
 .reveal[data-d="2"]{transition-delay:.16s}
 .reveal[data-d="3"]{transition-delay:.24s}
+.reveal[data-d="4"]{transition-delay:.32s}
+
+@media(max-width:1024px){
+  .feat-grid{grid-template-columns:repeat(2,1fr)}
+}
 
 @media(max-width:768px){
   .feat-grid{grid-template-columns:1fr}
@@ -390,6 +398,11 @@ footer a{color:#6B7FA0}
 <!-- FEATURE STRIP -->
 <div class="feat">
   <div class="container">
+    <div class="feat-head">
+      <div class="sec-lbl reveal">Aim</div>
+      <h2 class="reveal" data-d="1">Neural-network quantum states for realistic quantum materials</h2>
+      <p class="lead-p reveal" data-d="2">To reach the system sizes that real materials demand, tachys is optimized to scale across large GPU clusters.</p>
+    </div>
     <div class="feat-grid">
       <div class="fc reveal" data-d="1">
         <div class="fc-icon b">↑↓</div>
@@ -399,12 +412,17 @@ footer a{color:#6B7FA0}
       <div class="fc reveal" data-d="2">
         <div class="fc-icon v">ψ</div>
         <h3>Fermionic systems</h3>
-        <p>Fermionic lattice models, benchmarked up to <strong><span class="count" data-to="500">0</span> electrons</strong>.</p>
+        <p>Fermionic lattice models, benchmarked up to <strong><span class="count" data-to="1000">0</span> electrons</strong>, a scale already meaningful for unconventional superconductors.</p>
       </div>
       <div class="fc reveal" data-d="3">
+        <div class="fc-icon o">S·s</div>
+        <h3>Spins and fermions</h3>
+        <p>Itinerant fermions and localized spins within a single Hamiltonian, as required by Kondo lattice models of heavy-fermion compounds.</p>
+      </div>
+      <div class="fc reveal" data-d="4">
         <div class="fc-icon g">∇</div>
-        <h3>Foundation models</h3>
-        <p>A single network trained across a family of Hamiltonians rather than one per coupling.</p>
+        <h3>Foundation NQS</h3>
+        <p>One network trained across an entire family of Hamiltonians, to explore the parameter space of a material in a single optimization.</p>
       </div>
     </div>
   </div>
@@ -469,6 +487,7 @@ wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
   <p class="reveal" data-d="1">tachys is installed with <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install tachys</code>, which also installs JAX.</p>
   <div class="reveal" data-d="2">
     <a href="quickstart.html" class="btn">Quickstart <span class="arr">→</span></a>
+    <a href="installation.html" class="btn ghost">Installation</a>
     <a href="api.html" class="btn ghost">API reference</a>
   </div>
 </section>

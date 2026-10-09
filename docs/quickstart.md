@@ -203,3 +203,5 @@ Hubbard model, we suggest the
 - {doc}`foundation_models`: one wavefunction trained on many Hamiltonians.
 - {doc}`parallel`: the same scripts on several GPUs, on one node or many.
 - {doc}`api`: the full reference.
+- {doc}`resources/pfaffian_wavefunction`: conduction electrons and localized
+  spins in a single Hamiltonian.

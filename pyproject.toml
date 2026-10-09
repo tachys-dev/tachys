@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tachys"
-version = "0.1.5"
+version = "0.1.6"
 description = "Neural quantum states in JAX: variational Monte Carlo for quantum lattice models"
 readme = "README.md"
 license = "Apache-2.0"
@@ -33,7 +33,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cuda = ["jax[cuda13]==0.11.2"]
+cuda12 = ["jax[cuda12]==0.11.2"]
+cuda13 = ["jax[cuda13]==0.11.2"]
+cuda = ["jax[cuda13]==0.11.2"]      # the same as cuda13, kept for existing installs
 wandb = ["wandb==0.27.0", "jsonargparse==4.41.0"]
 test = ["pytest"]
 docs = [

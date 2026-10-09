@@ -199,11 +199,65 @@ for x in range(L):
                      + V * Ndn(i) * Nup(j) + V * Ndn(i) * Ndn(j))
 ```
 
+## Spins and fermions
+
+### The Kondo lattice model
+
+Spin and fermionic operators can appear in the same Hamiltonian, to treat
+itinerant fermions and localized spins together. In the Kondo lattice model of
+heavy-fermion compounds, the conduction electrons hop between neighbouring
+sites and couple on every site to a localized spin-½ $\mathbf{S}_i$,
+
+$$
+H = -t \sum_{\langle i,j\rangle,\sigma} \big(c^\dagger_{i\sigma}c_{j\sigma} + c^\dagger_{j\sigma}c_{i\sigma}\big) + J_K \sum_i \mathbf{S}_i\cdot\mathbf{s}_i ,
+$$
+
+where $\mathbf{s}_i$ is the spin of the conduction electrons on site $i$. The
+Kondo term is written with the raising and lowering operators of both spins,
+
+$$
+\mathbf{S}_i\cdot\mathbf{s}_i = S^z_i\, s^z_i + \tfrac12\,\big(S^+_i\, c^\dagger_{i\downarrow}c_{i\uparrow} + S^-_i\, c^\dagger_{i\uparrow}c_{i\downarrow}\big) ,
+$$
+
+with $s^z_i = \tfrac12\,(n_{i\uparrow} - n_{i\downarrow})$, which is `Sz_f(i)`:
+
+```python
+from tachys.lattice.spins.spin_operators import Sz, Splus, Sminus
+from tachys.lattice.fermions.fermion_operators import (
+    Cup, Cup_dag, Cdn, Cdn_dag, Sz_f,
+)
+
+L = 4                                   # L × L sites, periodic boundaries
+t, JK = 1.0, 2.0
+
+H = None
+for x in range(L):
+    for y in range(L):
+        i     = x + L * y               # site (x, y)
+        right = (x + 1) % L + L * y     # site (x + 1, y)
+        up    = x + L * ((y + 1) % L)   # site (x, y + 1)
+        for j in [right, up]:
+            hop_up = (-t) * Cup_dag(i) * Cup(j) + (-t) * Cup_dag(j) * Cup(i)
+            hop_dn = (-t) * Cdn_dag(i) * Cdn(j) + (-t) * Cdn_dag(j) * Cdn(i)
+            term = hop_up + hop_dn
+            H = term if H is None else H + term
+        H = H + (JK * Sz(i) * Sz_f(i)
+                 + (JK / 2) * Splus(i) * Cdn_dag(i) * Cup(i)
+                 + (JK / 2) * Sminus(i) * Cup_dag(i) * Cdn(i))
+```
+
+Spin operators act on the array `spins` of a state, and fermionic operators on
+its array `occupations`, so this Hamiltonian acts on a state that holds both.
+The {doc}`../resources/pfaffian_wavefunction` defines such a state, with a
+Monte Carlo move for the Kondo term, and adds the exchange $J$ between
+neighbouring localized spins.
+
 ## Built-in models
 
-The three models above are also provided as factories, on any lattice and with
-any list of bonds. They take a `Lattice` ({doc}`lattice`) in place of the
-explicit indices, and build the same operators with index arrays:
+The Heisenberg, transverse-field Ising and Hubbard models above are also
+provided as factories, on any lattice and with any list of bonds. They take a
+`Lattice` ({doc}`lattice`) in place of the explicit indices, and build the same
+operators with index arrays:
 
 | Factory | Hamiltonian |
 |---|---|

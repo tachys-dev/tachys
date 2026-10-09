@@ -1,10 +1,11 @@
 # Foundation Models
 
-A foundation model is one network trained on a family of Hamiltonians at once,
-instead of one network per Hamiltonian. The network takes the couplings of the
-Hamiltonian as an input, next to the configuration, so a single training run
+A foundation model, or foundation neural-network quantum state (Foundation
+NQS), is one network trained on a family of Hamiltonians at once, instead of
+one network per Hamiltonian. The network takes the couplings of the
+Hamiltonian as an input, next to the configuration, so a single optimization
 covers the whole family: the Hubbard model at several values of $U$, for
-instance.
+instance, or the parameter space relevant to a given material.
 
 ## Formulation
 
