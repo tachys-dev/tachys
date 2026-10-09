@@ -29,21 +29,11 @@ one network is trained across an entire family of Hamiltonians, allowing the
 parameter space relevant to a given material to be explored in a single
 optimization.
 
-## Installation
-
-```bash
-pip install tachys              # CPU
-pip install "tachys[cuda13]"    # GPU, with JAX for CUDA 13
-pip install "tachys[cuda12]"    # GPU, with JAX for CUDA 12
-```
-
-On GPUs, choose the CUDA version that the NVIDIA driver supports: the header of
-`nvidia-smi` shows the highest one.
-
 ```{toctree}
 :maxdepth: 1
 :caption: Getting Started
 
+installation
 quickstart
 concepts
 ```
