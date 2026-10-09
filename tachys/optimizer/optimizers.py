@@ -51,6 +51,17 @@ def _make_apply_fn(raw_fn: Callable, mode: str) -> Callable:
         raise ValueError(f"Unknown mode: {mode!r}")
 
 
+def _scalar(x: Any) -> jax.Array:
+    """A size-1 hyperparameter or step counter as a 0-d array.
+
+    ``_BaseOptimizer.__post_init__`` stores the float fields as (1,) arrays, and
+    MARCH keeps its step counter as (1,). Used as they are in the per-parameter
+    arithmetic of SPRING and MARCH, they would broadcast the update of a shape-()
+    parameter to (1,), which the next ``apply`` of the model rejects.
+    """
+    return jnp.reshape(x, ())
+
+
 def _eps(eloc: jax.Array, N_mc: int) -> jax.Array:
     """Force vector ε_i = 2 * conj(E_{Li} - Ē_L) / sqrt(M)."""
     return 2.0 * eloc.conj() / N_mc ** 0.5
@@ -295,13 +306,14 @@ class SPRING(_BaseOptimizer, kw_only=True):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
         N_mc_local = get_n_mc_local(state)
         N_mc       = get_n_mc(state)
+        mu         = _scalar(self.mu)
 
         eloc = _center_eloc(E_L, state, weights)
         correction = _jvp_correction(
             apply_fn, self.mode, wf.params, opt_state.old_updates, weights, N_mc, state,
             dtype=self.dtype,
         )
-        eps = _eps(eloc, N_mc) - self.mu * correction
+        eps = _eps(eloc, N_mc) - mu * correction
         if weights is not None:
             eps = jnp.sqrt(weights) * eps
         eps = jax.lax.all_gather(eps, 'i', tiled=True)
@@ -310,7 +322,7 @@ class SPRING(_BaseOptimizer, kw_only=True):
         base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
                                           dtype=self.dtype)
 
-        updates = jax.tree.map(lambda x, y: x + self.mu * y, base_updates, opt_state.old_updates)
+        updates = jax.tree.map(lambda x, y: x + mu * y, base_updates, opt_state.old_updates)
         return updates, SPRINGState(old_updates=updates)
 
 
@@ -344,19 +356,20 @@ class MARCH(_BaseOptimizer, kw_only=True):
         apply_fn   = _make_apply_fn(wf.apply_fn, self.mode)
         N_mc_local = get_n_mc_local(state)
         N_mc       = get_n_mc(state)
+        mu, beta   = _scalar(self.mu), _scalar(self.beta)
 
         eloc = _center_eloc(E_L, state, weights)
 
         # Bias-corrected V used for both NTK and update scaling.
         V_bc = jax.tree.map(
-            lambda v: v / (1 - self.beta ** (opt_state.t + 1)), opt_state.V
+            lambda v: v / (1 - beta ** (_scalar(opt_state.t) + 1)), opt_state.V
         )
 
         correction = _jvp_correction(
             apply_fn, self.mode, wf.params, opt_state.old_updates, weights, N_mc, state,
             dtype=self.dtype,
         )
-        eps = _eps(eloc, N_mc) - self.mu * correction
+        eps = _eps(eloc, N_mc) - mu * correction
         if weights is not None:
             eps = jnp.sqrt(weights) * eps
         eps = jax.lax.all_gather(eps, 'i', tiled=True)
@@ -367,12 +380,12 @@ class MARCH(_BaseOptimizer, kw_only=True):
                                           dtype=self.dtype)
 
         updates = jax.tree.map(
-            lambda x, y, v: x / (jnp.sqrt(v) + 1e-8) + self.mu * y,
+            lambda x, y, v: x / (jnp.sqrt(v) + 1e-8) + mu * y,
             base_updates, opt_state.old_updates, V_bc,
         )
 
         dtheta2 = jax.tree.map(lambda x, y: jnp.abs(x - y) ** 2, updates, opt_state.old_updates)
         new_V   = jax.tree.map(
-            lambda v, d: self.beta * v + (1 - self.beta) * d, opt_state.V, dtheta2
+            lambda v, d: beta * v + (1 - beta) * d, opt_state.V, dtheta2
         )
         return updates, MARCHState(old_updates=updates, V=new_V, t=opt_state.t + 1)

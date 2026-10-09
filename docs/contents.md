@@ -18,7 +18,7 @@ lattice geometry and a size on the <a href="benchmarks.html">benchmarks page</a>
 **tachys** is a variational Monte Carlo library developed in JAX with one
 central aim: bringing neural-network quantum states (NQS) to realistic quantum
 materials. To reach the system sizes that real materials demand, the code is
-engineered to scale across {doc}`large GPU clusters <parallel>` and has been
+optimized to scale across {doc}`large GPU clusters <parallel>` and has been
 benchmarked on systems with up to 1,000 electrons, a scale already meaningful
 for studying unconventional superconductors. With the same focus on realistic
 materials, tachys can treat itinerant fermions and localized spins within a
