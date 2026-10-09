@@ -9,7 +9,10 @@ which launches
 once for the whole module and parses the JSON written by rank 0.
 The expected energies and final parameters are identical to those used in
 tests/optimizer/test_sr.py, confirming that the 4-process distributed run
-is numerically equivalent to the serial run. The same loops rerun with the
+is numerically equivalent to the serial run. Every Jacobian is shifted by a
+pmean'd mean before the contraction, which the centering removes only if all
+processes use the same one: with per-process means, the loops part from the
+serial ones by 0.1 in energy within the 5 steps. The same loops rerun with the
 optimizer's ``dtype=float64`` must match the default ones, and every process
 must lower the same optimizer step.
 
@@ -166,16 +169,14 @@ def test_real_mode_final_params(parallel_results):
 
 
 # ---------------------------------------------------------------------------
-# Optimizer dtype (tachys.optimizer: the shifted-Jacobian path)
+# Optimizer dtype
 # ---------------------------------------------------------------------------
 
 @pytest.mark.mpi
 @pytest.mark.parametrize("mode", ["complex", "real"])
 def test_float64_dtype_matches_the_default_loop(parallel_results, mode):
-    """With an optimizer dtype, every Jacobian is shifted by a pmean'd mean
-    before the contraction. The centering removes the shift only if all
-    processes use the same one: with per-process means instead, these loops
-    part by 0.1 in energy within the 5 steps."""
+    """The casts and full-precision matmuls of the dtype path leave a float64
+    run unchanged on every process."""
     ref, got = parallel_results[mode], parallel_results[f"{mode}_float64"]
     for step, (e, e_ref) in enumerate(zip(got["energies"], ref["energies"])):
         assert abs(e - e_ref) < 1e-12, f"{mode} step {step}: {e:.14f} vs {e_ref:.14f}"

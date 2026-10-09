@@ -4,16 +4,14 @@ inside an SR-family or TDVP update.
 ``dtype=None`` is the pre-existing code path, pinned by the regression values of
 the other optimizer tests. These pin the new one:
 
-* ``dtype=float64`` reproduces it. The one change on that path is the constant
-  shift of the Jacobian before the contraction, which the plain and weighted
-  centering of the NTK cannot see (the per-system one is checked in
-  test_foundation_centering.py, the multi-process one in tests/parallel).
+* ``dtype=float64`` reproduces it: the casts and the full-precision matmuls do
+  nothing in float64.
 * ``dtype=float32`` stays close to it, and hands back updates and optimizer
   states in the parameters' own dtypes: a float32 leaf would retrace every
   jitted step, and ``apply_gradients`` would turn the parameters float32.
-* The shift is what keeps a float32 NTK accurate when the Jacobian has a large
-  common part, which centering after a float32 contraction cancels only after
-  rounding.
+* The Jacobian shift before the contraction, on every path, is what keeps a
+  float32 NTK accurate when the Jacobian has a large common part, which
+  centering after a float32 contraction cancels only after rounding.
 * Every float32 matmul runs at full precision. On GPUs JAX's default float32
   matmul is TF32, which a CPU run of the tests above cannot notice.
 """
@@ -34,6 +32,7 @@ from tachys.lattice.operator.local_estimator import local_estimator
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from tachys.lattice.spins.spin_state import SpinState
 from tachys.optimizer import MARCH, SPRING, SR
+from tachys.optimizer._kernels import _ntk_contraction, center_ntk
 from tachys.optimizer.optimizers import _build_ntk
 from tachys.parallel import mesh
 from tachys.utils import _cast_floating_to
@@ -155,9 +154,11 @@ def test_float32_ntk_survives_a_jacobian_with_a_large_mean():
     def err(ntk):
         return float(jnp.max(jnp.abs(ntk - ref)) / jnp.max(jnp.abs(ref)))
 
-    # The same float32 Jacobians without the shift: the default path on float32 parameters.
-    unshifted = _ntk(state, wf.replace(params=_cast_floating_to(params, jnp.float32)), None)
-    assert err(unshifted) > 5e-5                     # measured 2.4e-4 on CPU, 6.7e-4 on an A6000
+    # The same float32 Jacobians, contracted without the shift.
+    f = lambda p, s: jnp.squeeze(wf.apply_fn(p, s)).real
+    J = jax.vmap(jax.jacobian(f), in_axes=(None, 0))(_cast_floating_to(params, jnp.float32), state)
+    unshifted = center_ntk(_ntk_contraction(J, J, "real").astype(jnp.float64), None, state) / N_mc
+    assert err(unshifted) > 2e-5                     # measured 8.2e-5 on CPU, 6.7e-4 on an A6000
     assert err(_ntk(state, wf, jnp.float32)) < 1e-5  # measured 1e-6 on both
 
 

@@ -18,7 +18,7 @@ from tachys.lattice.foundation.operators import combine_systems, extract_system_
 from tachys.lattice.lattice_database import square
 from tachys.lattice.operator.local_estimator import compute_expectation
 from tachys.lattice.spins.spin_state import SpinState
-from tachys.optimizer._kernels import center_ntk, center_sr_solution, ntk_parallel_fn
+from tachys.optimizer._kernels import _ntk_contraction, center_ntk, center_sr_solution, ntk_parallel_fn
 from tachys.optimizer.optimizers import _center_eloc
 from tachys.parallel import mesh
 from tachys.wavefunction import WaveFunction
@@ -129,21 +129,22 @@ def test_center_ntk_foundation_state_matches_reference():
         assert np.max(np.abs(block.sum(axis=1))) < 1e-6
 
 
-def test_center_ntk_foundation_state_removes_the_dtype_shift():
-    """With an optimizer dtype, ntk_parallel_fn shifts every Jacobian by one
-    global constant before contracting. The per-system centering has to remove
-    it exactly, as it removes any constant shared within a system."""
+def test_center_ntk_foundation_state_removes_the_jacobian_shift():
+    """ntk_parallel_fn shifts every Jacobian by one global constant before
+    contracting. The per-system centering has to remove it exactly, as it
+    removes any constant shared within a system."""
     _, state, wf = _make_foundation_state_and_wf()
+    f = lambda p, s: jnp.squeeze(wf.apply_fn(p, s)).real
+    J = jax.vmap(jax.jacobian(f), in_axes=(None, 0))(wf.params, state)
+    raw = _ntk_contraction(J, J, "real")
 
-    def _raw_and_centered(dtype):
-        def fn(state, wf):
-            raw = ntk_parallel_fn(state, wf, 1, "real", dtype=dtype)
-            return raw, center_ntk(raw, None, state)
-        return shard_map(fn, mesh=mesh, in_specs=(P('i'), P()), out_specs=(P(), P()),
-                         check_vma=False)(state, wf)
+    def fn(state, wf, raw):
+        raw_shifted = ntk_parallel_fn(state, wf, 1, "real")
+        return raw_shifted, center_ntk(raw_shifted, None, state), center_ntk(raw, None, state)
 
-    raw, centered = _raw_and_centered(None)
-    raw_shifted, centered_shifted = _raw_and_centered(jnp.float64)
+    raw_shifted, centered_shifted, centered = shard_map(
+        fn, mesh=mesh, in_specs=(P('i'), P(), P()), out_specs=(P(), P(), P()), check_vma=False,
+    )(state, wf, raw)
     assert not jnp.allclose(raw_shifted, raw, atol=1e-3)
     assert jnp.allclose(centered_shifted, centered, atol=1e-10)
 

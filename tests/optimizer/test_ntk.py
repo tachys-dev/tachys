@@ -1,6 +1,8 @@
 from functools import partial
 
+import jax
 import jax.numpy as jnp
+import pytest
 from jax import shard_map
 from jax.sharding import PartitionSpec as P
 
@@ -53,3 +55,27 @@ def test_ntk_values():
     ])
 
     assert jnp.allclose(ntk[:, :, 0, 0], expected, atol=1e-7)
+
+
+@pytest.mark.parametrize("mode", ["real", "complex"])
+def test_constant_jacobian_column_drops_out_of_the_kernel(mode):
+    """An offset 10 * b of log psi has a constant Jacobian column, which the
+    centring removes: the kernel equals that of the model without b, even with
+    the largest MARCH weight on b (V = 0, weight 1e8). Centring after the
+    contraction alone would leave eps * 1e8 * 10^2 behind (4e-7 here)."""
+    lattice = square(shape=(L, L))
+    state = SpinState(spins=frozen_config("square16_nmc16"), lattice=lattice)
+    model = SpinRBM(hidden_units=2, dtype=jnp.float64, complex=(mode == "complex"))
+    params = jax.tree.map(lambda x: 0.4 * x, frozen_params(f"reweighted_square16_2hidden_{mode}"))
+
+    def ntk(wf, V):
+        build = partial(_build_ntk_base, mode=mode, weights=None, nbatches=1, N_mc_local=N_mc, V=V)
+        return shard_map(build, mesh=mesh, in_specs=(P('i'), P()), out_specs=P(),
+                         check_vma=False)(state, wf)
+
+    ones = jax.tree.map(jnp.ones_like, params)
+    ref = ntk(WaveFunction(params=params, apply_fn=model.apply), ones)
+    wf = WaveFunction(params={"offset": jnp.zeros(1), "rbm": params},
+                      apply_fn=lambda p, s: model.apply(p["rbm"], s) + 10.0 * p["offset"][0])
+    got = ntk(wf, {"offset": jnp.zeros(1), "rbm": ones})
+    assert jnp.max(jnp.abs(got - ref)) <= 1e-12 * jnp.max(jnp.abs(ref))   # measured 0
