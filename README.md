@@ -63,7 +63,6 @@ If you use tachys in your research, please cite it:
 
 ```bibtex
 @software{tachys,
-  author = {Rende, Riccardo and Viteritti, Luciano Loris},
   title  = {tachys: Variational Monte Carlo for quantum many-body systems},
   url    = {https://github.com/tachys-dev/tachys},
   year   = {2026},
