@@ -1,3 +1,4 @@
+import warnings
 from functools import partial
 from typing import Any, Callable, NamedTuple, Optional
 
@@ -8,16 +9,19 @@ from jax.sharding import PartitionSpec as P
 from jax import shard_map
 
 from tachys.parallel import mesh, n_devices, hard_shard
+from tachys.optimizer import _kernels, _kernels_distributed
 from tachys.optimizer._kernels import (
     _matmul_precision,
-    linear_solver_cholesky,
-    compute_ntk,
     center_sr_solution,
 )
 from tachys.lattice.foundation.foundation_state import FoundationState
 from tachys.lattice.foundation.collectives import grouped_mean
 from tachys.lattice.state_array import get_n_mc, get_n_mc_local
 from tachys.utils import _cast_floating_to
+
+
+# The kernel backends, by the name the optimizers' `kernels` field takes.
+_KERNELS = {"default": _kernels, "distributed": _kernels_distributed}
 
 
 # ─── Optimizer states ─────────────────────────────────────────────────────────
@@ -137,12 +141,15 @@ def _build_ntk(
     N_mc_local: int,
     V: Optional[Any] = None,
     dtype: Any = None,
+    backend: Any = _kernels,
 ) -> jax.Array:
     """Natural tangent kernel matrix, normalized by total chain count.
 
     Pass V (bias-corrected second moment) to enable MARCH preconditioning.
+    ``backend`` is the kernel module that builds it: the replicated NTK of
+    ``_kernels``, or this device's rows of it with ``_kernels_distributed``.
     """
-    ntk = compute_ntk(state, wf, mode, weights=weights, V=V, nbatches=nbatches, dtype=dtype)
+    ntk = backend.compute_ntk(state, wf, mode, weights=weights, V=V, nbatches=nbatches, dtype=dtype)
     return ntk / (N_mc_local * n_devices)
 
 
@@ -155,7 +162,7 @@ def _parameter_updates(
     eps: jax.Array,
     ntk: jax.Array,
     weights: Optional[jax.Array],
-    solver: Callable = linear_solver_cholesky,
+    solver: Callable = _kernels.linear_solver_cholesky,
     dtype: Any = None,
 ) -> Any:
     """Solve the linear system and map the solution back to parameter space.
@@ -165,9 +172,11 @@ def _parameter_updates(
 
     ``solver`` is called as ``solver(ntk, eps, diag_shift, mode)`` and must return
     the layout ``center_sr_solution`` expects: ``(M,)`` in mode="real", ``(2M,)``
-    holding ``[u, v]`` in mode="complex". Defaults to the Cholesky solver; the
-    real-time dynamics driver passes ``linear_solver_eigh`` instead (see
-    tachys.dynamics.tdvp), which regularizes by discarding small eigenvalues.
+    holding ``[u, v]`` in mode="complex", replicated. It must take the NTK in
+    the layout of the backend that built it: the optimizers pass their
+    backend's ``linear_solver_cholesky``, and the real-time dynamics driver
+    passes ``_kernels.linear_solver_eigh`` (see tachys.dynamics.tdvp), which
+    regularizes by discarding small eigenvalues.
 
     With a ``dtype``, only the VJP runs in it: the solution is cast to the
     dtype of the ansatz output for it, and the updates back to the parameters'.
@@ -212,11 +221,18 @@ class _BaseOptimizer(struct.PyTreeNode):
                  and, as for any failed solve, the SR step is silently zero
                  (SPRING and MARCH keep only their momentum term). TDVP's eigh
                  solver drops those directions instead.
+    kernels    : the kernel backend. Static field. "default" builds the whole
+                 NTK on every device and solves it there (``_kernels``).
+                 "distributed" keeps each device's rows of it and solves the
+                 row-sharded system with JAXMg, one GPU per process
+                 (``_kernels_distributed``); with a single device it falls
+                 back to "default", with a warning.
     """
     diag_shift: float
     mode: str     = struct.field(pytree_node=False)
     nbatches: int = struct.field(pytree_node=False, default=1)
     dtype: Any    = struct.field(pytree_node=False, default=None)
+    kernels: str  = struct.field(pytree_node=False, default="default")
 
     def __post_init__(self):
         import dataclasses
@@ -224,6 +240,17 @@ class _BaseOptimizer(struct.PyTreeNode):
             # A numpy dtype rather than jnp.float32, a class: it prints in
             # train's setup summary, which skips callables.
             object.__setattr__(self, 'dtype', jnp.dtype(self.dtype))
+        if self.kernels not in _KERNELS:
+            raise ValueError(
+                f"kernels={self.kernels!r} is not a kernel backend: use 'default' or 'distributed'."
+            )
+        if self.kernels == "distributed" and n_devices == 1:
+            warnings.warn(
+                "kernels='distributed' needs several devices, one per process, but found 1: "
+                "using the default kernels.",
+                stacklevel=3,
+            )
+            object.__setattr__(self, 'kernels', 'default')
         for f in dataclasses.fields(self):
             if not f.metadata.get('pytree_node', True):
                 continue
@@ -231,6 +258,11 @@ class _BaseOptimizer(struct.PyTreeNode):
             if isinstance(val, jax.core.Tracer) or not isinstance(val, (int, float, jax.Array)):
                 continue
             object.__setattr__(self, f.name, jnp.atleast_1d(val))
+
+    @property
+    def _backend(self):
+        """The kernel module named by ``kernels``."""
+        return _KERNELS[self.kernels]
 
     def update(self, O_L, opt_state, state, wf, weights=None):
         raise NotImplementedError
@@ -275,9 +307,10 @@ class SR(_BaseOptimizer):
             eps = jnp.sqrt(weights) * eps
         eps = jax.lax.all_gather(eps, 'i', tiled=True)
 
-        ntk     = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, dtype=self.dtype)
+        ntk     = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, dtype=self.dtype,
+                             backend=self._backend)
         updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
-                                     dtype=self.dtype)
+                                     solver=self._backend.linear_solver_cholesky, dtype=self.dtype)
         return updates, SRState()
 
 
@@ -318,9 +351,10 @@ class SPRING(_BaseOptimizer, kw_only=True):
             eps = jnp.sqrt(weights) * eps
         eps = jax.lax.all_gather(eps, 'i', tiled=True)
 
-        ntk          = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, dtype=self.dtype)
+        ntk          = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, dtype=self.dtype,
+                                  backend=self._backend)
         base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
-                                          dtype=self.dtype)
+                                          solver=self._backend.linear_solver_cholesky, dtype=self.dtype)
 
         updates = jax.tree.map(lambda x, y: x + mu * y, base_updates, opt_state.old_updates)
         return updates, SPRINGState(old_updates=updates)
@@ -375,9 +409,9 @@ class MARCH(_BaseOptimizer, kw_only=True):
         eps = jax.lax.all_gather(eps, 'i', tiled=True)
 
         ntk          = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, V=V_bc,
-                                  dtype=self.dtype)
+                                  dtype=self.dtype, backend=self._backend)
         base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
-                                          dtype=self.dtype)
+                                          solver=self._backend.linear_solver_cholesky, dtype=self.dtype)
 
         updates = jax.tree.map(
             lambda x, y, v: x / (jnp.sqrt(v) + 1e-8) + mu * y,

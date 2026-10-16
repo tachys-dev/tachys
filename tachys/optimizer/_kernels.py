@@ -19,6 +19,11 @@ from tachys.lattice.foundation.collectives import grouped_mean
 from tachys.lattice.state_array import get_n_mc, get_n_mc_local
 from tachys.utils import _cast_floating_to
 
+# The NTK built by compute_ntk is replicated on every device, and the solvers
+# below solve it there, inside the optimizer step's shard_map. The other kernel
+# backend, _kernels_distributed, keeps only each device's rows of it instead;
+# the optimizers' `kernels` field picks one.
+
 
 def _matmul_precision(dtype):
     """Context for the network evaluations of an update run in ``dtype``.
@@ -246,16 +251,23 @@ def _ntk_contraction(J1, J2, mode, V=None):
     return jax.tree.reduce(operator.add, pairs)
 
 
-def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
-    """Assemble the full NTK matrix using distributed pair-wise Jacobian contractions.
+def _ntk_setup(state, wf, nbatches, mode, V=None, dtype=None):
+    """The batches and the Jacobian function that every NTK builder starts from.
 
-    Each device computes a subset of (batch_i, batch_j) pairs; contributions
-    are summed via psum to yield the (N_mc × N_mc) NTK.
+    Call inside shard_map over 'i'. Returns ``(global_state, jacobian, V)``:
 
-    ``dtype`` (the optimizers' field of that name) computes the Jacobians and
-    their contraction in that dtype, at full matmul precision; the NTK itself
-    is accumulated in float64 either way. ``None`` evaluates in the dtype the
-    parameters are stored in.
+    global_state : every device's chains, split into ``nbatches`` batches each,
+                   with leading axes ``(n_devices * nbatches, N_mc_local //
+                   nbatches)``. Batch ``d * nbatches + k`` is batch ``k`` of
+                   device ``d``, so flattening the two axes gives the global
+                   chain order.
+    jacobian     : ``jacobian(s)`` evaluates the per-sample Jacobians of one
+                   batch ``s``, as a pytree with leaves of shape
+                   ``(N_i, *leaf_shape)`` [real] or ``(N_i, 2, *leaf_shape)``
+                   [complex].
+    V            : the MARCH preconditioner, cast like the parameters.
+
+    With a ``dtype``, the parameters, the state and V are cast to it.
     """
     params = wf.params
     if dtype is not None:
@@ -271,7 +283,6 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
             global_state,
         )
 
-    N_batches      = get_n_mc_local(global_state)
     N_mc_per_batch = get_n_mc_local(state) // nbatches
 
     # Build jacobian_fn once outside body_fun so it is compiled once.
@@ -297,6 +308,25 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
 
     def jacobian(s):
         return jax.tree.map(jnp.subtract, jacobian_fn(params, s), shift)
+
+    return global_state, jacobian, V
+
+
+def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
+    """Assemble the full NTK matrix using distributed pair-wise Jacobian contractions.
+
+    Each device computes a subset of (batch_i, batch_j) pairs; contributions
+    are summed via psum to yield the (N_mc × N_mc) NTK.
+
+    ``dtype`` (the optimizers' field of that name) computes the Jacobians and
+    their contraction in that dtype, at full matmul precision; the NTK itself
+    is accumulated in float64 either way. ``None`` evaluates in the dtype the
+    parameters are stored in.
+    """
+    global_state, jacobian, V = _ntk_setup(state, wf, nbatches, mode, V=V, dtype=dtype)
+
+    N_batches      = get_n_mc_local(global_state)
+    N_mc_per_batch = get_n_mc_local(state) // nbatches
 
     # Distribute upper-triangular pairs across devices. The table holds every
     # device's share and is indexed by axis_index, so all processes compile the
