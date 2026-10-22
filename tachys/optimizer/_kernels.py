@@ -246,6 +246,64 @@ def _ntk_contraction(J1, J2, mode, V=None):
     return jax.tree.reduce(operator.add, pairs)
 
 
+def _shifted_jacobian(params, state, wf, mode, N_mc_per_batch, dtype):
+    """The per-sample Jacobian the NTK contracts, as a function of a batch.
+
+    Leaves (N, *leaf_shape) in mode="real", (N, 2, *leaf_shape) for [Re, Im]
+    log psi in mode="complex". ``params`` and ``state`` already in ``dtype``.
+    """
+    if mode == "complex":
+        def _f(params, s):
+            log_amps = jnp.squeeze(wf.apply_fn(params, s))
+            return jnp.stack([log_amps.real, log_amps.imag])  # (2,)
+    else:
+        _f = lambda params, s: jnp.squeeze(wf.apply_fn(params, s)).real  # scalar
+
+    jacobian_fn = jax.vmap(jax.jacobian(_f), in_axes=(None, 0))
+
+    # Centering is blind to a constant shift of the Jacobian, but centering the
+    # contracted kernel cancels its mean only up to eps * sum_k w_k mean_k^2,
+    # w_k the kernel weight of parameter k: unbounded for a constant column. So
+    # every Jacobian is first shifted by its mean over the first 16 walkers of
+    # each device, pmean'd to one constant; a whole batch would raise peak memory.
+    head = jax.tree.map(lambda x: x[:min(N_mc_per_batch, 16)], state)
+    with _matmul_precision(dtype):
+        J0 = jacobian_fn(params, head)
+    shift = jax.tree.map(lambda x: jax.lax.pmean(jnp.mean(x, axis=0), 'i'), J0)
+
+    def jacobian(s):
+        return jax.tree.map(jnp.subtract, jacobian_fn(params, s), shift)
+    return jacobian
+
+
+def jacobian_vjp(state, wf, mode, x, nbatches, dtype):
+    """sum_i J_i^T x_i over this device's walkers, accumulated in float64.
+
+    J is the shifted Jacobian ``ntk_parallel_fn`` contracts, evaluated in
+    ``dtype`` on the same batches; the shift drops out because x sums to zero.
+    The SR solution cancels to a small update along the parameters that carry
+    most of the kernel, and the cancellation holds only with the kernel's own
+    J: a reverse-mode VJP in float32, rounded differently, breaks it.
+
+    x : (N_mc_local,) [real] or (N_mc_local, 2) [complex]
+    """
+    params = wf.params
+    if dtype is not None:
+        params, state = _cast_floating_to((params, state), dtype)
+    jacobian = _shifted_jacobian(params, state, wf, mode, get_n_mc_local(state) // nbatches, dtype)
+    split = lambda a: rearrange(a, '(nbatches Nmc) ... -> nbatches Nmc ...', nbatches=nbatches)
+    batches, x = jax.tree.map(split, state), split(x.astype(jnp.float64))
+    pattern = 'i a ..., i a -> ...' if mode == "complex" else 'i ..., i -> ...'
+
+    def body_fun(b, acc):
+        with _matmul_precision(dtype):
+            J = jacobian(jax.tree.map(lambda a: a[b], batches))
+        return jax.tree.map(lambda a, j: a + einsum(j.astype(jnp.float64), x[b], pattern), acc, J)
+
+    acc = jax.tree.map(lambda p: jnp.zeros(p.shape, jnp.promote_types(p.dtype, jnp.float64)), params)
+    return jax.lax.fori_loop(0, nbatches, body_fun, acc)
+
+
 def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
     """Assemble the full NTK matrix using distributed pair-wise Jacobian contractions.
 
@@ -273,30 +331,7 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
 
     N_batches      = get_n_mc_local(global_state)
     N_mc_per_batch = get_n_mc_local(state) // nbatches
-
-    # Build jacobian_fn once outside body_fun so it is compiled once.
-    if mode == "complex":
-        def _f(params, s):
-            log_amps = jnp.squeeze(wf.apply_fn(params, s))
-            return jnp.stack([log_amps.real, log_amps.imag])  # (2,)
-    else:
-        _f = lambda params, s: jnp.squeeze(wf.apply_fn(params, s)).real  # scalar
-
-    # vmap over samples: leaves become (N_mc, 2, *leaf_shape) or (N_mc, *leaf_shape).
-    jacobian_fn = jax.vmap(jax.jacobian(_f), in_axes=(None, 0))
-
-    # Centering is blind to a constant shift of the Jacobian, but centering the
-    # contracted kernel cancels its mean only up to eps * sum_k w_k mean_k^2,
-    # w_k the kernel weight of parameter k: unbounded for a constant column. So
-    # every Jacobian is first shifted by its mean over the first 16 walkers of
-    # each device, pmean'd to one constant; a whole batch would raise peak memory.
-    head = jax.tree.map(lambda x: x[:min(N_mc_per_batch, 16)], state)
-    with _matmul_precision(dtype):
-        J0 = jacobian_fn(params, head)
-    shift = jax.tree.map(lambda x: jax.lax.pmean(jnp.mean(x, axis=0), 'i'), J0)
-
-    def jacobian(s):
-        return jax.tree.map(jnp.subtract, jacobian_fn(params, s), shift)
+    jacobian       = _shifted_jacobian(params, state, wf, mode, N_mc_per_batch, dtype)
 
     # Distribute upper-triangular pairs across devices. The table holds every
     # device's share and is indexed by axis_index, so all processes compile the

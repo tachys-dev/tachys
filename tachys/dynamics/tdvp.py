@@ -106,6 +106,6 @@ class TDVP(_BaseOptimizer, kw_only=True):
         dtheta_dt = _parameter_updates(
             apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
             solver=partial(linear_solver_eigh, rcond=self.rcond, atol=self.atol),
-            dtype=self.dtype,
+            dtype=self.dtype, nbatches=self.nbatches,
         )
         return dtheta_dt, TDVPState()
