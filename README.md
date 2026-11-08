@@ -57,11 +57,6 @@ pip install -e ".[cuda12,test]"     # CUDA 12
 pytest tests/
 ```
 
-## Authors
-
-- Riccardo Rende
-- Luciano Loris Viteritti
-
 ## License
 
 Copyright 2026 The Simons Foundation, Inc.

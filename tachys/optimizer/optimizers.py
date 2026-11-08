@@ -13,6 +13,7 @@ from tachys.optimizer import _kernels, _kernels_distributed
 from tachys.optimizer._kernels import (
     _matmul_precision,
     center_sr_solution,
+    jacobian_vjp,
 )
 from tachys.lattice.foundation.foundation_state import FoundationState
 from tachys.lattice.foundation.collectives import grouped_mean
@@ -164,6 +165,7 @@ def _parameter_updates(
     weights: Optional[jax.Array],
     solver: Callable = _kernels.linear_solver_cholesky,
     dtype: Any = None,
+    nbatches: int = 1,
 ) -> Any:
     """Solve the linear system and map the solution back to parameter space.
 
@@ -178,18 +180,24 @@ def _parameter_updates(
     passes ``_kernels.linear_solver_eigh`` (see tachys.dynamics.tdvp), which
     regularizes by discarding small eigenvalues.
 
-    With a ``dtype``, only the VJP runs in it: the solution is cast to the
-    dtype of the ansatz output for it, and the updates back to the parameters'.
+    With a ``dtype``, the network evaluations run in it. Below float64 the VJP
+    contracts the NTK's own per-sample Jacobian, on the same ``nbatches``
+    batches, in float64 (see ``jacobian_vjp``). The updates come back in the
+    parameters' dtypes.
     """
     sr_solution = solver(ntk, eps, diag_shift, mode)
     sr_solution = center_sr_solution(sr_solution, state, mode, weights)
     sr_solution = hard_shard(sr_solution)
 
-    params = wf.params
+    params, vjp_state = wf.params, state
     if dtype is not None:
-        params, state = _cast_floating_to((params, state), dtype)
-    with _matmul_precision(dtype):
-        log_amps, vjp_fn = jax.vjp(lambda p: apply_fn(p, state), params)
+        params, vjp_state = _cast_floating_to((params, state), dtype)
+    below_float64 = any(jnp.issubdtype(p.dtype, jnp.floating) and p.dtype != jnp.float64
+                        for p in jax.tree.leaves(params))
+    if below_float64:
+        updates = jacobian_vjp(state, wf, mode, sr_solution, nbatches, dtype)
+    else:
+        log_amps, vjp_fn = jax.vjp(lambda p: apply_fn(p, vjp_state), params)
         updates = vjp_fn(sr_solution.astype(log_amps.dtype))[0]
     updates = jax.tree.map(lambda u, p: u.astype(p.dtype), updates, wf.params)
     return jax.lax.psum(updates, 'i')
@@ -214,13 +222,16 @@ class _BaseOptimizer(struct.PyTreeNode):
                  the parameters and the state to it for those evaluations and
                  runs their matmuls at full precision (JAX's default for float32
                  on recent NVIDIA GPUs is TF32). The NTK and its solve stay in
-                 float64, and the updates come back in the parameters' own
-                 dtype. float32 rounding moves the NTK's eigenvalues by
-                 about 1e-8 of the largest one, so a smaller ``diag_shift`` can
-                 leave the shifted NTK indefinite. The Cholesky solve then fails
-                 and, as for any failed solve, the SR step is silently zero
-                 (SPRING and MARCH keep only their momentum term). TDVP's eigh
-                 solver drops those directions instead.
+                 float64; below float64 the VJP contracts the NTK's own
+                 Jacobian in float64 (``_kernels.jacobian_vjp``), at the cost
+                 of one more Jacobian per batch; the updates come back in the
+                 parameters' own dtype. float32 rounding moves the NTK's
+                 eigenvalues by about 1e-8 of the largest one, so a smaller
+                 ``diag_shift`` can leave the shifted NTK indefinite. The
+                 Cholesky solve then fails and, as for any failed solve, the SR
+                 step is silently zero (SPRING and MARCH keep only their
+                 momentum term). TDVP's eigh solver drops those directions
+                 instead.
     kernels    : the kernel backend. Static field. "default" builds the whole
                  NTK on every device and solves it there (``_kernels``).
                  "distributed" keeps each device's rows of it and solves the
@@ -310,7 +321,8 @@ class SR(_BaseOptimizer):
         ntk     = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, dtype=self.dtype,
                              backend=self._backend)
         updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
-                                     solver=self._backend.linear_solver_cholesky, dtype=self.dtype)
+                                     solver=self._backend.linear_solver_cholesky, dtype=self.dtype,
+                                     nbatches=self.nbatches)
         return updates, SRState()
 
 
@@ -354,7 +366,8 @@ class SPRING(_BaseOptimizer, kw_only=True):
         ntk          = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, dtype=self.dtype,
                                   backend=self._backend)
         base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
-                                          solver=self._backend.linear_solver_cholesky, dtype=self.dtype)
+                                          solver=self._backend.linear_solver_cholesky, dtype=self.dtype,
+                                          nbatches=self.nbatches)
 
         updates = jax.tree.map(lambda x, y: x + mu * y, base_updates, opt_state.old_updates)
         return updates, SPRINGState(old_updates=updates)
@@ -411,7 +424,8 @@ class MARCH(_BaseOptimizer, kw_only=True):
         ntk          = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, V=V_bc,
                                   dtype=self.dtype, backend=self._backend)
         base_updates = _parameter_updates(apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
-                                          solver=self._backend.linear_solver_cholesky, dtype=self.dtype)
+                                          solver=self._backend.linear_solver_cholesky, dtype=self.dtype,
+                                          nbatches=self.nbatches)
 
         updates = jax.tree.map(
             lambda x, y, v: x / (jnp.sqrt(v) + 1e-8) + mu * y,

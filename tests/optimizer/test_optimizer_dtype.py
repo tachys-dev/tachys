@@ -12,6 +12,10 @@ the other optimizer tests. These pin the new one:
 * The Jacobian shift before the contraction, on every path, is what keeps a
   float32 NTK accurate when the Jacobian has a large common part, which
   centering after a float32 contraction cancels only after rounding.
+* The float32 VJP contracts the kernel's own float32 Jacobian, in float64:
+  when a few parameters carry nearly all of the kernel, the SR solution
+  cancels to a small step along them, and only the kernel's own Jacobian
+  keeps that cancellation.
 * Every float32 matmul runs at full precision. On GPUs JAX's default float32
   matmul is TF32, which a CPU run of the tests above cannot notice.
 """
@@ -32,8 +36,9 @@ from tachys.lattice.operator.local_estimator import local_estimator
 from tachys.lattice.spins.hamiltonians.heisenberg import heisenberg_square_pbc
 from tachys.lattice.spins.spin_state import SpinState
 from tachys.optimizer import MARCH, SPRING, SR
-from tachys.optimizer._kernels import _ntk_contraction, center_ntk
-from tachys.optimizer.optimizers import _build_ntk
+from tachys.optimizer._kernels import (_ntk_contraction, _shifted_jacobian, center_ntk, jacobian_vjp,
+                                      linear_solver_cholesky)
+from tachys.optimizer.optimizers import _build_ntk, _make_apply_fn
 from tachys.parallel import mesh
 from tachys.utils import _cast_floating_to
 from tachys.wavefunction import WaveFunction
@@ -109,7 +114,7 @@ def test_float32_dtype_is_close_and_keeps_the_parameter_dtypes(make_optimizer, m
     ref = _two_steps(make_optimizer(mode=mode), H, state, wf, weights)
     got = _two_steps(optimizer, H, state, wf, weights)
     for step_got, step_ref in zip(got, ref):
-        # Measured <= 4.1e-4 (complex SR/SPRING, second step), and machine-dependent:
+        # Measured <= 5.3e-4 (complex SPRING, weighted, second step), and machine-dependent:
         # the diag_shift=1e-3 solve amplifies float32 rounding.
         assert _max_rel_err(step_got[0], step_ref[0]) < 1e-2
         assert _dtypes(step_got) == _dtypes(step_ref)
@@ -160,6 +165,49 @@ def test_float32_ntk_survives_a_jacobian_with_a_large_mean():
     unshifted = center_ntk(_ntk_contraction(J, J, "real").astype(jnp.float64), None, state) / N_mc
     assert err(unshifted) > 2e-5                     # measured 8.2e-5 on CPU, 6.7e-4 on an A6000
     assert err(_ntk(state, wf, jnp.float32)) < 1e-5  # measured 1e-6 on both
+
+
+def _wide_rbm():
+    """square16_16hidden tiled to 128 hidden units."""
+    base = frozen_params("square16_16hidden")["params"]["linear"]
+    kernel = jnp.concatenate([base["kernel"] * (0.3 + 0.1 * k) for k in range(8)], axis=1)
+    bias = jnp.concatenate([base["bias"] + 0.01 * k for k in range(8)])
+    return SpinRBM(hidden_units=128, dtype=jnp.float64), {"params": {"linear": {"kernel": kernel, "bias": bias}}}
+
+
+def _dominant_leaf():
+    """log psi = 0.01 * RBM + 100 g sum_j cos(j) s_j: g carries the kernel's
+    one large eigenvalue (6e4), the RBM its small ones (1e-3 to 6e-3)."""
+    state = SpinState(spins=frozen_config("square16_nmc16"), lattice=square(shape=(L, L)))
+    model, rbm = _wide_rbm()
+    c = jnp.cos(jnp.arange(L * L))
+
+    def apply_fn(p, s):
+        return 0.01 * model.apply(p["rbm"], s) + 100.0 * p["g"][0] * (s.spins @ c.astype(p["g"].dtype))
+
+    return state, WaveFunction(params={"g": jnp.zeros(1), "rbm": rbm}, apply_fn=apply_fn)
+
+
+def test_float32_vjp_contracts_the_ntks_own_jacobian():
+    """The SR solution x cancels to a small step along g, and J^T x keeps that
+    cancellation only for the J the kernel was built from. A reverse-mode
+    float32 VJP rounds g's sum differently, by eps * sum_i |J_ig x_i|."""
+    state, wf = _dominant_leaf()
+    x = linear_solver_cholesky(_ntk(state, wf, jnp.float32), jnp.cos(1.3 * jnp.arange(N_mc)), 1e-4, "real")
+    x = (x - jnp.mean(x)) / N_mc ** 0.5
+    params, state32 = _cast_floating_to((wf.params, state), jnp.float32)
+
+    # Compiled, as in the optimizer: an eager mean rounds the shift differently.
+    kernel_J = jax.jit(shard_map(lambda s: _shifted_jacobian(params, s, wf, "real", N_mc, jnp.float32)(s),
+                                 mesh=mesh, in_specs=P('i'), out_specs=P('i'), check_vma=False))(state32)
+    ref = jnp.dot(kernel_J["g"][:, 0].astype(jnp.float64), x)
+    got = shard_map(lambda s, w, y: jacobian_vjp(s, w, "real", y, 1, jnp.float32), mesh=mesh,
+                    in_specs=(P('i'), P(), P('i')), out_specs=P(), check_vma=False)(state, wf, x)["g"][0]
+    with jax.default_matmul_precision("highest"):
+        out, vjp = jax.vjp(lambda p: _make_apply_fn(wf.apply_fn, "real")(p, state32), params)
+        reverse = vjp(x.astype(out.dtype))[0]["g"][0]
+    assert abs(got - ref) < 1e-10 * abs(ref)         # measured 0
+    assert abs(reverse - ref) > 1e-2 * abs(ref)      # measured 3.2e-1 on CPU
 
 
 def _dot_precisions(jaxpr, found):

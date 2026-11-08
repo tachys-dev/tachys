@@ -11,7 +11,7 @@ own.
 | Initial configuration | {doc}`configuration` | `SpinState`, `FermionState`, `init_config_fixed_magn` |
 | Wavefunction | {doc}`wavefunction` | `WaveFunction`, `SpinViT`, `FermionicTransformer` |
 | Monte Carlo move | {doc}`sampling` | `sample`, `BondExchange`, `SpinFlip` |
-| Optimization step | {doc}`optimization` | `SR`, `MARCH`, `train` |
+| Optimization step | {doc}`optimization` | `SR`, `SPRING`, `MARCH` |
 
 Each code cell on these pages can be read on its own: it defines every name it
 uses, except those of the quickstart scripts, such as `lattice`, `key`, `N_mc`,
