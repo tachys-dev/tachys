@@ -227,7 +227,7 @@ def _jaxmg():
     except ImportError as err:
         raise ImportError(
             "kernels='distributed' solves with JAXMg, which is not installed: "
-            'pip install "tachys[jaxmg]"'
+            "pip install jaxmg"
         ) from err
     # potrs_jit_ctx came with the potrs_shardmap_ctx that takes local blocks;
     # before it, potrs_shardmap_ctx took global arrays.
