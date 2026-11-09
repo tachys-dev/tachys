@@ -177,8 +177,8 @@ def _parameter_updates(
     holding ``[u, v]`` in mode="complex", replicated. It must take the NTK in
     the layout of the backend that built it: the optimizers pass their
     backend's ``linear_solver_cholesky``, and the real-time dynamics driver
-    passes ``_kernels.linear_solver_eigh`` (see tachys.dynamics.tdvp), which
-    regularizes by discarding small eigenvalues.
+    passes its backend's ``linear_solver_eigh`` (see tachys.dynamics.tdvp),
+    which regularizes by discarding small eigenvalues.
 
     With a ``dtype``, the network evaluations run in it. Below float64 the VJP
     contracts the NTK's own per-sample Jacobian, on the same ``nbatches``
@@ -236,8 +236,9 @@ class _BaseOptimizer(struct.PyTreeNode):
                  NTK on every device and solves it there (``_kernels``).
                  "distributed" keeps each device's rows of it and solves the
                  row-sharded system with JAXMg, one GPU per process
-                 (``_kernels_distributed``); with a single device it falls
-                 back to "default", with a warning.
+                 (``_kernels_distributed``): by Cholesky for the optimizers,
+                 by eigh for TDVP. It needs JAXMg 1.4.2 or later. With a
+                 single device it falls back to "default", with a warning.
     """
     diag_shift: float
     mode: str     = struct.field(pytree_node=False)
