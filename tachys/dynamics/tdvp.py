@@ -62,10 +62,11 @@ class TDVP(_BaseOptimizer, kw_only=True):
     dtype      : precision of the Jacobian, NTK contraction and VJP, as for the
                  SR-family optimizers. Static field; ``None`` keeps the
                  parameters' own dtype.
-    kernels    : the kernel backend. Static
-                 field. ``"default"`` solves on single GPU, 
-                 ``"distributed"`` keeps each device's rows of the NTK
-                 and diagonalizes it with JAXMg's syevd, across the GPUs.
+    kernels    : the kernel backend, as for the SR-family optimizers. Static
+                 field. ``"default"`` builds the whole NTK on every device and
+                 diagonalizes it there; ``"distributed"`` keeps each device's
+                 rows of the NTK and diagonalizes it with JAXMg's syevd, across
+                 the GPUs.
     rcond      : relative eigenvalue cutoff -- eigenvalues at or below
                  ``rcond * lambda_max`` are discarded, capping the condition
                  number of the retained subspace at ``1 / rcond``. The single

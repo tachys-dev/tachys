@@ -20,7 +20,7 @@ from tachys.lattice.state_array import get_n_mc, get_n_mc_local
 from tachys.utils import _cast_floating_to
 
 # The NTK built by compute_ntk is replicated on every device, and the solvers
-# below solve it there, inside the optimizer step's shard_map. 
+# below solve it there, inside the optimizer step's shard_map.
 
 def _matmul_precision(dtype):
     """Context for the network evaluations of an update run in ``dtype``.
@@ -225,14 +225,6 @@ def _spectral_inverse(lam, diag_shift, rcond, atol):
     # Divide by a safe value, never by the discarded (possibly zero or negative)
     # eigenvalue: 1/0 is inf and inf * 0 = NaN survives the jnp.where.
     lam_safe = jnp.where(keep, lam, 1.0)
-    inv = jnp.where(keep, 1.0 / (lam_safe + jnp.asarray(diag_shift)), 0.0)
-
-    sol = jnp.einsum('...ij,...j->...i', U, inv * jnp.einsum('...ji,...j->...i', U, b))
-
-    # Same guard as linear_solver_cholesky: a non-finite kernel makes eigh return
-    # all-NaN, and the keep mask does not stop 0 * NaN from propagating through U.
-    # Degrade to a no-op update rather than poisoning every parameter.
-    return jnp.where(jnp.all(jnp.isfinite(sol), axis=-1, keepdims=True), sol, 0.0)
     return jnp.where(keep, 1.0 / (lam_safe + jnp.asarray(diag_shift)), 0.0)
 
 
