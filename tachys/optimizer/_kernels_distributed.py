@@ -1,16 +1,15 @@
 """Kernel backend that keeps the NTK row-sharded and solves it with JAXMg.
 
-Selected with ``kernels="distributed"`` on SR, SPRING or MARCH. The
+Selected with ``kernels="distributed"`` on SR, SPRING, MARCH or TDVP. The
 default backend, ``_kernels``, psums the whole NTK onto every device and solves
 it there. Here each device builds and keeps only its own rows of the kernel, and
-JAXMg's ``potrs_shardmap_ctx`` (cuSOLVERMp, one process per GPU) solves the
-row-sharded system across all of them. Both backends are called from the same
-place, inside the optimizer step's shard_map over 'i'. They take the same
+JAXMg solves the row-sharded system across
+all of them: ``potrs_shardmap_ctx`` in the Cholesky solver of SR, SPRING and
+MARCH, ``syevd_shardmap_ctx`` in the eigh solver of TDVP. Both take this
+device's rows inside the step's shard_map over 'i', which needs JAXMg 1.4.2 or
+later. The two backends are called from the same place, take the same
 arguments and return the solution in the same layout, so the rest of the step
 (centring, VJP, momentum) is shared.
-
-Only the Cholesky solver of SR, SPRING and MARCH is distributed so far. TDVP,
-which solves with eigh, takes ``kernels="default"`` only.
 
 Row order
 ---------
@@ -21,13 +20,15 @@ In mode="complex" the dense ``2M x 2M`` kernel is in *device-major* order, so
 that every device holds the real and the imaginary rows of its own chains.
 Row (and column) ``d*2m + a*m + i`` is component ``a`` of chain ``d*m + i``.
 This differs from the *component-major* order ``a*M + j`` of
-``_kernels._ntk_to_dense``. The solver therefore permutes the right-hand side
-into device-major order (``_to_solver_order``) and the solution back
-(``_from_solver_order``), and returns the component-major ``[u, v]`` that
-``center_sr_solution`` expects.
+``_kernels._ntk_to_dense``, but nothing global needs permuting for it. This
+device's rows of the right-hand side are ``_solver_rhs`` of its own chains
+(``_local_rhs``). Gathering each component of the local solution over the
+devices gives the component-major ``[u, v]`` that ``center_sr_solution``
+expects (``_gather_solution``).
 """
 
 import os
+import re
 
 import jax
 import jax.numpy as jnp
@@ -42,6 +43,7 @@ from tachys.optimizer._kernels import (
     _ntk_contraction,
     _ntk_setup,
     _solver_rhs,
+    _spectral_inverse,
 )
 from tachys.parallel import hard_shard, n_devices
 
@@ -51,6 +53,10 @@ NTK_SPEC = P('i', None)
 # Tile size of cuSOLVERMp's block-cyclic layout (see _tile_size).
 _DEFAULT_MAX_TILE = 1024
 _MIN_TILE = 128
+
+# The first JAXMg whose *_shardmap_ctx solvers take local blocks inside
+# shard_map; those of 1.4.0 took global arrays.
+_MIN_JAXMG = (1, 4, 2)
 
 
 # ─── NTK rows ─────────────────────────────────────────────────────────────────
@@ -166,24 +172,40 @@ def compute_ntk(state, wf, mode, weights=None, V=None, nbatches=1, dtype=None):
     return rows
 
 
-# ─── Row order ────────────────────────────────────────────────────────────────
+# ─── Right-hand side and solution ─────────────────────────────────────────────
 
-def _to_solver_order(v, mode):
-    """A component-major vector ``[real part; imaginary part]`` of length 2M,
-    in the device-major order of the kernel's rows (identity in mode="real")."""
-    if mode == "real":
-        return v
-    return rearrange(v, '... (a d i) -> ... (d a i)', a=2, d=n_devices)
+def _local_rhs(eps, mode):
+    """This device's rows of the right-hand side, in the kernel's row order.
 
-
-def _from_solver_order(v, mode):
-    """Inverse of ``_to_solver_order``."""
-    if mode == "real":
-        return v
-    return rearrange(v, '... (d a i) -> ... (a d i)', a=2, d=n_devices)
+    ``eps`` is the replicated force vector, (M,). In device-major order this
+    device's rows are the real and then the imaginary part of its own chains,
+    which is ``_kernels._solver_rhs`` of its own slice of ``eps``: (m,) [real],
+    (2m,) [complex].
+    """
+    return _solver_rhs(hard_shard(eps), mode)
 
 
-# ─── Cholesky solve ───────────────────────────────────────────────────────────
+def _gather_solution(x, mode):
+    """The replicated solution, from this device's rows of it, ``x``.
+
+    Gathers each component over the devices: the (2, m) local blocks
+    ``[u_d; v_d]`` make the (2, M) ``[u; v]``, flattened to the component-major
+    (2M,) vector that ``center_sr_solution`` expects; (M,) in mode="real". Only
+    this vector is gathered, never the kernel. If any entry is not finite (a
+    failed solve), the solution is zero on every device, as in the default
+    solvers.
+    """
+    n_components = 2 if mode == "complex" else 1
+    sol = jax.lax.all_gather(x.reshape(n_components, -1), 'i', axis=1, tiled=True).reshape(-1)
+    return jnp.where(jnp.all(jnp.isfinite(sol)), sol, 0.0)
+
+
+def _check_mode(mode):
+    if mode not in ("real", "complex"):
+        raise ValueError("mode must be 'real' or 'complex'")
+
+
+# ─── JAXMg ────────────────────────────────────────────────────────────────────
 
 def _add_diag_shift(rows, shift):
     """Add ``shift`` to the global diagonal of the row-sharded kernel.
@@ -227,14 +249,13 @@ def _jaxmg():
     except ImportError as err:
         raise ImportError(
             "kernels='distributed' solves with JAXMg, which is not installed: "
-            "pip install jaxmg"
+            'pip install "tachys[jaxmg12]" (CUDA 12) or "tachys[jaxmg13]" (CUDA 13)'
         ) from err
-    # potrs_jit_ctx came with the potrs_shardmap_ctx that takes local blocks;
-    # before it, potrs_shardmap_ctx took global arrays.
-    if not hasattr(jaxmg, "potrs_jit_ctx"):
+    if tuple(int(p) for p in re.findall(r"\d+", jaxmg.__version__)[:3]) < _MIN_JAXMG:
         raise ImportError(
-            f"JAXMg {jaxmg.__version__} has no potrs_shardmap_ctx that solves on "
-            "local blocks inside shard_map, which kernels='distributed' needs."
+            f"kernels='distributed' needs JAXMg {'.'.join(map(str, _MIN_JAXMG))} or later, "
+            f"whose solvers take local blocks inside shard_map; found {jaxmg.__version__}: "
+            'pip install -U "tachys[jaxmg12]" (CUDA 12) or "tachys[jaxmg13]" (CUDA 13)'
         )
     return jaxmg
 
@@ -243,21 +264,31 @@ def _potrs(a_rows, b_rows):
     """Solve the row-sharded SPD system with JAXMg; call inside shard_map over 'i'.
 
     a_rows : this device's rows of the matrix (only the lower triangle is read).
-    b_rows : this device's rows of the right-hand side, a vector: sharded like
-             the matrix (``NTK_SPEC``), which is what potrs_shardmap_ctx
-             expects of its right-hand side.
+    b_rows : this device's rows of the right-hand side, a vector.
 
-    Returns this device's rows of the solution, all NaN on every device if the
-    factorization failed on any of them. JAXMg reports a failure, such as a
-    matrix that is not positive definite, in the status vector and may leave a
-    finite but meaningless solution.
+    Returns this device's rows of the solution. If the factorization fails,
+    e.g. on a matrix that is not positive definite, JAXMg fills it with NaN.
     """
-    _, x, status = _jaxmg().potrs_shardmap_ctx(
-        a_rows, b_rows, _tile_size(a_rows.shape[0]), NTK_SPEC,
-    )
-    failed = jax.lax.pmax((status[0] != 0).astype(jnp.int32), 'i') > 0  # status[0]: status_code
-    return jnp.where(failed, jnp.nan, x)
+    _, x, _ = _jaxmg().potrs_shardmap_ctx(a_rows, b_rows, _tile_size(a_rows.shape[0]), NTK_SPEC)
+    return x
 
+
+def _syevd(a_rows):
+    """Diagonalize the row-sharded symmetric matrix with JAXMg; call inside
+    shard_map over 'i'.
+
+    a_rows : this device's rows of the matrix (only one triangle is read).
+
+    Returns ``(lam, U)``: every eigenvalue, (N,) and replicated, and this
+    device's rows of the eigenvectors, (n_local, N); column ``k`` of the
+    gathered U is the eigenvector of ``lam[k]``. If the solver fails, JAXMg
+    fills both with NaN.
+    """
+    _, lam, U, _ = _jaxmg().syevd_shardmap_ctx(a_rows, _tile_size(a_rows.shape[0]), NTK_SPEC)
+    return lam, U
+
+
+# ─── Solvers ──────────────────────────────────────────────────────────────────
 
 def linear_solver_cholesky(ntk, eps, diag_shift, mode="complex"):
     """Cholesky solve of the SR system on the row-sharded kernel.
@@ -272,11 +303,31 @@ def linear_solver_cholesky(ntk, eps, diag_shift, mode="complex"):
     through the Schur complement of its real block as the default solver does.
     A failed factorization gives a zero update, as in the default solver.
     """
-    if mode not in ("real", "complex"):
-        raise ValueError("mode must be 'real' or 'complex'")
+    _check_mode(mode)
+    x = _potrs(_add_diag_shift(ntk, diag_shift), _local_rhs(eps, mode))
+    return _gather_solution(x, mode)
 
-    A = _add_diag_shift(ntk, diag_shift)
-    b = hard_shard(_to_solver_order(_solver_rhs(eps, mode), mode))
-    sol = jax.lax.all_gather(_potrs(A, b), 'i', tiled=True)
-    sol = _from_solver_order(sol, mode)
-    return jnp.where(jnp.all(jnp.isfinite(sol), axis=-1, keepdims=True), sol, 0.0)
+
+def linear_solver_eigh(ntk, eps, diag_shift, mode="complex", rcond=1e-8, atol=0.0):
+    """Spectrally truncated solve of the SR/TDVP system on the row-sharded kernel.
+
+    Drop-in replacement for ``_kernels.linear_solver_eigh``, inside shard_map
+    over 'i': the same arguments, cutoff (``_kernels._spectral_inverse``) and
+    return value, except that ``ntk`` is this device's rows from
+    ``compute_ntk``. Each device holds its rows of the eigenvectors U, so of
+    the solution ``U diag(inv) U^T b`` only ``U^T b`` needs a psum.
+
+    Unlike the default solver, this one does not symmetrize the kernel first:
+    that would need its transpose across the devices. cuSOLVERMp reads one
+    triangle, and the row-sharded kernel is symmetric up to roundoff by
+    construction.
+
+    JAXMg returns the eigenvectors in a second allocation the size of this
+    device's rows of the kernel, so the solve about doubles the memory the
+    kernel takes. A failed solve gives a zero update, as in the default solver.
+    """
+    _check_mode(mode)
+    lam, U = _syevd(ntk)
+    Ut_b = jax.lax.psum(U.T @ _local_rhs(eps, mode), 'i')
+    inv  = _spectral_inverse(lam, diag_shift, rcond, atol)
+    return _gather_solution(U @ (inv * Ut_b), mode)
