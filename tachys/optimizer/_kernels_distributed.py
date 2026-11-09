@@ -58,6 +58,11 @@ _MIN_TILE = 128
 # shard_map; those of 1.4.0 took global arrays.
 _MIN_JAXMG = (1, 4, 2)
 
+# JAXMg is not a tachys extra. Its CUDA extra installs cuSOLVERMp, which plain
+# jaxmg lacks.
+_JAXMG_INSTALL = ('pip install "jaxmg[cuda13]>=1.4.2" (CUDA 13) '
+                  'or "jaxmg[cuda12]>=1.4.2" (CUDA 12)')
+
 
 # ─── NTK rows ─────────────────────────────────────────────────────────────────
 
@@ -248,14 +253,13 @@ def _jaxmg():
         import jaxmg
     except ImportError as err:
         raise ImportError(
-            "kernels='distributed' solves with JAXMg, which is not installed: "
-            'pip install "tachys[jaxmg12]" (CUDA 12) or "tachys[jaxmg13]" (CUDA 13)'
+            f"kernels='distributed' solves with JAXMg, which is not installed: {_JAXMG_INSTALL}"
         ) from err
     if tuple(int(p) for p in re.findall(r"\d+", jaxmg.__version__)[:3]) < _MIN_JAXMG:
         raise ImportError(
             f"kernels='distributed' needs JAXMg {'.'.join(map(str, _MIN_JAXMG))} or later, "
             f"whose solvers take local blocks inside shard_map; found {jaxmg.__version__}: "
-            'pip install -U "tachys[jaxmg12]" (CUDA 12) or "tachys[jaxmg13]" (CUDA 13)'
+            f"{_JAXMG_INSTALL}"
         )
     return jaxmg
 

@@ -50,12 +50,21 @@ CUDA_VISIBLE_DEVICES=0 python -c "import tachys"
 ## Other extras
 
 The extra `wandb` installs the packages used by {doc}`ground_state_training`.
-The extra `jaxmg12` or `jaxmg13` installs [JAXMg](https://github.com/flatironinstitute/jaxmg), which the optimizers and `TDVP` use with `kernels="distributed"`
-to solve the kernel across the GPUs, one per process.
 Extras combine:
 
 ```bash
 pip install "tachys[cuda13,wandb]"
+```
+
+## JAXMg
+
+With `kernels="distributed"`, the optimizers and `TDVP` solve the kernel
+across the GPUs with [JAXMg](https://github.com/flatironinstitute/jaxmg) 1.4.2
+or later. It is installed separately, with the CUDA extra that matches jax's,
+which brings cuSOLVERMp:
+
+```bash
+pip install "jaxmg[cuda13]>=1.4.2"    # "jaxmg[cuda12]>=1.4.2" for CUDA 12
 ```
 
 ## From source
