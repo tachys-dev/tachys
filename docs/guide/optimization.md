@@ -74,7 +74,8 @@ The parameters of `SR` are
 - `kernels`, where the kernel is built and solved. `"default"` builds the
   whole kernel on every device. `"distributed"` keeps only each device's rows
   of it and solves the system with JAXMg across the GPUs, one per process, so
-  that the kernel's memory is split among them; it needs the `jaxmg` package.
+  that the kernel's memory is split among them. It needs JAXMg 1.4.2 or later:
+  `pip install "tachys[jaxmg12]"` or `pip install "tachys[jaxmg13]"`. `TDVP` takes the same field.
 
 ## Momentum: SPRING and MARCH
 
