@@ -1241,7 +1241,7 @@ reverse time.
 | `atol` | Absolute lower bound of that cutoff. Default `0.0`. |
 | `diag_shift` | Added to the eigenvalues that are kept. Default `0.0`. |
 | `mode` | Must be `"complex"`. |
-| `kernels` | Must be `"default"`: the eigenvalue solve needs the whole kernel on every device. |
+| `kernels` | As for the optimizers. With `"distributed"`, JAXMg diagonalizes the kernel across the GPUs. |
 | `nbatches`, `dtype` | As for the optimizers. |
 
 `init` returns an empty `TDVPState()`.
