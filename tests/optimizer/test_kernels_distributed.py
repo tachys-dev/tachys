@@ -7,8 +7,8 @@ it is checked here against the default backend, with the module-scoped
     JAX_PLATFORMS=cpu XLA_FLAGS=--xla_force_host_platform_device_count=4 \\
         python tests/optimizer/run_kernels_distributed.py <tmpfile>
 
-once: four devices in one process, with the one JAXMg call (``_potrs``)
-replaced by a jnp solve of the gathered system.
+once: four devices in one process, with the two JAXMg calls (``_potrs`` and
+``_syevd``) replaced by jnp solves of the gathered system.
 """
 import json
 import os
@@ -65,26 +65,32 @@ _TOLERANCES = {"layout": 0.0, "ntk": 1e-12, "solvers": 1e-12, "updates": 1e-10}
 
 @pytest.mark.parametrize("group", sorted(_TOLERANCES))
 def test_matches_the_default_backend(results, group):
-    """layout : the device-major order of the kernel's rows round-trips and
-                sends row a*M + d*m + i to d*2m + a*m + i; the diagonal shift
-                lands on the global diagonal of the row-sharded matrix.
+    """layout : each device's rows of the right-hand side are rows
+                d*2m + a*m + i of the device-major order, i.e. component-major
+                rows a*M + d*m + i; gathering the local solutions gives the
+                component-major [u, v] back; the diagonal shift lands on the
+                global diagonal of the row-sharded matrix.
     ntk     : the row-sharded, row-centred kernel equals _kernels.compute_ntk
               (real/complex, nbatches 1/2, weights, MARCH's V, a dtype, and a
               FoundationState whose systems are spread over all the devices).
-    solvers : the Cholesky solve, inside shard_map, on a random kernel.
+    solvers : the Cholesky and the eigh solves, inside shard_map, on a random
+              kernel.
     updates : two steps of SR/SPRING/MARCH (real/complex, weighted or not, and
-              a FoundationState) through the optimizers' own step, with
-              kernels="default" and kernels="distributed" in one process.
+              a FoundationState) and of TDVP (weighted or not) through their
+              own step, with kernels="default" and kernels="distributed" in
+              one process.
     """
     tol = _TOLERANCES[group]
     worst = {name: err for name, err in results[group].items() if not err <= tol}
     assert not worst, f"{group}: relative errors above {tol:g}: {worst}"
 
 
-def test_failed_cholesky_gives_a_zero_step(results):
-    """A kernel that is not positive definite makes the factorization return
-    NaN; the solver must degrade to a zero step, as the default one does."""
-    assert results["not_pd_max_abs"] == 0.0
+@pytest.mark.parametrize("case", ["cholesky_not_pd", "eigh_nan"])
+def test_failed_solve_gives_a_zero_step(results, case):
+    """A failed solve returns NaN: the Cholesky factorization of a kernel that
+    is not positive definite, the eigh of one that is not finite. The solvers
+    must degrade to a zero step, as the default ones do."""
+    assert results["failed_max_abs"][case] == 0.0
 
 
 # ─── The kernels field ────────────────────────────────────────────────────────
@@ -119,10 +125,25 @@ def test_unknown_kernels_raise():
         SR(diag_shift=1e-3, mode="real", kernels="jaxmg")
 
 
-def test_tdvp_rejects_distributed():
+def test_tdvp_accepts_distributed(monkeypatch):
     from tachys.dynamics import TDVP
-    with pytest.raises(ValueError, match="TDVP requires kernels='default'"):
-        TDVP(mode="complex", kernels="distributed")
+    from tachys.optimizer import _kernels_distributed, optimizers
+    monkeypatch.setattr(optimizers, "n_devices", _FORCED_DEVICE_COUNT)
+    tdvp = TDVP(mode="complex", kernels="distributed")
+    assert tdvp._backend is _kernels_distributed
+
+
+@pytest.mark.parametrize("version, ok", [("1.4.0", False), ("1.4.2", True), ("1.10.0", True)])
+def test_jaxmg_version_gate(monkeypatch, version, ok):
+    """The *_shardmap_ctx solvers take local blocks from JAXMg 1.4.2 on."""
+    import types
+    from tachys.optimizer._kernels_distributed import _jaxmg
+    monkeypatch.setitem(sys.modules, "jaxmg", types.SimpleNamespace(__version__=version))
+    if ok:
+        assert _jaxmg().__version__ == version
+    else:
+        with pytest.raises(ImportError, match="needs JAXMg 1.4.2 or later"):
+            _jaxmg()
 
 
 # ─── Tile size ────────────────────────────────────────────────────────────────
