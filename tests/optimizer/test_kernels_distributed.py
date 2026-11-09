@@ -1,14 +1,15 @@
 """The JAXMg kernel backend (tachys.optimizer._kernels_distributed), on CPU.
 
-JAXMg itself needs GPUs (tests/gpu/run_jaxmg_sr.py runs it). Everything around
-it is checked here against the default backend, with the module-scoped
-``results`` fixture launching
+JAXMg itself needs GPUs, one per process, so the two functions that call it,
+``_potrs`` and ``_syevd``, are not tested here. Everything around them is
+checked against the default backend, with the module-scoped ``results``
+fixture launching
 
     JAX_PLATFORMS=cpu XLA_FLAGS=--xla_force_host_platform_device_count=4 \\
         python tests/optimizer/run_kernels_distributed.py <tmpfile>
 
-once: four devices in one process, with the two JAXMg calls (``_potrs`` and
-``_syevd``) replaced by jnp solves of the gathered system.
+once: four devices in one process, with ``_potrs`` and ``_syevd`` replaced by
+jnp solves of the gathered system.
 """
 import json
 import os
