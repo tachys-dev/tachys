@@ -20,10 +20,7 @@ from tachys.lattice.state_array import get_n_mc, get_n_mc_local
 from tachys.utils import _cast_floating_to
 
 # The NTK built by compute_ntk is replicated on every device, and the solvers
-# below solve it there, inside the optimizer step's shard_map. The other kernel
-# backend, _kernels_distributed, keeps only each device's rows of it instead;
-# the optimizers' `kernels` field picks one.
-
+# below solve it there, inside the optimizer step's shard_map. 
 
 def _matmul_precision(dtype):
     """Context for the network evaluations of an update run in ``dtype``.
@@ -202,6 +199,21 @@ def linear_solver_eigh(ntk, eps, diag_shift, mode="complex", rcond=1e-8, atol=0.
     G = 0.5 * (G + jnp.swapaxes(G, -1, -2))
     lam, U = jnp.linalg.eigh(G)                         # ascending, real
 
+    inv = _spectral_inverse(lam, diag_shift, rcond, atol)
+    sol = jnp.einsum('...ij,...j->...i', U, inv * jnp.einsum('...ji,...j->...i', U, b))
+
+    # Same guard as linear_solver_cholesky: a non-finite kernel makes eigh return
+    # all-NaN, and the keep mask does not stop 0 * NaN from propagating through U.
+    # Degrade to a no-op update rather than poisoning every parameter.
+    return jnp.where(jnp.all(jnp.isfinite(sol), axis=-1, keepdims=True), sol, 0.0)
+
+
+def _spectral_inverse(lam, diag_shift, rcond, atol):
+    """The factors ``1 / (lambda + diag_shift)`` that ``linear_solver_eigh``
+    applies to the kernel's eigenvectors: zero for every eigenvalue at or below
+    ``max(rcond * lambda_max, atol)``. Shared by both kernel backends; see the
+    Notes of ``linear_solver_eigh`` for the choices made here.
+    """
     lam_max = jnp.maximum(jnp.max(lam, axis=-1, keepdims=True), 0.0)
     # Never keep a mode below the float resolution of the largest eigenvalue, even
     # when both rcond and atol are 0 — that also makes the all-junk spectrum case
@@ -221,6 +233,7 @@ def linear_solver_eigh(ntk, eps, diag_shift, mode="complex", rcond=1e-8, atol=0.
     # all-NaN, and the keep mask does not stop 0 * NaN from propagating through U.
     # Degrade to a no-op update rather than poisoning every parameter.
     return jnp.where(jnp.all(jnp.isfinite(sol), axis=-1, keepdims=True), sol, 0.0)
+    return jnp.where(keep, 1.0 / (lam_safe + jnp.asarray(diag_shift)), 0.0)
 
 
 # ─── NTK computation ──────────────────────────────────────────────────────────
