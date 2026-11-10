@@ -14,7 +14,7 @@ The method is that of Rende, Viteritti, Becca, Scardicchio, Laio & Carleo,
 Hamiltonians"](https://www.nature.com/articles/s41467-025-62098-x), *Nature
 Communications* (2025).
 
-The wavefunction $\psi_\theta(\sigma|\gamma)$ depends on the configuration
+The wave function $\psi_\theta(\sigma|\gamma)$ depends on the configuration
 $\sigma$ and on the couplings $\gamma$ of the Hamiltonian $\hat H_\gamma$. The
 parameters $\theta$ minimize the energy averaged over a distribution
 $P(\gamma)$ of couplings,

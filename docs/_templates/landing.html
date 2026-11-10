@@ -161,8 +161,12 @@ nav.top.scrolled{
   cursor:pointer;transition:border-color .2s,background .2s;
 }
 .install-pill:hover{border-color:rgba(79,142,247,.5);background:rgba(255,255,255,.09)}
+.install-pill .pl{
+  font-size:.65rem;font-weight:700;letter-spacing:.1em;color:var(--blue-lt);
+  padding-right:10px;border-right:1px solid rgba(255,255,255,.12);
+}
 .install-pill .pr{color:#4F6280}
-.install-pill .cmd{color:#E8EDF7}
+.install-pill .cmd{color:#E8EDF7;white-space:nowrap}
 .install-pill .cp{
   margin-left:2px;display:inline-flex;color:#4F6280;
   transition:color .2s,transform .15s;
@@ -336,6 +340,12 @@ footer p{max-width:none}
   .lb-grid{grid-template-columns:minmax(0,1fr)}
 }
 
+/* phones: smaller install pills, so the CUDA command fits on one line */
+@media(max-width:480px){
+  .install-pill{font-size:.78rem;gap:8px;padding:9px 12px}
+  .install-pill .pl{padding-right:8px}
+}
+
 /* phones: the year column goes, so the energy and the wave function fit */
 @media(max-width:480px){
   .lb th:last-child,.lb td:last-child{display:none}
@@ -392,9 +402,10 @@ footer p{max-width:none}
     </p>
     <div class="hero-acts">
       <a href="quickstart.html" class="btn">Quickstart <span class="arr">→</span></a>
-      <div class="install-pill" id="installPill" title="Click to copy">
+      <div class="install-pill" title="Click to copy">
+        <span class="pl">GPU</span>
         <span class="pr">$</span>
-        <span class="cmd">pip install tachys</span>
+        <span class="cmd">pip install "tachys[cuda13]"</span>
         <span class="cp" aria-hidden="true">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </span>
@@ -478,7 +489,7 @@ footer p{max-width:none}
 <!-- CTA -->
 <section class="cta">
   <h2 class="reveal">Getting started</h2>
-  <p class="reveal" data-d="1">tachys is installed with <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install tachys</code>, which also installs JAX.</p>
+  <p class="reveal" data-d="1">tachys is installed with <code style="background:rgba(255,255,255,.08);color:#9FC4FF">pip install "tachys[cuda13]"</code>, which also installs JAX with the CUDA 13 libraries.</p>
   <div class="reveal" data-d="2">
     <a href="quickstart.html" class="btn">Quickstart <span class="arr">→</span></a>
     <a href="installation.html" class="btn ghost">Installation</a>
@@ -576,16 +587,15 @@ footer p{max-width:none}
     words.forEach(function(w,i){ w.style.animationDelay = (0.12 + i*0.06)+'s'; w.classList.add('reveal-word'); });
   }
 
-  /* copy install command */
-  var pill = document.getElementById('installPill');
-  if(pill){
+  /* copy install commands: each pill copies the command it shows */
+  document.querySelectorAll('.install-pill').forEach(function(pill){
     pill.addEventListener('click', function(){
-      var text = 'pip install tachys';
+      var text = pill.querySelector('.cmd').textContent;
       var done = function(){ pill.classList.add('copied'); setTimeout(function(){ pill.classList.remove('copied'); }, 1400); };
       if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, done); }
       else { done(); }
     });
-  }
+  });
 
   /* scroll reveal */
   var revs = document.querySelectorAll('.reveal');

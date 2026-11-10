@@ -5,7 +5,7 @@ html_theme.sidebar_secondary.remove: true
 # Core Concepts
 
 Variational Monte Carlo (VMC) approximates the ground state of a Hamiltonian
-$H$ by a wavefunction $\psi_\theta$ whose parameters $\theta$ minimize the
+$H$ by a wave function $\psi_\theta$ whose parameters $\theta$ minimize the
 energy
 
 $$
