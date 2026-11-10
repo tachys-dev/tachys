@@ -71,6 +71,13 @@ The parameters of `SR` are
   zero step (only the momentum term for SPRING and MARCH). The precision of
   sampling and of the local energies is set separately, by the `dtype` of
   `WaveFunction`.
+- `kernels`, where the kernel is built and solved. `"default"` builds the
+  whole kernel on every device. `"distributed"` keeps only each device's rows
+  of it and solves the system with JAXMg across the GPUs, one per process, so
+  that the kernel's memory is split among them. It needs JAXMg 1.4.2 or
+  later, installed separately: `pip install "jaxmg[cuda13]>=1.4.2"`, or
+  `jaxmg[cuda12]` for CUDA 12 ({doc}`../installation`). `TDVP` takes the
+  same field.
 
 ## Momentum: SPRING and MARCH
 

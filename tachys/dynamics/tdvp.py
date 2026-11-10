@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 
 from tachys.lattice.state_array import get_n_mc, get_n_mc_local
-from tachys.optimizer._kernels import linear_solver_eigh
 from tachys.optimizer.optimizers import (
     _BaseOptimizer,
     _build_ntk,
@@ -63,6 +62,11 @@ class TDVP(_BaseOptimizer, kw_only=True):
     dtype      : precision of the Jacobian, NTK contraction and VJP, as for the
                  SR-family optimizers. Static field; ``None`` keeps the
                  parameters' own dtype.
+    kernels    : the kernel backend, as for the SR-family optimizers. Static
+                 field. ``"default"`` builds the whole NTK on every device and
+                 diagonalizes it there; ``"distributed"`` keeps each device's
+                 rows of the NTK and diagonalizes it with JAXMg's syevd, across
+                 the GPUs.
     rcond      : relative eigenvalue cutoff -- eigenvalues at or below
                  ``rcond * lambda_max`` are discarded, capping the condition
                  number of the retained subspace at ``1 / rcond``. The single
@@ -102,10 +106,11 @@ class TDVP(_BaseOptimizer, kw_only=True):
             eps = jnp.sqrt(weights) * eps
         eps = jax.lax.all_gather(eps, 'i', tiled=True)
 
-        ntk = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, dtype=self.dtype)
+        ntk = _build_ntk(state, wf, self.mode, weights, self.nbatches, N_mc_local, dtype=self.dtype,
+                         backend=self._backend)
         dtheta_dt = _parameter_updates(
             apply_fn, state, wf, self.mode, self.diag_shift, eps, ntk, weights,
-            solver=partial(linear_solver_eigh, rcond=self.rcond, atol=self.atol),
+            solver=partial(self._backend.linear_solver_eigh, rcond=self.rcond, atol=self.atol),
             dtype=self.dtype, nbatches=self.nbatches,
         )
         return dtheta_dt, TDVPState()

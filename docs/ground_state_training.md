@@ -254,7 +254,7 @@ python main.py --lattice.Lx 4 --lattice.Ly 4 --transformer.num_layers 2 \
 Lattice      : Lattice  Ns=16  L=(4, 4)  nb=1  pbc=(True, True)
 Hamiltonian  : _OperatorSum  (2 terms)
              : 116,736 parameters
-Optimizer    : MARCH(mode=complex, nbatches=1, dtype=None)
+Optimizer    : MARCH(mode=complex, nbatches=1, dtype=None, kernels=default)
 MC action    : BondExchange(max_dist=2, bonds=((0, 1), (0, 3), (0, 4), (0, 12), ...), Nbands=1)
 N_mc         : 512    N_steps: 250
 lr schedule  : 5.00e-03 -> 1.02e-03

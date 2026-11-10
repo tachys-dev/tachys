@@ -56,6 +56,17 @@ Extras combine:
 pip install "tachys[cuda13,wandb]"
 ```
 
+## JAXMg
+
+With `kernels="distributed"`, the optimizers and `TDVP` solve the kernel
+across the GPUs with [JAXMg](https://github.com/flatironinstitute/jaxmg) 1.4.2
+or later. It is installed separately, with the CUDA extra that matches jax's,
+which brings cuSOLVERMp:
+
+```bash
+pip install "jaxmg[cuda13]>=1.4.2"    # "jaxmg[cuda12]>=1.4.2" for CUDA 12
+```
+
 ## From source
 
 An editable install from the repository takes changes to the source into

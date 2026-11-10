@@ -6,7 +6,6 @@ conventions (state / wf instead of lattice / vstate).
 
 import contextlib
 import operator
-from itertools import combinations_with_replacement
 
 from einops import rearrange, einsum
 import jax
@@ -19,6 +18,8 @@ from tachys.lattice.foundation.collectives import grouped_mean
 from tachys.lattice.state_array import get_n_mc, get_n_mc_local
 from tachys.utils import _cast_floating_to
 
+# The NTK built by compute_ntk is replicated on every device, and the solvers
+# below solve it there, inside the optimizer step's shard_map.
 
 def _matmul_precision(dtype):
     """Context for the network evaluations of an update run in ``dtype``.
@@ -197,6 +198,21 @@ def linear_solver_eigh(ntk, eps, diag_shift, mode="complex", rcond=1e-8, atol=0.
     G = 0.5 * (G + jnp.swapaxes(G, -1, -2))
     lam, U = jnp.linalg.eigh(G)                         # ascending, real
 
+    inv = _spectral_inverse(lam, diag_shift, rcond, atol)
+    sol = jnp.einsum('...ij,...j->...i', U, inv * jnp.einsum('...ji,...j->...i', U, b))
+
+    # Same guard as linear_solver_cholesky: a non-finite kernel makes eigh return
+    # all-NaN, and the keep mask does not stop 0 * NaN from propagating through U.
+    # Degrade to a no-op update rather than poisoning every parameter.
+    return jnp.where(jnp.all(jnp.isfinite(sol), axis=-1, keepdims=True), sol, 0.0)
+
+
+def _spectral_inverse(lam, diag_shift, rcond, atol):
+    """The factors ``1 / (lambda + diag_shift)`` that ``linear_solver_eigh``
+    applies to the kernel's eigenvectors: zero for every eigenvalue at or below
+    ``max(rcond * lambda_max, atol)``. Shared by both kernel backends; see the
+    Notes of ``linear_solver_eigh`` for the choices made here.
+    """
     lam_max = jnp.maximum(jnp.max(lam, axis=-1, keepdims=True), 0.0)
     # Never keep a mode below the float resolution of the largest eigenvalue, even
     # when both rcond and atol are 0 — that also makes the all-junk spectrum case
@@ -208,14 +224,7 @@ def linear_solver_eigh(ntk, eps, diag_shift, mode="complex", rcond=1e-8, atol=0.
     # Divide by a safe value, never by the discarded (possibly zero or negative)
     # eigenvalue: 1/0 is inf and inf * 0 = NaN survives the jnp.where.
     lam_safe = jnp.where(keep, lam, 1.0)
-    inv = jnp.where(keep, 1.0 / (lam_safe + jnp.asarray(diag_shift)), 0.0)
-
-    sol = jnp.einsum('...ij,...j->...i', U, inv * jnp.einsum('...ji,...j->...i', U, b))
-
-    # Same guard as linear_solver_cholesky: a non-finite kernel makes eigh return
-    # all-NaN, and the keep mask does not stop 0 * NaN from propagating through U.
-    # Degrade to a no-op update rather than poisoning every parameter.
-    return jnp.where(jnp.all(jnp.isfinite(sol), axis=-1, keepdims=True), sol, 0.0)
+    return jnp.where(keep, 1.0 / (lam_safe + jnp.asarray(diag_shift)), 0.0)
 
 
 # ─── NTK computation ──────────────────────────────────────────────────────────
@@ -304,16 +313,23 @@ def jacobian_vjp(state, wf, mode, x, nbatches, dtype):
     return jax.lax.fori_loop(0, nbatches, body_fun, acc)
 
 
-def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
-    """Assemble the full NTK matrix using distributed pair-wise Jacobian contractions.
+def _ntk_setup(state, wf, nbatches, mode, V=None, dtype=None):
+    """The batches and the Jacobian function that every NTK builder starts from.
 
-    Each device computes a subset of (batch_i, batch_j) pairs; contributions
-    are summed via psum to yield the (N_mc × N_mc) NTK.
+    Call inside shard_map over 'i'. Returns ``(global_state, jacobian, V)``:
 
-    ``dtype`` (the optimizers' field of that name) computes the Jacobians and
-    their contraction in that dtype, at full matmul precision; the NTK itself
-    is accumulated in float64 either way. ``None`` evaluates in the dtype the
-    parameters are stored in.
+    global_state : every device's chains, split into ``nbatches`` batches each,
+                   with leading axes ``(n_devices * nbatches, N_mc_local //
+                   nbatches)``. Batch ``d * nbatches + k`` is batch ``k`` of
+                   device ``d``, so flattening the two axes gives the global
+                   chain order.
+    jacobian     : ``jacobian(s)`` evaluates the per-sample Jacobians of one
+                   batch ``s``, as a pytree with leaves of shape
+                   ``(N_i, *leaf_shape)`` [real] or ``(N_i, 2, *leaf_shape)``
+                   [complex].
+    V            : the MARCH preconditioner, cast like the parameters.
+
+    With a ``dtype``, the parameters, the state and V are cast to it.
     """
     params = wf.params
     if dtype is not None:
@@ -329,45 +345,68 @@ def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
             global_state,
         )
 
-    N_batches      = get_n_mc_local(global_state)
     N_mc_per_batch = get_n_mc_local(state) // nbatches
     jacobian       = _shifted_jacobian(params, state, wf, mode, N_mc_per_batch, dtype)
 
-    # Distribute upper-triangular pairs across devices. The table holds every
-    # device's share and is indexed by axis_index, so all processes compile the
-    # same program. Each share is padded with its own first pair (so all devices
-    # run the same iters): re-setting a block on the same device is harmless,
-    # whereas a pair repeated on another device would be summed twice by the psum.
-    pairs = list(combinations_with_replacement(range(N_batches), 2))
-    n_pairs = len(pairs)
-    pairs_per_device = (n_pairs + n_devices - 1) // n_devices
-    table = []
-    for d in range(n_devices):
-        share = pairs[d * pairs_per_device : (d + 1) * pairs_per_device]
-        table.append(share + [share[0]] * (pairs_per_device - len(share)))
-    device_pairs = jnp.array(table)[jax.lax.axis_index('i')]
+    return global_state, jacobian, V
 
-    if mode == "complex":
-        ntk = jnp.zeros((N_batches, N_mc_per_batch, N_batches, N_mc_per_batch, 2, 2))
-    else:
-        ntk = jnp.zeros((N_batches, N_mc_per_batch, N_batches, N_mc_per_batch))
 
-    def body_fun(k, ntk):
-        i, j    = device_pairs[k, 0], device_pairs[k, 1]
-        state_i = jax.tree.map(lambda x: x[i], global_state)
-        state_j = jax.tree.map(lambda x: x[j], global_state)
+def ntk_parallel_fn(state, wf, nbatches, mode, V=None, dtype=None):
+    """Assemble the full NTK matrix using distributed pair-wise Jacobian contractions.
+
+    Device ``d`` contracts its own batches with those of devices ``d, d+1, ...,
+    d + n_devices//2`` (mod n_devices) and writes each block and its transpose;
+    a psum then yields the (N_mc × N_mc) NTK. Every block is written by exactly
+    one device: for an even ``n_devices``, the blocks of devices ``d`` and
+    ``d + n_devices/2`` are written by the lower of the two, while the other
+    repeats one of its own blocks in that slot, so that every device runs the
+    same iterations. The Jacobian of each own batch is evaluated once:
+    ``nbatches * (1 + (n_devices//2 + 1) * nbatches)`` Jacobian evaluations and
+    ``(n_devices//2 + 1) * nbatches**2`` contractions per device. The blocks of
+    an own batch are collected in a small buffer and written into the kernel
+    together; written one at a time inside the block loop, they cost XLA a
+    second copy of the kernel.
+
+    ``dtype`` (the optimizers' field of that name) computes the Jacobians and
+    their contraction in that dtype, at full matmul precision; the NTK itself
+    is accumulated in float64 either way. ``None`` evaluates in the dtype the
+    parameters are stored in.
+    """
+    global_state, jacobian, V = _ntk_setup(state, wf, nbatches, mode, V=V, dtype=dtype)
+
+    N_batches      = get_n_mc_local(global_state)
+    N_mc_per_batch = get_n_mc_local(state) // nbatches
+    device         = jax.lax.axis_index('i')
+    n_blocks       = (n_devices // 2 + 1) * nbatches  # blocks per own batch
+
+    # Block k of an own batch pairs it with batch k % nbatches of device
+    # d + k // nbatches. Distance n_devices/2 belongs to the lower device of
+    # the pair; the upper one repeats its block k % nbatches at distance 0.
+    distance = jnp.arange(n_blocks) // nbatches
+    distance = jnp.where((2 * distance == n_devices) & (device >= n_devices // 2), 0, distance)
+    columns  = ((device + distance) % n_devices) * nbatches + jnp.arange(n_blocks) % nbatches
+
+    extra = (2, 2) if mode == "complex" else ()
+    ntk   = jnp.zeros((N_batches, N_mc_per_batch, N_batches, N_mc_per_batch) + extra)
+
+    def batch_rows(i, ntk):
+        bi      = device * nbatches + i
+        state_i = jax.tree.map(lambda x: x[bi], global_state)
         with _matmul_precision(dtype):
-            J1     = jacobian(state_i)
-            J2     = jacobian(state_j)
-            ntk_ij = _ntk_contraction(J1, J2, mode, V=V)
-        ntk = ntk.at[i, :, j].set(ntk_ij)
-        if mode == "complex":
-            ntk = ntk.at[j, :, i].set(ntk_ij.transpose(1, 0, 3, 2))
-        else:
-            ntk = ntk.at[j, :, i].set(ntk_ij.T)
-        return ntk
+            J1 = jacobian(state_i)
 
-    ntk = jax.lax.fori_loop(0, device_pairs.shape[0], body_fun, ntk)
+        def block(k, blocks):
+            state_j = jax.tree.map(lambda x: x[columns[k]], global_state)
+            with _matmul_precision(dtype):
+                J2 = jacobian(state_j)
+                return blocks.at[k].set(_ntk_contraction(J1, J2, mode, V=V))
+
+        blocks = jnp.zeros((n_blocks, N_mc_per_batch, N_mc_per_batch) + extra)
+        blocks = jax.lax.fori_loop(0, n_blocks, block, blocks)
+        ntk = ntk.at[bi, :, columns].set(blocks)
+        return ntk.at[columns, :, bi].set(blocks.transpose((0, 2, 1, 4, 3) if mode == "complex" else (0, 2, 1)))
+
+    ntk = jax.lax.fori_loop(0, nbatches, batch_rows, ntk)
     ntk = jax.lax.psum(ntk, 'i')
     ntk = rearrange(ntk, 'i a j b ... -> (i a) (j b) ...')
     return ntk
