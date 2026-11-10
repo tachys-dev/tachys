@@ -70,36 +70,55 @@ def ntk_rows_fn(state, wf, nbatches, mode, V=None, dtype=None):
     """This device's rows of the uncentred NTK; call inside shard_map over 'i'.
 
     Returns (m, M) [real] or (m, M, 2, 2) [complex]: row i is local chain i, and
-    column j is global chain j. Each of the device's own batches is contracted
-    with every batch of every device. Unlike ``_kernels.ntk_parallel_fn``, no
-    device ever holds, or psums, the whole M x M kernel. The cost is the same
-    order: ``nbatches + n_devices * nbatches**2`` Jacobian evaluations per
-    device.
+    column j is global chain j. Unlike ``_kernels.ntk_parallel_fn``, no device
+    ever holds, or psums, the whole M x M kernel.
+
+    The kernel is symmetric, so each pair of devices contracts its block once.
+    Device ``d`` contracts its batches with those of devices ``d, d+1, ...,
+    d + n_devices//2`` (mod n_devices); the other block columns, ``d - t`` for
+    ``t = 1, ..., n_devices - n_devices//2 - 1``, are the transposes of blocks
+    that device ``d - t`` contracted, and arrive by ppermute. For an even
+    ``n_devices`` the block at distance ``n_devices/2`` is contracted on both
+    sides. That is ``(n_devices//2 + 1) * nbatches**2`` contractions per device,
+    as many as ``ntk_parallel_fn``, and ``nbatches * (1 + (n_devices//2 + 1) *
+    nbatches)`` Jacobian evaluations.
     """
     global_state, jacobian, V = _ntk_setup(state, wf, nbatches, mode, V=V, dtype=dtype)
 
     N_batches      = get_n_mc_local(global_state)
     N_mc_per_batch = get_n_mc_local(state) // nbatches
-    first_batch    = jax.lax.axis_index('i') * nbatches  # this device's first batch
+    device         = jax.lax.axis_index('i')
+    n_near         = n_devices // 2 + 1  # device distances 0 ... n_devices//2, contracted here
 
     shape = (nbatches, N_mc_per_batch, N_batches, N_mc_per_batch)
     rows = jnp.zeros(shape + ((2, 2) if mode == "complex" else ()))
 
     def batch_rows(i, rows):
-        state_i = jax.tree.map(lambda x: x[first_batch + i], global_state)
+        state_i = jax.tree.map(lambda x: x[device * nbatches + i], global_state)
         with _matmul_precision(dtype):
             J1 = jacobian(state_i)
 
-        def block(j, rows):
+        def block(k, rows):
+            j = (device * nbatches + k) % N_batches  # batch k % nbatches of device d + k // nbatches
             state_j = jax.tree.map(lambda x: x[j], global_state)
             with _matmul_precision(dtype):
                 J2     = jacobian(state_j)
                 ntk_ij = _ntk_contraction(J1, J2, mode, V=V)
             return rows.at[i, :, j].set(ntk_ij)
 
-        return jax.lax.fori_loop(0, N_batches, block, rows)
+        return jax.lax.fori_loop(0, n_near * nbatches, block, rows)
 
     rows = jax.lax.fori_loop(0, nbatches, batch_rows, rows)
+
+    # Block column d - t: device d - t contracted K[(d-t, k), (d, l)] at distance t.
+    transpose = (2, 3, 0, 1, 5, 4) if mode == "complex" else (2, 3, 0, 1)
+    for t in range(1, n_devices - n_near + 1):
+        sent = jax.lax.dynamic_slice_in_dim(rows, ((device + t) % n_devices) * nbatches, nbatches, axis=2)
+        received = jax.lax.ppermute(sent, 'i', perm=[(d, (d + t) % n_devices) for d in range(n_devices)])
+        rows = jax.lax.dynamic_update_slice_in_dim(
+            rows, received.transpose(transpose), ((device - t) % n_devices) * nbatches, axis=2
+        )
+
     return rearrange(rows, 'i a j b ... -> (i a) (j b) ...')
 
 
