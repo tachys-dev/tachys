@@ -1,0 +1,45 @@
+# Papers whose calculations were carried out with tachys, newest first.
+# papers.html lists all of them and the landing page the first three.
+# Titles may hold HTML, such as <em> for italic symbols.
+
+[[paper]]
+title = "Transformer Neural-Network Quantum States for Lattice Models of Spins and Fermions: Application to the Ancilla Layer Model"
+authors = "R. Rende, A. Nikolaenko, L. L. Viteritti, S. Sachdev, Y.-H. Zhang"
+year = 2026
+ref = "PRX Intelligence 1, 023007"
+url = "https://doi.org/10.1103/swyd-jq37"
+
+[[paper]]
+title = "Superconductivity in the <em>t</em>-<em>t</em>′ Hubbard Model from Symmetry-Preserving Neural-Network Quantum States"
+authors = "R. Rende, L. L. Viteritti, A. Georges"
+year = 2026
+ref = "arXiv:2608.12465"
+url = "https://arxiv.org/abs/2608.12465"
+
+[[paper]]
+title = "Fermi surface change and <em>d</em>-wave superconductivity in the square lattice Kondo-Heisenberg model"
+authors = "A. Nikolaenko, R. Rende, L. L. Viteritti, S. Sachdev, Y.-H. Zhang"
+year = 2026
+ref = "arXiv:2606.23799"
+url = "https://arxiv.org/abs/2606.23799"
+
+[[paper]]
+title = "Scaling Laws for Neural-Network Quantum States"
+authors = "R. Rende, A. Sinibaldi, L. L. Viteritti, R. Wiersema, A. Georges, G. Carleo"
+year = 2026
+ref = "arXiv:2606.02794"
+url = "https://arxiv.org/abs/2606.02794"
+
+[[paper]]
+title = "Approaching the Thermodynamic Limit with Neural-Network Quantum States"
+authors = "L. L. Viteritti, R. Rende, S. Sachdev, G. Carleo"
+year = 2026
+ref = "arXiv:2602.02665"
+url = "https://arxiv.org/abs/2602.02665"
+
+[[paper]]
+title = "Foundation Neural-Networks Quantum States as a Unified Ansatz for Multiple Hamiltonians"
+authors = "R. Rende, L. L. Viteritti, F. Becca, A. Scardicchio, A. Laio, G. Carleo"
+year = 2025
+ref = "Nat. Commun. 16, 7213"
+url = "https://doi.org/10.1038/s41467-025-62098-x"

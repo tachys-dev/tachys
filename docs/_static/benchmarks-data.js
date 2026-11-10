@@ -29,6 +29,8 @@
  *                      Optional -- omit it and the cell shows an em dash.
  *   wf        string   wave function / method name
  *   kind      string   one of "NQS" | "Hybrid" | "Tensor network" | "Variational"
+ *                      | "Projector" | "Extrapolation"; extrapolations are shown
+ *                      but left out of the ranking
  *   params    string   number of variational parameters ("" => not available)
  *   prior     string   "Yes" | "No" | "" -- kept as archive metadata, not shown
  *   ref       string   short citation
@@ -465,6 +467,66 @@ const BENCHMARKS = [
   {
     model: "Hubbard",
     lattice: "Square",
+    size: "16 x 4",
+    point: "t′/t = 0",
+    pointLabel: "Hopping",
+    sites: 64,
+    boundary: "Periodic",
+    quantity: "Ground-state energy per site",
+    hamiltonian: "H = −t Σ⟨i,j⟩σ (c†iσ cjσ + h.c.) − t′ Σ⟨⟨i,j⟩⟩σ (c†iσ cjσ + h.c.) + U Σi ni↑ni↓",
+    hamiltonianTex: "H = -t \\sum_{\\langle i,j \\rangle \\sigma} (c^{\\dagger}_{i\\sigma} c_{j\\sigma} + \\mathrm{h.c.}) - t' \\sum_{\\langle\\langle i,j \\rangle\\rangle \\sigma} (c^{\\dagger}_{i\\sigma} c_{j\\sigma} + \\mathrm{h.c.}) + U \\sum_i n_{i\\uparrow} n_{i\\downarrow}",
+    extra: [
+      { k: "Interaction", v: "U/t = 8" },
+      { k: "Doping", v: "δ = 1/8" },
+    ],
+    rows: [
+      {
+        energy: -0.76298, display: "−0.76298", wf: "Transformer", kind: "NQS",
+        params: "", prior: "",
+        ref: "Gu et al., Nat. Commun. 17, 7838",
+        url: "https://doi.org/10.1038/s41467-026-74028-6", year: 2026,
+      },
+      {
+        energy: -0.76413, display: "−0.76413(3)", wf: "HFPS + sym", kind: "NQS",
+        variance: "0.0313", params: "", prior: "",
+        ref: "Chen et al., Proc. Natl. Acad. Sci. 123, e2535288123",
+        url: "https://doi.org/10.1073/pnas.2535288123", year: 2026,
+      },
+      {
+        energy: -0.76464, display: "−0.76464(1)", wf: "ACE", kind: "NQS",
+        params: "", prior: "",
+        ref: "Gu et al., arXiv:2604.25775",
+        url: "https://arxiv.org/abs/2604.25775", year: 2026,
+      },
+      {
+        energy: -0.76623, display: "−0.76623(1)", wf: "ACE + sym", kind: "NQS",
+        params: "", prior: "",
+        ref: "Gu et al., arXiv:2604.25775",
+        url: "https://arxiv.org/abs/2604.25775", year: 2026,
+      },
+      {
+        energy: -0.766073, display: "−0.766073(6)", wf: "NNBF + sym", kind: "NQS",
+        params: "", prior: "",
+        ref: "Loehr & Clark, arXiv:2510.26906",
+        url: "https://arxiv.org/abs/2510.26906", year: 2025,
+      },
+      {
+        energy: -0.766455, display: "−0.766455(14)", wf: "NN-fPEPS + sym", kind: "Hybrid",
+        variance: "0.00555(9)", params: "≈ 4,500,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.76722, display: "−0.76722(6)", wf: "Zero-variance extrapolation", kind: "Extrapolation",
+        params: "", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+    ],
+  },
+  {
+    model: "Hubbard",
+    lattice: "Square",
     size: "16 x 16",
     point: "t′/t = 0",
     pointLabel: "Hopping",
@@ -479,8 +541,14 @@ const BENCHMARKS = [
     ],
     rows: [
       {
+        energy: -0.75865, display: "−0.75865(3)", wf: "VAFQMC", kind: "Variational",
+        variance: "0.0059(8)", params: "", prior: "",
+        ref: "Sorella, Phys. Rev. B 107, 115133",
+        url: "https://doi.org/10.1103/PhysRevB.107.115133", year: 2023,
+      },
+      {
         energy: -0.7515, display: "−0.7515(1)", wf: "HFPS + sym", kind: "NQS",
-        params: "", prior: "",
+        variance: "0.0638", params: "", prior: "",
         ref: "Roth et al., arXiv:2511.07566",
         url: "https://arxiv.org/abs/2511.07566", year: 2025,
       },
@@ -525,6 +593,90 @@ const BENCHMARKS = [
         params: "", prior: "",
         ref: "Gu et al., arXiv:2604.25775",
         url: "https://arxiv.org/abs/2604.25775", year: 2026,
+      },
+      {
+        energy: -0.7545, display: "−0.7545(15)", wf: "fPEPS (D = 16)", kind: "Tensor network",
+        params: "", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.75772, display: "−0.75772(1)", wf: "BCS backflow", kind: "NQS",
+        variance: "0.0308(6)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.75878, display: "−0.75878(2)", wf: "BCS backflow + sym", kind: "NQS",
+        variance: "0.0255(20)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.75686, display: "−0.75686(2)", wf: "Pfaffian backflow", kind: "NQS",
+        variance: "0.0337(5)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.75813, display: "−0.75813(1)", wf: "Pfaffian backflow + sym", kind: "NQS",
+        variance: "0.0259(2)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.7556, display: "−0.75560(4)", wf: "NN-fPEPS", kind: "Hybrid",
+        variance: "0.0379(14)", params: "≈ 4,500,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.75851, display: "−0.75851(2)", wf: "NN-fPEPS + sym", kind: "Hybrid",
+        variance: "0.0256(6)", params: "≈ 4,500,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.7602, display: "−0.7602(14)", wf: "fPEPS D → ∞ extrapolation", kind: "Extrapolation",
+        params: "", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+    ],
+  },
+  {
+    model: "Hubbard",
+    lattice: "Square",
+    size: "32 x 32",
+    point: "t′/t = 0",
+    pointLabel: "Hopping",
+    sites: 1024,
+    boundary: "Periodic",
+    quantity: "Ground-state energy per site",
+    hamiltonian: "H = −t Σ⟨i,j⟩σ (c†iσ cjσ + h.c.) − t′ Σ⟨⟨i,j⟩⟩σ (c†iσ cjσ + h.c.) + U Σi ni↑ni↓",
+    hamiltonianTex: "H = -t \\sum_{\\langle i,j \\rangle \\sigma} (c^{\\dagger}_{i\\sigma} c_{j\\sigma} + \\mathrm{h.c.}) - t' \\sum_{\\langle\\langle i,j \\rangle\\rangle \\sigma} (c^{\\dagger}_{i\\sigma} c_{j\\sigma} + \\mathrm{h.c.}) + U \\sum_i n_{i\\uparrow} n_{i\\downarrow}",
+    extra: [
+      { k: "Interaction", v: "U/t = 8" },
+      { k: "Doping", v: "δ = 1/8" },
+    ],
+    rows: [
+      {
+        energy: -0.7501, display: "−0.7501", wf: "SCALE", kind: "NQS",
+        params: "", prior: "",
+        ref: "Gu et al., arXiv:2604.25775",
+        url: "https://arxiv.org/abs/2604.25775", year: 2026,
+      },
+      {
+        energy: -0.75617, display: "−0.75617(1)", wf: "BCS backflow + sym", kind: "NQS",
+        variance: "0.046(10)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.75677, display: "−0.75677(1)", wf: "NN-fPEPS + sym", kind: "Hybrid",
+        variance: "0.0346(4)", params: "≈ 4,500,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
       },
     ],
   },
@@ -621,7 +773,7 @@ const BENCHMARKS = [
     rows: [
       {
         energy: -0.736, display: "−0.7360(1)", wf: "HFPS + sym", kind: "NQS",
-        params: "", prior: "",
+        variance: "0.0762", params: "", prior: "",
         ref: "Roth et al., arXiv:2511.07566",
         url: "https://arxiv.org/abs/2511.07566", year: 2025,
       },
@@ -674,6 +826,30 @@ const BENCHMARKS = [
         url: "https://arxiv.org/abs/2608.12465", year: 2026,
         tachys: true,
       },
+      {
+        energy: -0.74372, display: "−0.74372(1)", wf: "Pfaffian backflow", kind: "NQS",
+        variance: "0.0346(5)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.74533, display: "−0.74533(1)", wf: "Pfaffian backflow + sym", kind: "NQS",
+        variance: "0.0272(5)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.74144, display: "−0.74144(4)", wf: "NN-fPEPS", kind: "Hybrid",
+        variance: "0.0474(8)", params: "≈ 4,500,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.74467, display: "−0.74467(2)", wf: "NN-fPEPS + sym", kind: "Hybrid",
+        variance: "0.0367(31)", params: "≈ 4,500,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
     ],
   },
   {
@@ -723,6 +899,48 @@ const BENCHMARKS = [
         ref: "Rende, Viteritti & Georges, arXiv:2608.12465",
         url: "https://arxiv.org/abs/2608.12465", year: 2026,
         tachys: true,
+      },
+      {
+        energy: -0.74457, display: "−0.74457(2)", wf: "Pfaffian backflow", kind: "NQS",
+        variance: "0.0358(4)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.74585, display: "−0.74585(1)", wf: "Pfaffian backflow + sym", kind: "NQS",
+        variance: "0.0257(3)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+    ],
+  },
+  {
+    model: "Hubbard",
+    lattice: "Square",
+    size: "32 x 32",
+    point: "t′/t = −0.2",
+    pointLabel: "Hopping",
+    sites: 1024,
+    boundary: "Periodic",
+    quantity: "Ground-state energy per site",
+    hamiltonian: "H = −t Σ⟨i,j⟩σ (c†iσ cjσ + h.c.) − t′ Σ⟨⟨i,j⟩⟩σ (c†iσ cjσ + h.c.) + U Σi ni↑ni↓",
+    hamiltonianTex: "H = -t \\sum_{\\langle i,j \\rangle \\sigma} (c^{\\dagger}_{i\\sigma} c_{j\\sigma} + \\mathrm{h.c.}) - t' \\sum_{\\langle\\langle i,j \\rangle\\rangle \\sigma} (c^{\\dagger}_{i\\sigma} c_{j\\sigma} + \\mathrm{h.c.}) + U \\sum_i n_{i\\uparrow} n_{i\\downarrow}",
+    extra: [
+      { k: "Interaction", v: "U/t = 8" },
+      { k: "Doping", v: "δ = 1/8" },
+    ],
+    rows: [
+      {
+        energy: -0.74569, display: "−0.74569(1)", wf: "Pfaffian backflow + sym", kind: "NQS",
+        variance: "0.0294(5)", params: "≈ 1,200,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
+      },
+      {
+        energy: -0.74257, display: "−0.74257(2)", wf: "NN-fPEPS + sym", kind: "Hybrid",
+        variance: "0.0502(7)", params: "≈ 4,500,000", prior: "",
+        ref: "Chen, Gray, Du & Chan, arXiv:2610.30321",
+        url: "https://arxiv.org/abs/2610.30321", year: 2026,
       },
     ],
   },

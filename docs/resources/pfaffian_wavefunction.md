@@ -216,7 +216,7 @@ to $\log\Psi(s)$:
    $(n_{i\uparrow}, n_{i\downarrow}, S^z_i)$ of each site, one of 8, to a
    vector $\mathbf{x}_i \in \mathbb{R}^d$, which gives a sequence of $N$
    vectors, one per site
-   ([Rende et al., 2026](https://arxiv.org/abs/2603.02316)).
+   ([Rende et al., 2026](https://doi.org/10.1103/swyd-jq37)).
 2. **Transformer encoder.** A stack of $n_l$ layers with spatial attention and
    real parameters maps the sequence to the backflow vectors
    $(\mathbf{y}_1, \dots, \mathbf{y}_N)$, followed by a layer normalization.
@@ -588,8 +588,8 @@ n_k = np.fft.fft2(obs["G"].mean(axis=0).reshape(L, L)).real
   [arXiv:2606.23799](https://arxiv.org/abs/2606.23799).
 - R. Rende, A. Nikolaenko, L. L. Viteritti, S. Sachdev and Y.-H. Zhang,
   "Transformer neural-network quantum states for lattice models of spins and
-  fermions: Application to the ancilla layer model", arXiv:2603.02316 (2026),
-  [arXiv:2603.02316](https://arxiv.org/abs/2603.02316).
+  fermions: Application to the ancilla layer model", *PRX Intelligence* **1**,
+  023007 (2026), [doi:10.1103/swyd-jq37](https://doi.org/10.1103/swyd-jq37).
 - A. Chen, Z.-Q. Wan, A. Sengupta, A. Georges and C. Roth, "Neural
   network–augmented Pfaffian wave-functions for scalable simulations of
   interacting fermions", *Proc. Natl. Acad. Sci. U.S.A.* **123**, e2535288123

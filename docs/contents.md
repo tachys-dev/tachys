@@ -36,6 +36,7 @@ optimization.
 installation
 quickstart
 concepts
+citation
 ```
 
 ```{toctree}
@@ -56,17 +57,4 @@ api
 resources/vit_wavefunction
 resources/sbp_wavefunction
 resources/pfaffian_wavefunction
-```
-
-## Citing tachys
-
-If you use tachys in your research, please cite it:
-
-```bibtex
-@software{tachys,
-  author = {Rende, Riccardo and Viteritti, Luciano Loris},
-  title  = {tachys: Variational Monte Carlo for quantum many-body systems},
-  url    = {https://github.com/tachys-dev/tachys},
-  year   = {2026},
-}
 ```

@@ -8,6 +8,9 @@ author = "Riccardo Rende"
 # The version of the package; the templates show it as {{ release }}.
 with open(Path(__file__).parents[1] / "pyproject.toml", "rb") as f:
     release = tomllib.load(f)["project"]["version"]
+# The papers of papers.html and of the landing page, as the templates' `papers`.
+with open(Path(__file__).parent / "papers.toml", "rb") as f:
+    html_context = {"papers": tomllib.load(f)["paper"]}
 
 extensions = [
     "myst_parser",
@@ -39,7 +42,8 @@ root_doc = "contents"
 templates_path = ["_templates"]
 # benchmarks.html is likewise standalone: it reads its whole dataset from
 # _static/benchmarks-data.js at runtime, so new systems are a data-only edit.
-# papers.html is standalone too; its list is plain HTML in the template.
+# papers.html is standalone too; it renders the list in papers.toml, whose first
+# three entries also appear on the landing page.
 html_additional_pages = {
     "index": "landing.html",
     "benchmarks": "benchmarks.html",

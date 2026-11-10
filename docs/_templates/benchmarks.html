@@ -313,6 +313,8 @@ table.ex{min-width:620px}
 
 footer{background:var(--navy);color:#4A5E7A;padding:2.5rem 2rem;text-align:center;font-size:.875rem}
 footer a{color:#6B7FA0}
+/* without this the global 65ch cap leaves the line left of centre on wide screens */
+footer p{max-width:none}
 
 .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
 .reveal.in{opacity:1;transform:none}
@@ -411,9 +413,9 @@ footer a{color:#6B7FA0}
       <span><i class="kd NQS" style="display:inline-block"></i> Neural quantum state</span>
       <span><i class="kd Hybrid" style="display:inline-block"></i> Hybrid</span>
       <span><i class="kd Tensor" style="display:inline-block"></i> Tensor network</span>
-      <span><i class="kd Variational" style="display:inline-block"></i> Variational (Gutzwiller)</span>
+      <span><i class="kd Variational" style="display:inline-block"></i> Variational (Gutzwiller, VAFQMC)</span>
       <span><i class="kd Projector" style="display:inline-block"></i> Projected (GFMC)</span>
-      <span><i class="kd Extrapolation" style="display:inline-block"></i> Zero-variance extrapolation</span>
+      <span><i class="kd Extrapolation" style="display:inline-block"></i> Extrapolation (not ranked)</span>
     </div>
   </div>
 </section>
@@ -738,9 +740,9 @@ footer a{color:#6B7FA0}
       '</div>';
     typesetHam(document.getElementById('ham'), t);
 
-    /* Ranking is always by energy, independent of the display sort. Zero-variance
-       extrapolations are not variational energies and carry no variational bound,
-       so they are shown but left out of the ranking. */
+    /* Ranking is always by energy, independent of the display sort. Extrapolations
+       (to zero variance, or to infinite bond dimension) are not variational energies
+       and carry no variational bound, so they are shown but left out of the ranking. */
     var byE = t.rows.filter(function(r){ return r.kind !== 'Extrapolation'; })
                     .sort(function(a,b){ return a.energy - b.energy; });
     byE.forEach(function(r,i){ r._rank = i + 1; });

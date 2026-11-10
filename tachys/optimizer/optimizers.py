@@ -303,7 +303,19 @@ class _BaseOptimizer(struct.PyTreeNode):
 # ─── SR ───────────────────────────────────────────────────────────────────────
 
 class SR(_BaseOptimizer):
-    """Stochastic Reconfiguration (natural gradient via NTK)."""
+    """Stochastic Reconfiguration (natural gradient via NTK).
+
+    References
+    ----------
+    R. Rende, L. L. Viteritti, L. Bardone, F. Becca, S. Goldt, "A simple linear
+    algebra identity to optimize large-scale neural network quantum states",
+    Communications Physics 7, 260 (2024).
+    https://doi.org/10.1038/s42005-024-01732-4
+
+    A. Chen, M. Heyl, "Empowering deep neural quantum states through efficient
+    optimization", Nature Physics 20, 1476 (2024).
+    https://doi.org/10.1038/s41567-024-02566-1
+    """
 
     def init(self, params) -> SRState:
         return SRState()

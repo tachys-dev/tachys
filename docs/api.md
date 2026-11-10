@@ -910,7 +910,13 @@ $2/\sqrt{N_{mc}}$.
 class SR(diag_shift, mode, nbatches=1, dtype=None, kernels="default")
 ```
 
-Stochastic reconfiguration:
+Stochastic reconfiguration, in the formulation of Rende, Viteritti, Bardone,
+Becca & Goldt, ["A simple linear algebra identity to optimize large-scale neural
+network quantum states"](https://doi.org/10.1038/s42005-024-01732-4),
+*Communications Physics* (2024), and Chen & Heyl, ["Empowering deep neural
+quantum states through efficient
+optimization"](https://doi.org/10.1038/s41567-024-02566-1), *Nature Physics*
+(2024):
 
 $$
 \delta\theta = \bar O^T \big(\bar O\,\bar O^T + \lambda I\big)^{-1}\,\bar\varepsilon ,

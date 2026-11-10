@@ -152,6 +152,8 @@ nav.top.scrolled{border-bottom-color:var(--border);box-shadow:0 4px 24px -12px r
 
 footer{background:var(--navy);color:#4A5E7A;padding:2.5rem 2rem;text-align:center;font-size:.875rem}
 footer a{color:#6B7FA0}
+/* without this the global 65ch cap leaves the line left of centre on wide screens */
+footer p{max-width:none}
 
 .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
 .reveal.in{opacity:1;transform:none}
@@ -211,57 +213,19 @@ footer a{color:#6B7FA0}
 <!-- PAPERS -->
 <section class="list-sec">
   <div class="container">
-    <div class="papers">
-      <a class="paper reveal" data-d="1" href="https://arxiv.org/abs/2608.12465">
+    <div class="papers">{% endraw %}{# the list is docs/papers.toml, passed in by conf.py #}
+{%- for p in papers %}
+      <a class="paper reveal" data-d="{{ [loop.index, 5]|min }}" href="{{ p.url }}">
         <div class="paper-body">
-          <h2 class="paper-t">Superconductivity in the <em>t</em>-<em>t</em>′ Hubbard Model from Symmetry-Preserving Neural-Network Quantum States</h2>
-          <p class="paper-a">R. Rende, L. L. Viteritti, A. Georges</p>
+          <h2 class="paper-t">{{ p.title }}</h2>
+          <p class="paper-a">{{ p.authors }}</p>
         </div>
         <span class="paper-meta">
-          <span class="paper-yr">2026</span>
-          <span class="paper-ref">arXiv:2608.12465 <span class="arr">→</span></span>
+          <span class="paper-yr">{{ p.year }}</span>
+          <span class="paper-ref">{{ p.ref }} <span class="arr">→</span></span>
         </span>
       </a>
-      <a class="paper reveal" data-d="2" href="https://arxiv.org/abs/2606.23799">
-        <div class="paper-body">
-          <h2 class="paper-t">Fermi surface change and <em>d</em>-wave superconductivity in the square lattice Kondo-Heisenberg model</h2>
-          <p class="paper-a">A. Nikolaenko, R. Rende, L. L. Viteritti, S. Sachdev, Y.-H. Zhang</p>
-        </div>
-        <span class="paper-meta">
-          <span class="paper-yr">2026</span>
-          <span class="paper-ref">arXiv:2606.23799 <span class="arr">→</span></span>
-        </span>
-      </a>
-      <a class="paper reveal" data-d="3" href="https://arxiv.org/abs/2606.02794">
-        <div class="paper-body">
-          <h2 class="paper-t">Scaling Laws for Neural-Network Quantum States</h2>
-          <p class="paper-a">R. Rende, A. Sinibaldi, L. L. Viteritti, R. Wiersema, A. Georges, G. Carleo</p>
-        </div>
-        <span class="paper-meta">
-          <span class="paper-yr">2026</span>
-          <span class="paper-ref">arXiv:2606.02794 <span class="arr">→</span></span>
-        </span>
-      </a>
-      <a class="paper reveal" data-d="4" href="https://arxiv.org/abs/2602.02665">
-        <div class="paper-body">
-          <h2 class="paper-t">Approaching the Thermodynamic Limit with Neural-Network Quantum States</h2>
-          <p class="paper-a">L. L. Viteritti, R. Rende, S. Sachdev, G. Carleo</p>
-        </div>
-        <span class="paper-meta">
-          <span class="paper-yr">2026</span>
-          <span class="paper-ref">arXiv:2602.02665 <span class="arr">→</span></span>
-        </span>
-      </a>
-      <a class="paper reveal" data-d="5" href="https://doi.org/10.1038/s41467-025-62098-x">
-        <div class="paper-body">
-          <h2 class="paper-t">Foundation Neural-Networks Quantum States as a Unified Ansatz for Multiple Hamiltonians</h2>
-          <p class="paper-a">R. Rende, L. L. Viteritti, F. Becca, A. Scardicchio, A. Laio, G. Carleo</p>
-        </div>
-        <span class="paper-meta">
-          <span class="paper-yr">2025</span>
-          <span class="paper-ref">Nat. Commun. 16, 7213 <span class="arr">→</span></span>
-        </span>
-      </a>
+{%- endfor %}{% raw %}
     </div>
   </div>
 </section>

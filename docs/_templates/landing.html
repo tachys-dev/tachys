@@ -162,7 +162,7 @@ nav.top.scrolled{
 }
 .install-pill:hover{border-color:rgba(79,142,247,.5);background:rgba(255,255,255,.09)}
 .install-pill .pr{color:#4F6280}
-.install-pill .cm{color:#E8EDF7}
+.install-pill .cmd{color:#E8EDF7}
 .install-pill .cp{
   margin-left:2px;display:inline-flex;color:#4F6280;
   transition:color .2s,transform .15s;
@@ -216,41 +216,6 @@ nav.top.scrolled{
 .sec h2{margin-bottom:.75rem}
 .sec .lead-p{margin-bottom:2rem}
 
-/* ── code block ── */
-.cb{
-  background:var(--code);border-radius:var(--rl);overflow:hidden;
-  margin:1.5rem 0;border:1px solid rgba(255,255,255,.06);
-  box-shadow:0 24px 60px -30px rgba(8,21,37,.9);
-}
-.cb-head{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:9px 16px;border-bottom:1px solid rgba(255,255,255,.06);
-}
-.cb-file{font-family:var(--mono);font-size:.7rem;color:#4F6280;display:flex;align-items:center;gap:7px}
-.cb-file .dots{display:inline-flex;gap:5px;margin-right:4px}
-.cb-file .dots i{width:9px;height:9px;border-radius:50%;display:block}
-.cb-file .dots i:nth-child(1){background:#ff5f57}
-.cb-file .dots i:nth-child(2){background:#febc2e}
-.cb-file .dots i:nth-child(3){background:#28c840}
-.cb-lang{
-  font-family:var(--mono);font-size:.7rem;
-  background:rgba(26,95,235,.18);color:var(--blue-lt);
-  padding:2px 8px;border-radius:4px;
-}
-.cb pre{
-  padding:1.25rem 1.5rem;overflow-x:auto;
-  font-family:var(--mono);font-size:.8rem;line-height:1.75;
-  color:#C8D4E8;
-}
-.cb pre .ln{display:block}
-.kw{color:#A78BFA}
-.fn{color:#60A5FA}
-.cls{color:#34D399}
-.st{color:#6EE7B7}
-.nm{color:#FCD34D}
-.cm{color:#4A5E7A;font-style:italic}
-.op{color:#93C5FD}
-
 p code,li code,.ic{
   background:rgba(26,95,235,.08);color:var(--blue-dim);
   padding:1px 5px;border-radius:4px;font-size:.85em;
@@ -263,41 +228,73 @@ p code,li code,.ic{
 .note.tip{border-color:var(--green);background:rgba(16,185,129,.05)}
 .note p{font-size:.875rem;color:var(--text2);max-width:none;margin:0}
 
-/* ── flow: how it works ── */
-.flow{position:relative;margin-top:2.5rem}
-.flow::before{
-  content:'';position:absolute;left:18px;top:16px;bottom:16px;width:2px;
-  background:linear-gradient(180deg,var(--blue),rgba(26,95,235,.10));
+/* ── papers: the rows of papers.html ── */
+.papers{border-top:1px solid var(--border)}
+.paper{
+  display:grid;grid-template-columns:3.25rem minmax(0,1fr) auto;
+  column-gap:1.5rem;align-items:baseline;
+  padding:.9rem .4rem .95rem;color:inherit;
+  border-bottom:1px solid var(--border);
+  transition:background .2s;
 }
-.fstep{
-  position:relative;display:grid;
-  grid-template-columns:38px 1fr;column-gap:1.5rem;
-  padding-bottom:2.75rem;
+.paper:hover{text-decoration:none;background:rgba(26,95,235,.035)}
+.paper-meta{display:contents}
+.paper-yr{
+  grid-column:1;grid-row:1;
+  font-family:var(--mono);font-size:.75rem;color:var(--muted);
+  font-variant-numeric:tabular-nums;
 }
-.fstep:last-child{padding-bottom:0}
-.fstep-n{
-  width:38px;height:38px;border-radius:50%;
-  background:var(--blue);color:#fff;
-  display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-weight:700;font-size:.9rem;
-  box-shadow:0 0 0 7px var(--surface);
-  position:relative;z-index:1;
+.paper-body{grid-column:2;grid-row:1}
+.paper-t{font-size:.95rem;font-weight:600;line-height:1.45;margin:0;transition:color .2s}
+.paper:hover .paper-t{color:var(--blue)}
+.paper-a{font-size:.8rem;line-height:1.6;color:var(--muted);max-width:none;margin-top:.15rem}
+.paper-ref{
+  grid-column:3;grid-row:1;
+  font-family:var(--mono);font-size:.72rem;color:var(--blue);white-space:nowrap;
 }
-.fstep h3{font-size:1.15rem;margin-bottom:.45rem;padding-top:.3rem}
-.fstep-body{max-width:70ch;min-width:0}
-.fstep-body > p{font-size:.95rem}
-.fstep .cb{margin:1.1rem 0 0}
-.fstep .cb{min-width:0}
-.fstep .cb pre{padding:1rem 1.25rem;font-size:.78rem;line-height:1.7;overflow-x:auto}
-.fstep-note{
-  margin-top:.9rem;font-size:.85rem;color:var(--muted);
-  border-left:2px solid var(--border);padding-left:.9rem;
+.paper-ref .arr{display:inline-block;transition:transform .2s}
+.paper:hover .paper-ref .arr{transform:translateX(3px)}
+
+/* ── benchmark leaderboards: the table style of benchmarks.html ── */
+.lb-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem}
+.lb{
+  display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);
+  overflow:hidden;box-shadow:0 24px 60px -44px rgba(13,27,46,.65);
 }
-.closer{
-  max-width:70ch;margin-top:3rem;padding:1.5rem 1.75rem;
-  background:var(--bg);border:1px solid var(--border);border-radius:var(--rl);
+.lb-head{padding:1.1rem 1.25rem .95rem}
+.lb-head h3{font-size:1rem;margin:0}
+.lb-head p{font-size:.8rem;color:var(--muted);max-width:none;margin-top:.15rem}
+.lb table{width:100%;border-collapse:collapse;font-size:.86rem}
+.lb th{
+  background:#F2F6FD;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  text-align:left;padding:.55rem .75rem;white-space:nowrap;
+  font-size:.65rem;font-family:var(--mono);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);font-weight:700;
 }
-.closer p{font-size:.9rem;margin-bottom:.85rem}
+.lb td{padding:.6rem .75rem;border-bottom:1px solid #EDF1F8;vertical-align:middle}
+.lb tr:last-child td{border-bottom:0}
+.lb th:first-child,.lb td:first-child{padding-left:1.25rem;width:3rem}
+.lb th:last-child,.lb td:last-child{padding-right:1.25rem;text-align:right}
+.lb tr.tachys{background:linear-gradient(90deg,rgba(26,95,235,.07),rgba(26,95,235,0))}
+.lb tr.tachys td:first-child{box-shadow:inset 2px 0 0 var(--blue-lt)}
+.lb .rank{font-family:var(--mono);font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.lb .rank.top{color:var(--green);font-weight:700}
+.lb .e{font-family:var(--mono);font-size:.86rem;font-weight:600;color:var(--navy);font-variant-numeric:tabular-nums;white-space:nowrap}
+.lb tr.tachys .e{color:var(--blue-dim)}
+.lb tr.best .e{color:#047857}
+.lb .wf{font-weight:600;color:var(--navy)}
+.lb .yr{font-family:var(--mono);font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.tachys-mark{
+  font-family:var(--mono);font-size:.62rem;font-weight:500;letter-spacing:.04em;
+  color:var(--blue);opacity:.8;white-space:nowrap;margin-left:.4rem;
+}
+.lb-foot{
+  margin-top:auto;padding:.75rem 1.25rem;text-align:right;
+  border-top:1px solid var(--border);background:var(--bg);
+}
+.sec-foot{margin-top:1.5rem}
+
 .more{font-size:.8rem;font-weight:600;font-family:var(--mono)}
 .more .arr{display:inline-block;transition:transform .2s}
 .more:hover .arr{transform:translateX(4px)}
@@ -320,6 +317,8 @@ footer{
   padding:2.5rem 2rem;text-align:center;font-size:.875rem;
 }
 footer a{color:#6B7FA0}
+/* without this the global 65ch cap leaves the lines left of centre on wide screens */
+footer p{max-width:none}
 
 /* scroll reveal */
 .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.7,.3,1),transform .7s cubic-bezier(.2,.7,.3,1)}
@@ -333,11 +332,20 @@ footer a{color:#6B7FA0}
   .feat-grid{grid-template-columns:repeat(2,1fr)}
 }
 
+@media(max-width:900px){
+  .lb-grid{grid-template-columns:minmax(0,1fr)}
+}
+
+/* phones: the year column goes, so the energy and the wave function fit */
+@media(max-width:480px){
+  .lb th:last-child,.lb td:last-child{display:none}
+  .lb th:nth-child(3),.lb td:nth-child(3){padding-right:1.25rem}
+}
+
 @media(max-width:768px){
   .feat-grid{grid-template-columns:1fr}
-  .fstep{grid-template-columns:30px 1fr;column-gap:1.1rem}
-  .fstep-n{width:30px;height:30px;font-size:.8rem;box-shadow:0 0 0 6px var(--surface)}
-  .flow::before{left:14px}
+  .paper{display:block;padding:1rem .25rem}
+  .paper-meta{display:flex;align-items:center;gap:.7rem;margin-top:.5rem}
   .n-links a:not(.n-ver){display:none}
   .hero h1{font-size:2.1rem}
   .hero{padding:4.5rem 1.5rem 4rem}
@@ -386,7 +394,7 @@ footer a{color:#6B7FA0}
       <a href="quickstart.html" class="btn">Quickstart <span class="arr">→</span></a>
       <div class="install-pill" id="installPill" title="Click to copy">
         <span class="pr">$</span>
-        <span class="cm">pip install tachys</span>
+        <span class="cmd">pip install tachys</span>
         <span class="cp" aria-hidden="true">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </span>
@@ -428,56 +436,42 @@ footer a{color:#6B7FA0}
   </div>
 </div>
 
-<!-- HOW IT WORKS -->
-<section class="sec" id="how" style="background:var(--surface)">
-  <div class="content">
-    <div class="sec-lbl reveal">Method</div>
-    <h2 class="reveal" data-d="1">Structure of a calculation</h2>
-    <p class="lead-p reveal" data-d="2">A ground-state calculation consists of three function calls in an explicit Python loop: configurations are sampled, the energy is estimated on that sample, and the parameters are updated. Each call returns new values rather than modifying its arguments.</p>
+<!-- PAPERS: the newest entries of papers.html -->
+<section class="sec" id="papers" style="background:var(--surface)">
+  <div class="container">
+    <div class="sec-lbl reveal">Research</div>
+    <h2 class="reveal" data-d="1">Recent work using tachys</h2>
+    <p class="lead-p reveal" data-d="2">The calculations in these papers were carried out with tachys.</p>
 
-    <div class="flow">
-      <article class="fstep reveal">
-        <div class="fstep-n">1</div>
-        <div class="fstep-body">
-          <h3>Sampling</h3>
-          <p>A move rule defines a Markov chain over configurations. <code>sample</code> advances every chain and returns the resulting configurations together with their log-amplitudes.</p>
-          <div class="cb">
-            <pre>state, log_amps, acceptance = <span class="fn">sample</span>(nsweeps, state, action, keys, wf)</pre>
-          </div>
-          <p class="fstep-note">Chains are sharded across the available JAX devices, so the call is the same on one CPU and on many GPUs.</p>
+    <div class="papers">{% endraw %}{# the first three of docs/papers.toml, passed in by conf.py #}
+{%- for p in papers[:3] %}
+      <a class="paper reveal" data-d="{{ loop.index }}" href="{{ p.url }}">
+        <div class="paper-body">
+          <h3 class="paper-t">{{ p.title }}</h3>
+          <p class="paper-a">{{ p.authors }}</p>
         </div>
-      </article>
-
-      <article class="fstep reveal">
-        <div class="fstep-n">2</div>
-        <div class="fstep-body">
-          <h3>Energy estimation</h3>
-          <p>A Hamiltonian is a sum of spin or fermionic operator terms. <code>compute_expectation</code> applies it to the sampled configurations and returns the local energies together with ⟨E⟩ and ⟨E²⟩.</p>
-          <div class="cb">
-            <pre>E_L, e_mean, e2_mean = <span class="fn">compute_expectation</span>(H, wf, state, log_amps)</pre>
-          </div>
-          <p class="fstep-note">No matrix representation is constructed, so memory scales with the sample rather than with the dimension of the Hilbert space.</p>
-        </div>
-      </article>
-
-      <article class="fstep reveal">
-        <div class="fstep-n">3</div>
-        <div class="fstep-body">
-          <h3>Parameter update</h3>
-          <p>An optimizer maps the local energies to a parameter update. Applying the update returns a new wavefunction rather than modifying the existing one, so a run is a sequence of values that can be checkpointed or compared at any step.</p>
-          <div class="cb">
-            <pre>updates, opt_state = <span class="fn">optimizer</span>(E_L, opt_state, state, wf)
-wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
-          </div>
-          <p class="fstep-note">Learning-rate schedules, stopping criteria and additional observables are expressed directly in the loop rather than registered through hooks.</p>
-        </div>
-      </article>
+        <span class="paper-meta">
+          <span class="paper-yr">{{ p.year }}</span>
+          <span class="paper-ref">{{ p.ref }} <span class="arr">→</span></span>
+        </span>
+      </a>
+{%- endfor %}{% raw %}
     </div>
 
-    <div class="closer reveal">
-      <p>Each of these is a pure function over JAX pytrees, compiled with <code>jit</code>. Any Flax module can be used as the ansatz.</p>
-      <a class="more" href="quickstart.html">Complete example <span class="arr">→</span></a>
-    </div>
+    <div class="sec-foot reveal"><a class="more" href="papers.html">All papers <span class="arr">→</span></a></div>
+  </div>
+</section>
+
+<!-- BENCHMARKS: two leaderboards of benchmarks.html, drawn by the script below -->
+<section class="sec" id="benchmarks">
+  <div class="container">
+    <div class="sec-lbl reveal">Benchmarks</div>
+    <h2 class="reveal" data-d="1">Reference energies for quantum lattice models</h2>
+    <p class="lead-p reveal" data-d="2">Ground-state energies collected from the literature. Parenthesised digits are statistical errors on the last digit.</p>
+
+    <div class="lb-grid" id="lb-grid"></div>
+
+    <div class="sec-foot reveal"><a class="more" href="benchmarks.html">All benchmarks <span class="arr">→</span></a></div>
   </div>
 </section>
 
@@ -498,9 +492,61 @@ wf = wf.<span class="fn">apply_gradients</span>(updates, lr)</pre>
   <p style="margin-top:.4rem;font-size:.75rem">Apache License 2.0</p>
 </footer>
 
+<script src="_static/benchmarks-data.js"></script>
 <script>
 (function(){
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  /* benchmark leaderboards: each entry is a table of BENCHMARKS, keyed by the
+     levels of the benchmarks page, so the ranks and the link match that page */
+  var LB = [
+    ['Hubbard', 'Square', '8 x 8', 't′/t = −0.2', 'Periodic'],
+    ['J1-J2 Heisenberg', 'Triangular', '18 x 18', 'J2/J1 = 0', 'Periodic']
+  ];
+  var LEVELS = ['model','lattice','size','point','boundary'];
+  var DATA = (typeof BENCHMARKS !== 'undefined') ? BENCHMARKS : [];
+  function pretty(v){
+    return String(v).replace(/J1-J2/g, 'J₁–J₂').replace(/J2\/J1/g, 'J₂/J₁');
+  }
+  function sizeLabel(v){ return String(v).replace(/\s*x\s*/i, ' × '); }
+  var lbGrid = document.getElementById('lb-grid');
+  if(lbGrid){
+    var picks = LB.map(function(key){
+      var t = DATA.filter(function(t){
+        return LEVELS.every(function(k, i){ return t[k] === key[i]; });
+      })[0];
+      /* ranked as on the benchmarks page: by energy, extrapolations left out */
+      return t && {t: t, ranked: t.rows.filter(function(r){ return r.kind !== 'Extrapolation'; })
+                                     .sort(function(a, b){ return a.energy - b.energy; })};
+    }).filter(Boolean);
+    /* every card shows the same number of rows, at most 4, so the cards line up */
+    var nRows = Math.min.apply(null, [4].concat(picks.map(function(p){ return p.ranked.length; })));
+    lbGrid.innerHTML = picks.map(function(p, n){
+      var t = p.t, ranked = p.ranked;
+      var shown = ranked.slice(0, nRows), own = -1;
+      for(var i = 0; i < ranked.length; i++){ if(ranked[i].tachys){ own = i; break; } }
+      if(own >= nRows) shown = ranked.slice(0, nRows - 1).concat([ranked[own]]);
+      var sub = [t.lattice + ' ' + sizeLabel(t.size), pretty(t.point)]
+        .concat((t.extra || []).map(function(x){ return x.v; }));
+      var href = 'benchmarks.html#' + LEVELS.map(function(k){ return encodeURIComponent(t[k]); }).join('/');
+      return '<div class="lb reveal" data-d="' + (n + 1) + '">' +
+        '<div class="lb-head"><h3>' + pretty(t.model) + '</h3><p>' + sub.join(' · ') + '</p></div>' +
+        '<table><thead><tr><th>#</th><th>Energy per site</th><th>Wave function</th><th>Year</th></tr></thead><tbody>' +
+        shown.map(function(r){
+          var rank = ranked.indexOf(r) + 1;
+          var cls = (rank === 1 ? 'best ' : '') + (r.tachys ? 'tachys' : '');
+          return '<tr class="' + cls + '">' +
+            '<td class="rank' + (rank === 1 ? ' top' : '') + '">' + rank + '</td>' +
+            '<td class="e">' + r.display + '</td>' +
+            '<td class="wf">' + r.wf + (r.tachys ? '<span class="tachys-mark">tachys</span>' : '') + '</td>' +
+            '<td class="yr">' + r.year + '</td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table>' +
+        '<div class="lb-foot"><a class="more" href="' + href + '">All ' + ranked.length + ' results <span class="arr">→</span></a></div>' +
+      '</div>';
+    }).join('');
+  }
 
   /* nav elevation on scroll */
   var nav = document.getElementById('nav');
