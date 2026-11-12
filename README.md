@@ -4,8 +4,10 @@
 
 # Variational Monte Carlo for quantum many-body systems
 
+[![Docs](https://img.shields.io/badge/docs-site-blue)](https://tachys.org/)
 [![Tests](https://github.com/tachys-dev/tachys/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/tachys-dev/tachys/actions/workflows/tests.yml?query=branch%3Amain)
 [![PyPI version](https://img.shields.io/pypi/v/tachys)](https://pypi.org/project/tachys/)
+[![Total downloads](https://static.pepy.tech/badge/tachys)](https://pepy.tech/projects/tachys)
 
 **tachys** is a variational Monte Carlo library developed in JAX with one
 central aim: bringing neural-network quantum states (NQS) to realistic quantum
