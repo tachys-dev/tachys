@@ -1,7 +1,8 @@
 # Papers whose calculations were carried out with tachys, newest first.
 # papers.html lists all of them and the landing page the first three.
 # Titles may hold HTML, such as <em> for italic symbols.
-# `code` is optional: the paper's code repository, shown as a Code button.
+# `code` and `tutorial` are optional: the paper's code repository and its
+# tutorial in these docs (a path from the site root), shown as buttons.
 
 [[paper]]
 title = "Gapless Nature of Spin Liquid in the <em>S</em>&nbsp;=&nbsp;1/2 Kagome Heisenberg Antiferromagnet with Neural-Network Quantum States"
@@ -24,6 +25,7 @@ authors = "R. Rende, L. L. Viteritti, A. Georges"
 year = 2026
 ref = "arXiv:2608.12465"
 url = "https://arxiv.org/abs/2608.12465"
+tutorial = "resources/sbp_wavefunction.html"
 
 [[paper]]
 title = "Fermi surface change and <em>d</em>-wave superconductivity in the square lattice Kondo-Heisenberg model"
@@ -31,6 +33,7 @@ authors = "A. Nikolaenko, R. Rende, L. L. Viteritti, S. Sachdev, Y.-H. Zhang"
 year = 2026
 ref = "arXiv:2606.23799"
 url = "https://arxiv.org/abs/2606.23799"
+tutorial = "resources/pfaffian_wavefunction.html"
 
 [[paper]]
 title = "Scaling Laws for Neural-Network Quantum States"
@@ -45,6 +48,7 @@ authors = "L. L. Viteritti, R. Rende, S. Sachdev, G. Carleo"
 year = 2026
 ref = "arXiv:2602.02665"
 url = "https://arxiv.org/abs/2602.02665"
+tutorial = "resources/vit_wavefunction.html"
 
 [[paper]]
 title = "Foundation Neural-Networks Quantum States as a Unified Ansatz for Multiple Hamiltonians"
