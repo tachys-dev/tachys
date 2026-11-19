@@ -1,6 +1,15 @@
 # Papers whose calculations were carried out with tachys, newest first.
 # papers.html lists all of them and the landing page the first three.
 # Titles may hold HTML, such as <em> for italic symbols.
+# `code` is optional: the paper's code repository, shown as a Code button.
+
+[[paper]]
+title = "Gapless Nature of Spin Liquid in the <em>S</em>&nbsp;=&nbsp;1/2 Kagome Heisenberg Antiferromagnet with Neural-Network Quantum States"
+authors = "A. Raikos, A. Sinibaldi, R. Rende, G. Carleo, F. Becca, L. L. Viteritti"
+year = 2026
+ref = "arXiv:2611.18840"
+url = "https://arxiv.org/abs/2611.18840"
+code = "https://github.com/tachys-dev/kagome_vit"
 
 [[paper]]
 title = "Transformer Neural-Network Quantum States for Lattice Models of Spins and Fermions: Application to the Ancilla Layer Model"

@@ -106,13 +106,14 @@ nav.top.scrolled{border-bottom-color:var(--border);box-shadow:0 4px 24px -12px r
 .list-sec{background:var(--surface);border-bottom:1px solid var(--border);padding:3rem 0 3.5rem}
 .papers{border-top:1px solid var(--border)}
 .paper{
+  position:relative;
   display:grid;grid-template-columns:3.25rem minmax(0,1fr) auto;
   column-gap:1.5rem;align-items:baseline;
-  padding:.9rem .4rem .95rem;color:inherit;
+  padding:.9rem .4rem .95rem;
   border-bottom:1px solid var(--border);
   transition:background .2s;
 }
-.paper:hover{text-decoration:none;background:rgba(26,95,235,.035)}
+.paper:hover{background:rgba(26,95,235,.035)}
 .paper-meta{display:contents}
 .paper-yr{
   grid-column:1;grid-row:1;
@@ -123,13 +124,39 @@ nav.top.scrolled{border-bottom-color:var(--border);box-shadow:0 4px 24px -12px r
 /* an h2 here, directly under the page's h1: keep the h3 tracking it had on the landing page */
 .paper-t{font-size:.95rem;font-weight:600;line-height:1.45;letter-spacing:-.01em;margin:0;transition:color .2s}
 .paper:hover .paper-t{color:var(--blue)}
+/* the title links to the paper, and its ::after stretches the link over the whole row */
+.paper-link{color:inherit}
+.paper-link:hover{text-decoration:none}
+.paper-link::after{content:'';position:absolute;inset:0;z-index:1}
 .paper-a{font-size:.8rem;line-height:1.6;color:var(--muted);max-width:none;margin-top:.15rem}
-.paper-ref{
+/* the reference, and under it the Code button of a paper with a repository */
+.paper-links{
   grid-column:3;grid-row:1;
+  display:flex;flex-direction:column;align-items:flex-end;
+}
+.paper-ref{
   font-family:var(--mono);font-size:.72rem;color:var(--blue);white-space:nowrap;
 }
 .paper-ref .arr{display:inline-block;transition:transform .2s}
 .paper:hover .paper-ref .arr{transform:translateX(3px)}
+/* the Code button, above the stretched link */
+.paper-code{
+  position:relative;z-index:2;
+  display:flex;align-items:center;gap:.4rem;
+  margin-top:.4rem;padding:.25rem .75rem .25rem .6rem;
+  font-family:var(--mono);font-size:.7rem;font-weight:600;line-height:1.4;
+  color:var(--blue-dim);background:rgba(26,95,235,.07);
+  border:1px solid rgba(26,95,235,.2);border-radius:100px;
+  transition:color .2s,background .2s,border-color .2s,box-shadow .2s,transform .2s;
+}
+.paper-code:hover{
+  color:#fff;background:var(--blue);border-color:var(--blue);text-decoration:none;
+  transform:translateY(-1px);box-shadow:0 6px 16px -8px rgba(26,95,235,.8);
+}
+/* on the button, the button lights up and the row does not */
+.paper:has(.paper-code:hover){background:none}
+.paper:has(.paper-code:hover) .paper-t{color:var(--navy)}
+.paper:has(.paper-code:hover) .paper-ref .arr{transform:none}
 
 /* ── contribute ── */
 .cta{
@@ -168,7 +195,10 @@ footer p{max-width:none}
   .hero{padding:3rem 0 2.5rem}
   .container{padding:0 1.25rem}
   .paper{display:block;padding:1rem .25rem}
-  .paper-meta{display:flex;align-items:center;gap:.7rem;margin-top:.5rem}
+  .paper-meta{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem;margin-top:.5rem}
+  /* the Code button joins the line of the year and the reference, at its end */
+  .paper-links{display:contents}
+  .paper-code{margin:0 0 0 auto}
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -215,16 +245,21 @@ footer p{max-width:none}
   <div class="container">
     <div class="papers">{% endraw %}{# the list is docs/papers.toml, passed in by conf.py #}
 {%- for p in papers %}
-      <a class="paper reveal" data-d="{{ [loop.index, 5]|min }}" href="{{ p.url }}">
+      <div class="paper reveal" data-d="{{ [loop.index, 5]|min }}">
         <div class="paper-body">
-          <h2 class="paper-t">{{ p.title }}</h2>
+          <h2 class="paper-t"><a class="paper-link" href="{{ p.url }}">{{ p.title }}</a></h2>
           <p class="paper-a">{{ p.authors }}</p>
         </div>
         <span class="paper-meta">
           <span class="paper-yr">{{ p.year }}</span>
-          <span class="paper-ref">{{ p.ref }} <span class="arr">→</span></span>
+          <span class="paper-links">
+            <span class="paper-ref">{{ p.ref }} <span class="arr">→</span></span>
+{%- if p.code %}
+            <a class="paper-code" href="{{ p.code }}"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>Code</a>
+{%- endif %}
+          </span>
         </span>
-      </a>
+      </div>
 {%- endfor %}{% raw %}
     </div>
   </div>
