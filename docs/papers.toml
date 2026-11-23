@@ -41,6 +41,7 @@ authors = "R. Rende, A. Sinibaldi, L. L. Viteritti, R. Wiersema, A. Georges, G. 
 year = 2026
 ref = "arXiv:2606.02794"
 url = "https://arxiv.org/abs/2606.02794"
+code = "https://github.com/tachys-dev/nqs_scaling_laws"
 
 [[paper]]
 title = "Approaching the Thermodynamic Limit with Neural-Network Quantum States"
